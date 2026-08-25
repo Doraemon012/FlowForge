@@ -12,6 +12,7 @@ type Config struct {
 	DatabaseURL      string
 	HTTPAddr         string
 	DBConnectTimeout time.Duration
+	TokenSecret      string
 }
 
 func Load() (Config, error) {
@@ -29,6 +30,13 @@ func Load() (Config, error) {
 	if _, _, err := net.SplitHostPort(httpAddr); err != nil {
 		return Config{}, fmt.Errorf("HTTP_ADDR must be a host:port address: %q", httpAddr)
 	}
+	tokenSecret, err := requiredEnv("TOKEN_SECRET")
+	if err != nil {
+		return Config{}, err
+	}
+	if len(tokenSecret) < 32 {
+		return Config{}, fmt.Errorf("TOKEN_SECRET must be at least 32 characters")
+	}
 
 	timeout := 5 * time.Second
 	if raw := os.Getenv("DB_CONNECT_TIMEOUT"); raw != "" {
@@ -38,7 +46,7 @@ func Load() (Config, error) {
 		}
 	}
 
-	return Config{DatabaseURL: databaseURL, HTTPAddr: httpAddr, DBConnectTimeout: timeout}, nil
+	return Config{DatabaseURL: databaseURL, HTTPAddr: httpAddr, DBConnectTimeout: timeout, TokenSecret: tokenSecret}, nil
 }
 
 func validateDatabaseURL(raw string) error {

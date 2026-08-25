@@ -5,6 +5,7 @@ import "testing"
 func TestLoadValidConfig(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://localhost/flowforge")
 	t.Setenv("HTTP_ADDR", ":8080")
+	t.Setenv("TOKEN_SECRET", "01234567890123456789012345678901")
 	t.Setenv("DB_CONNECT_TIMEOUT", "2s")
 
 	cfg, err := Load()
@@ -19,6 +20,7 @@ func TestLoadValidConfig(t *testing.T) {
 func TestLoadRejectsMissingRequiredVariable(t *testing.T) {
 	t.Setenv("DATABASE_URL", "")
 	t.Setenv("HTTP_ADDR", ":8080")
+	t.Setenv("TOKEN_SECRET", "01234567890123456789012345678901")
 
 	if _, err := Load(); err == nil {
 		t.Fatal("Load() expected an error for missing DATABASE_URL")
@@ -28,6 +30,7 @@ func TestLoadRejectsMissingRequiredVariable(t *testing.T) {
 func TestLoadRejectsInvalidTimeout(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://localhost/flowforge")
 	t.Setenv("HTTP_ADDR", ":8080")
+	t.Setenv("TOKEN_SECRET", "01234567890123456789012345678901")
 	t.Setenv("DB_CONNECT_TIMEOUT", "0s")
 
 	if _, err := Load(); err == nil {
@@ -47,6 +50,7 @@ func TestLoadRejectsInvalidDatabaseURL(t *testing.T) {
 func TestLoadRejectsInvalidHTTPAddress(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://localhost/flowforge")
 	t.Setenv("HTTP_ADDR", "8080")
+	t.Setenv("TOKEN_SECRET", "01234567890123456789012345678901")
 
 	if _, err := Load(); err == nil {
 		t.Fatal("Load() expected an error for invalid HTTP_ADDR")

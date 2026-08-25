@@ -15,17 +15,19 @@ import (
 var ErrNotFound = errors.New("user not found")
 
 type User struct {
-	ID          uuid.UUID
-	Email       string
-	DisplayName string
-	Status      string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID           uuid.UUID
+	Email        string
+	DisplayName  string
+	PasswordHash string
+	Status       string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 type Repository interface {
 	Create(ctx context.Context, user User) error
 	GetByID(ctx context.Context, id uuid.UUID) (User, error)
+	GetByEmail(ctx context.Context, email string) (User, error)
 }
 
 type PostgresRepository struct {
@@ -51,18 +53,33 @@ func (r *PostgresRepository) Create(ctx context.Context, user User) error {
 	}
 
 	_, err := r.pool.Exec(ctx, `
-		INSERT INTO users (id, email, display_name, status, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
-	`, user.ID, user.Email, user.DisplayName, user.Status, user.CreatedAt, user.UpdatedAt)
+		INSERT INTO users (id, email, display_name, password_hash, status, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+	`, user.ID, user.Email, user.DisplayName, user.PasswordHash, user.Status, user.CreatedAt, user.UpdatedAt)
 	return err
 }
 
 func (r *PostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (User, error) {
 	var user User
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, email, display_name, status, created_at, updated_at
+		SELECT id, email, display_name, password_hash, status, created_at, updated_at
 		FROM users WHERE id = $1
-	`, id).Scan(&user.ID, &user.Email, &user.DisplayName, &user.Status, &user.CreatedAt, &user.UpdatedAt)
+	`, id).Scan(&user.ID, &user.Email, &user.DisplayName, &user.PasswordHash, &user.Status, &user.CreatedAt, &user.UpdatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return User{}, ErrNotFound
+	}
+	if err != nil {
+		return User{}, err
+	}
+	return user, nil
+}
+
+func (r *PostgresRepository) GetByEmail(ctx context.Context, email string) (User, error) {
+	var user User
+	err := r.pool.QueryRow(ctx, `
+		SELECT id, email, display_name, password_hash, status, created_at, updated_at
+		FROM users WHERE email = $1
+	`, email).Scan(&user.ID, &user.Email, &user.DisplayName, &user.PasswordHash, &user.Status, &user.CreatedAt, &user.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return User{}, ErrNotFound
 	}

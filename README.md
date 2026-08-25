@@ -1,6 +1,6 @@
 # FlowForge
 
-FlowForge is a Go service for distributed workflow orchestration. The repository currently contains **Phase 1: Foundation** only: configuration validation, PostgreSQL connectivity and migrations, a persisted `User` repository, and a database-aware health endpoint. Workflow execution, queues, workers, scheduling, webhooks, and the dashboard are planned for later phases and are not implemented yet.
+FlowForge is a Go service for distributed workflow orchestration. The repository currently contains **Phase 2**: the Phase 1 foundation plus user registration/login, short-lived bearer tokens, single-owner projects, and protected project APIs. Workflow definitions, execution, queues, workers, scheduling, webhooks, and the dashboard are planned for later phases and are not implemented yet.
 
 ## Prerequisites
 
@@ -28,7 +28,7 @@ set -a
 set +a
 ```
 
-`.env` is local-only and ignored by git. Do not put real credentials in the repository.
+`.env` is local-only and ignored by git. Replace `TOKEN_SECRET` with at least 32 random characters for local use. Do not put real credentials in the repository.
 
 ## Run migrations
 
@@ -74,3 +74,24 @@ INTEGRATION_DATABASE_URL="$DATABASE_URL" go test ./...
 ```
 
 The integration suite verifies migrations, migration reruns, database connectivity, User persistence, and the real database-backed health path.
+
+## Authentication and projects
+
+Register a user:
+
+```sh
+curl -X POST http://localhost:8080/api/v1/auth/register \
+	-H 'Content-Type: application/json' \
+	-d '{"email":"you@example.com","display_name":"You","password":"correct horse battery staple"}'
+```
+
+Use the returned `access_token` as a bearer token to create and manage owned projects:
+
+```sh
+curl -X POST http://localhost:8080/api/v1/projects \
+	-H "Authorization: Bearer <access_token>" \
+	-H 'Content-Type: application/json' \
+	-d '{"name":"My Project"}'
+```
+
+Project endpoints reject unauthenticated requests and cannot be used to access another user's projects.

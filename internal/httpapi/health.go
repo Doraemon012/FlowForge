@@ -5,6 +5,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"time"
+
+	"github.com/neyati/flowforge/internal/auth"
+	"github.com/neyati/flowforge/internal/project"
+	"github.com/neyati/flowforge/internal/user"
 )
 
 type Database interface {
@@ -13,10 +17,17 @@ type Database interface {
 
 type Server struct {
 	database Database
+	users    user.Repository
+	projects project.Repository
+	tokens   *auth.TokenService
 }
 
 func NewServer(database Database) *Server {
 	return &Server{database: database}
+}
+
+func NewAuthenticatedServer(database Database, users user.Repository, projects project.Repository, tokens *auth.TokenService) *Server {
+	return &Server{database: database, users: users, projects: projects, tokens: tokens}
 }
 
 func (s *Server) Health(w http.ResponseWriter, r *http.Request) {
