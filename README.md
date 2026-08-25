@@ -1,6 +1,6 @@
 # FlowForge
 
-FlowForge is a Go service for distributed workflow orchestration. The repository currently contains **Phase 2**: the Phase 1 foundation plus user registration/login, short-lived bearer tokens, single-owner projects, and protected project APIs. Workflow definitions, execution, queues, workers, scheduling, webhooks, and the dashboard are planned for later phases and are not implemented yet.
+FlowForge is a Go service for distributed workflow orchestration. The repository currently contains **Phase 3**: the Phase 1 foundation, Phase 2 authentication/project ownership, and project-scoped workflow drafts, DAG validation, and immutable workflow versions. Workflow execution, queues, workers, scheduling, webhooks, and the dashboard are planned for later phases and are not implemented yet.
 
 ## Prerequisites
 
@@ -95,3 +95,20 @@ curl -X POST http://localhost:8080/api/v1/projects \
 ```
 
 Project endpoints reject unauthenticated requests and cannot be used to access another user's projects.
+
+## Workflows and versions
+
+Create and manage a workflow with a structured definition. Each task has an `id`, one of the fixed built-in types (`http`, `transform`, `delay`, `conditional`, or `email`), a JSON-object `config`, and optional `depends_on` task IDs. A workflow is stored as an editable draft. Publishing validates the DAG and creates an immutable numbered version.
+
+```sh
+curl -X POST http://localhost:8080/api/v1/projects/<project_id>/workflows \
+	-H "Authorization: Bearer <access_token>" \
+	-H 'Content-Type: application/json' \
+	-d '{"name":"Example","description":"A draft","definition":{"tasks":[{"id":"start","type":"transform","config":{}},{"id":"finish","type":"delay","config":{"seconds":1},"depends_on":["start"]}]}}'
+curl -X POST http://localhost:8080/api/v1/projects/<project_id>/workflows/<workflow_id>/validate \
+	-H "Authorization: Bearer <access_token>"
+curl -X POST http://localhost:8080/api/v1/projects/<project_id>/workflows/<workflow_id>/versions \
+	-H "Authorization: Bearer <access_token>"
+```
+
+Editing the draft after publication does not change an existing version. Workflow execution is not implemented yet.

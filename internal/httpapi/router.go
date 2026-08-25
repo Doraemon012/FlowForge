@@ -9,7 +9,7 @@ import (
 func (s *Server) Router() http.Handler {
 	router := chi.NewRouter()
 	router.Get("/health", s.Health)
-	if s.users == nil || s.projects == nil || s.tokens == nil {
+	if s.users == nil || s.projects == nil || s.workflows == nil || s.tokens == nil {
 		return router
 	}
 	router.Route("/api/v1", func(router chi.Router) {
@@ -22,6 +22,15 @@ func (s *Server) Router() http.Handler {
 			router.Get("/projects/{projectID}", s.GetProject)
 			router.Patch("/projects/{projectID}", s.UpdateProject)
 			router.Delete("/projects/{projectID}", s.DeleteProject)
+			router.Post("/projects/{projectID}/workflows", s.CreateWorkflow)
+			router.Get("/projects/{projectID}/workflows/{workflowID}", s.GetWorkflow)
+			router.Patch("/projects/{projectID}/workflows/{workflowID}", s.UpdateWorkflow)
+			router.Post("/projects/{projectID}/workflows/{workflowID}/validate", s.ValidateWorkflow)
+			router.Post("/projects/{projectID}/workflows/{workflowID}/versions", s.PublishWorkflow)
+			router.Get("/projects/{projectID}/workflows/{workflowID}/versions", s.ListVersions)
+			router.Get("/projects/{projectID}/workflows/{workflowID}/versions/{versionID}", s.GetVersion)
+			router.Post("/projects/{projectID}/workflows/{workflowID}/versions/{versionID}/activate", s.ActivateVersion)
+			router.Post("/projects/{projectID}/workflows/{workflowID}/versions/{versionID}/deactivate", s.DeactivateWorkflow)
 		})
 	})
 	return router

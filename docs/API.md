@@ -23,7 +23,7 @@ V1 provides email/password account creation and login, stores only a slow passwo
 
 `POST /projects/{projectID}/workflows` creates a draft. `GET/PATCH /projects/{projectID}/workflows/{workflowID}` reads or edits draft metadata and definition. `POST .../validate` returns graph and task validation errors without publishing. `POST .../versions` validates and creates an immutable version. `POST .../versions/{versionID}/activate` and `/deactivate` change which version receives new triggers. `GET .../versions` lists versions.
 
-A version must contain a valid acyclic task graph, supported task types, configuration, dependency references, retry policy, and timeout policy. Published versions cannot be edited or deleted while referenced by executions.
+A draft definition is `{ "tasks": [...] }`. Each task is `{ "id": string, "type": string, "config": object, "depends_on": [string] }`. Phase 3 accepts only the fixed built-in types `http`, `transform`, `delay`, `conditional`, and `email`; it stores configuration but does not execute tasks. A version must contain a valid acyclic task graph, supported task types, configuration objects, and dependency references. Empty definitions, duplicate or blank IDs, unknown dependencies, self-dependencies, cycles, and unsupported types are rejected with deterministic `422` validation errors. Published versions cannot be edited or deleted.
 
 ## Executions and tasks
 

@@ -14,6 +14,7 @@ import (
 	"github.com/neyati/flowforge/internal/db"
 	"github.com/neyati/flowforge/internal/project"
 	"github.com/neyati/flowforge/internal/user"
+	"github.com/neyati/flowforge/internal/workflow"
 )
 
 func TestPhase2AuthenticationAndProjectOwnership(t *testing.T) {
@@ -30,7 +31,7 @@ func TestPhase2AuthenticationAndProjectOwnership(t *testing.T) {
 	}
 	defer pool.Close()
 
-	server := NewAuthenticatedServer(pool, user.NewPostgresRepository(pool), project.NewPostgresRepository(pool), auth.NewTokenService("01234567890123456789012345678901"))
+	server := NewAuthenticatedServer(pool, user.NewPostgresRepository(pool), project.NewPostgresRepository(pool), workflow.NewPostgresRepository(pool), auth.NewTokenService("01234567890123456789012345678901"))
 	handler := server.Router()
 
 	userAEmail := "user-a-" + time.Now().Format("20060102150405.000000000") + "@example.com"
