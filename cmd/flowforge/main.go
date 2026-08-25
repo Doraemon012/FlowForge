@@ -1,0 +1,60 @@
+package main
+
+import (
+	"context"
+	"errors"
+	"log/slog"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"github.com/neyati/flowforge/internal/config"
+	"github.com/neyati/flowforge/internal/db"
+	"github.com/neyati/flowforge/internal/httpapi"
+)
+
+func main() {
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	slog.SetDefault(logger)
+
+	cfg, err := config.Load()
+	if err != nil {
+		logger.Error("load configuration", "error", err)
+		os.Exit(1)
+	}
+
+	pool, err := db.Open(context.Background(), cfg.DatabaseURL, cfg.DBConnectTimeout)
+	if err != nil {
+		logger.Error("open database", "error", err)
+		os.Exit(1)
+	}
+	defer pool.Close()
+
+	server := &http.Server{Addr: cfg.HTTPAddr, Handler: httpapi.NewServer(pool).Router()}
+	serverErrors := make(chan error, 1)
+	go func() {
+		logger.Info("server listening", "addr", cfg.HTTPAddr)
+		serverErrors <- server.ListenAndServe()
+	}()
+
+	shutdown, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	select {
+	case err := <-serverErrors:
+		if !errors.Is(err, http.ErrServerClosed) {
+			logger.Error("server stopped", "error", err)
+			os.Exit(1)
+		}
+	case <-shutdown.Done():
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := server.Shutdown(ctx); err != nil {
+			logger.Error("server shutdown", "error", err)
+			os.Exit(1)
+		}
+		logger.Info("server stopped")
+	}
+}
