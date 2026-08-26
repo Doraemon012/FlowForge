@@ -6,10 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/neyati/flowforge/internal/queue"
 	"github.com/neyati/flowforge/internal/workflow"
 )
 
@@ -43,12 +45,18 @@ type TaskRun struct {
 	CompletedAt   *time.Time      `json:"completed_at,omitempty"`
 }
 
+type OwnedExecution struct {
+	OwnerID uuid.UUID
+	Execution
+}
+
 type Repository interface {
 	CreateOwned(ctx context.Context, ownerID, workflowID, versionID uuid.UUID, input json.RawMessage, now time.Time) (Execution, error)
 	GetOwned(ctx context.Context, ownerID, executionID uuid.UUID) (Execution, error)
 	ListOwned(ctx context.Context, ownerID, projectID uuid.UUID) ([]Execution, error)
 	ListTaskRunsOwned(ctx context.Context, ownerID, executionID uuid.UUID) ([]TaskRun, error)
 	LoadRun(ctx context.Context, ownerID, executionID uuid.UUID) (Execution, workflow.Definition, []TaskRun, error)
+	ListActive(ctx context.Context) ([]OwnedExecution, error)
 	SetExecutionRunning(ctx context.Context, executionID uuid.UUID, startedAt time.Time) error
 	SetTaskRunning(ctx context.Context, taskRunID uuid.UUID, startedAt time.Time) error
 	SetTaskSucceeded(ctx context.Context, taskRunID uuid.UUID, output json.RawMessage, completedAt time.Time) error
@@ -61,12 +69,17 @@ type Repository interface {
 type Engine struct {
 	repository Repository
 	runtime    Runtime
+	queue      queue.Repository
 	mu         sync.Mutex
 	running    map[uuid.UUID]struct{}
 }
 
-func NewEngine(repository Repository, runtime Runtime) *Engine {
-	return &Engine{repository: repository, runtime: runtime, running: make(map[uuid.UUID]struct{})}
+func NewEngine(repository Repository, runtime Runtime, queues ...queue.Repository) *Engine {
+	var taskQueue queue.Repository
+	if len(queues) > 0 {
+		taskQueue = queues[0]
+	}
+	return &Engine{repository: repository, runtime: runtime, queue: taskQueue, running: make(map[uuid.UUID]struct{})}
 }
 
 func (e *Engine) Start(ctx context.Context, ownerID, executionID uuid.UUID) {
@@ -84,6 +97,9 @@ func (e *Engine) Start(ctx context.Context, ownerID, executionID uuid.UUID) {
 }
 
 func (e *Engine) Run(ctx context.Context, ownerID, executionID uuid.UUID) error {
+	if e.queue != nil {
+		return e.runQueued(ctx, ownerID, executionID)
+	}
 	execution, definition, runs, err := e.repository.LoadRun(ctx, ownerID, executionID)
 	if err != nil {
 		return err
@@ -198,6 +214,87 @@ func (e *Engine) Run(ctx context.Context, ownerID, executionID uuid.UUID) error 
 				}
 			}
 			return e.repository.SetExecutionFailed(ctx, executionID, "task failed", time.Now().UTC())
+		}
+	}
+}
+
+func (e *Engine) runQueued(ctx context.Context, ownerID, executionID uuid.UUID) error {
+	if _, _, _, err := e.repository.LoadRun(ctx, ownerID, executionID); err != nil {
+		return err
+	}
+	if err := e.repository.SetExecutionRunning(ctx, executionID, time.Now().UTC()); err != nil && !strings.Contains(err.Error(), "invalid state transition") {
+		return err
+	}
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		execution, definition, runs, err := e.repository.LoadRun(ctx, ownerID, executionID)
+		if err != nil {
+			return err
+		}
+		if execution.Status == "completed" || execution.Status == "failed" {
+			return nil
+		}
+		byTask := make(map[string]TaskRun, len(runs))
+		for _, run := range runs {
+			byTask[run.TaskID] = run
+		}
+		allSucceeded, hasFailed, hasActive := true, false, false
+		for _, task := range definition.Tasks {
+			status := byTask[task.ID].Status
+			if status != "succeeded" {
+				allSucceeded = false
+			}
+			if status == "failed" || status == "blocked" {
+				hasFailed = true
+			}
+			if status == "queued" || status == "running" {
+				hasActive = true
+			}
+		}
+		if allSucceeded {
+			return e.repository.SetExecutionCompleted(ctx, executionID, time.Now().UTC())
+		}
+		if hasFailed {
+			for _, run := range runs {
+				if run.Status == "pending" {
+					if err := e.repository.SetTaskBlocked(ctx, run.ID, "dependency failed", time.Now().UTC()); err != nil {
+						return err
+					}
+				}
+			}
+			return e.repository.SetExecutionFailed(ctx, executionID, "task failed", time.Now().UTC())
+		}
+		eligible := make([]workflow.Task, 0)
+		for _, task := range definition.Tasks {
+			run := byTask[task.ID]
+			if run.Status != "pending" {
+				continue
+			}
+			ready := true
+			for _, dependency := range task.Dependencies {
+				if byTask[dependency].Status != "succeeded" {
+					ready = false
+					break
+				}
+			}
+			if ready {
+				eligible = append(eligible, task)
+			}
+		}
+		for _, task := range eligible {
+			if err := e.queue.Enqueue(ctx, byTask[task.ID].ID, time.Now().UTC()); err != nil {
+				return err
+			}
+		}
+		if len(eligible) == 0 && !hasActive {
+			return e.repository.SetExecutionFailed(ctx, executionID, "workflow cannot progress", time.Now().UTC())
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(25 * time.Millisecond):
 		}
 	}
 }

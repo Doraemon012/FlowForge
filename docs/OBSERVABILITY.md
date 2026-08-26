@@ -2,6 +2,8 @@
 
 Observability covers control-plane services, scheduler, orchestrator, queue, workers, and task runtimes. It must explain both business workflow outcomes and distributed failure behavior without exposing secrets.
 
+Phase 5 workers emit structured startup, claim, completion, and failure records containing worker, task-run, execution, and task identifiers. Queue inspection exposes queued, claimed, completed, and failed state; worker liveness and recovery signals remain Phase 6.
+
 ## Correlation
 
 Structured records include `request_id` and, when applicable, `project_id`, `workflow_id`, `workflow_version_id`, `execution_id`, `task_id`, `task_attempt_id`, and `worker_id`. These identifiers are stable across retries and appear in API responses and dashboard links. Credential values, raw authorization headers, and sensitive payloads are redacted.

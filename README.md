@@ -124,4 +124,13 @@ curl -X POST http://localhost:8080/api/v1/projects/<project_id>/workflows/<workf
 	-d '{"version_id":"<version_id>","input":{}}'
 ```
 
-The API returns `202 Accepted` and persists execution/task status while the in-process engine evaluates the DAG. Phase 4 executes `transform`, `delay`, and `conditional` tasks; queue and worker execution are later phases.
+The API returns `202 Accepted` and persists execution/task status while the engine evaluates the DAG. Phase 4 established the execution semantics; Phase 5 routes runnable work through the durable PostgreSQL queue and independent workers. Phase 5 executes `transform`, `delay`, and `conditional` tasks; leases and worker recovery are later phases.
+
+Phase 5 runs task execution in independent worker processes. Start two workers in separate terminals (use a different `WORKER_ID` for each):
+
+```sh
+WORKER_ID=worker-1 go run ./cmd/worker
+WORKER_ID=worker-2 go run ./cmd/worker
+```
+
+Workers claim durable queued task runs, execute them, and persist their results. Work remains in PostgreSQL while workers are stopped; Phase 6 will add leases and crash recovery.

@@ -92,6 +92,23 @@ func (r *PostgresRepository) ListOwned(ctx context.Context, ownerID, projectID u
 	return results, rows.Err()
 }
 
+func (r *PostgresRepository) ListActive(ctx context.Context) ([]OwnedExecution, error) {
+	rows, err := r.pool.Query(ctx, `SELECT p.owner_id, e.id, e.project_id, e.workflow_id, e.workflow_version_id, e.status, e.input, e.failure_reason, e.created_at, e.started_at, e.completed_at FROM executions e JOIN projects p ON p.id = e.project_id WHERE e.status IN ('pending', 'running') ORDER BY e.created_at, e.id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	results := make([]OwnedExecution, 0)
+	for rows.Next() {
+		var item OwnedExecution
+		if err := rows.Scan(&item.OwnerID, &item.ID, &item.ProjectID, &item.WorkflowID, &item.WorkflowVersionID, &item.Status, &item.Input, &item.FailureReason, &item.CreatedAt, &item.StartedAt, &item.CompletedAt); err != nil {
+			return nil, err
+		}
+		results = append(results, item)
+	}
+	return results, rows.Err()
+}
+
 func (r *PostgresRepository) ListTaskRunsOwned(ctx context.Context, ownerID, executionID uuid.UUID) ([]TaskRun, error) {
 	rows, err := r.pool.Query(ctx, `SELECT tr.id, tr.execution_id, tr.task_id, tr.status, tr.output, tr.failure_reason, tr.created_at, tr.started_at, tr.completed_at FROM task_runs tr JOIN executions e ON e.id = tr.execution_id JOIN projects p ON p.id = e.project_id WHERE tr.execution_id = $1 AND p.owner_id = $2 ORDER BY tr.created_at, tr.task_id`, executionID, ownerID)
 	if err != nil {

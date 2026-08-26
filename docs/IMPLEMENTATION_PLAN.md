@@ -46,29 +46,29 @@ This is the only authoritative implementation sequence. `DESIGN.md` defines scop
 
 **Exit criteria:** a published workflow can be triggered and its persisted execution reaches correct terminal state without task code running in the API.
 
-## Phase 5: Durable queue and worker vertical slice
+## Phase 5: Durable queue and concurrent workers
 **Objective:** move task execution to an independent worker.
 
-**Scope:** queue adapter, task message contract, worker registration/authentication, task claim/acknowledgement, built-in Transform and Delay tasks, result persistence, one complete trigger-to-completion path.
+**Scope:** durable PostgreSQL queue, task message contract, independent worker process, task claim/acknowledgement, multiple workers, concurrent independent task execution, built-in Transform and Delay tasks, result persistence, graceful shutdown, and one complete trigger-to-completion path. No leases, heartbeats, or crash recovery.
 
 **Dependencies:** Phase 4.
 
-**Validation:** API does not execute task code; queue redelivery and worker result tests; worker restart.
+**Validation:** API does not execute task code; atomic concurrent claiming; two workers process independent branches; queued work survives worker stop/restart; worker result tests.
 
-**Exit criteria:** a worker executes queued tasks and the orchestrator advances the workflow asynchronously.
+**Exit criteria:** multiple workers execute queued tasks concurrently and the orchestrator advances the workflow asynchronously from persisted results.
 
-## Phase 6: Multiple workers and concurrency
+## Phase 6: Reliability and recovery
 **Objective:** demonstrate genuine distributed execution.
 
-**Scope:** multiple worker instances, capabilities, bounded concurrency, independent DAG branch execution, worker health, queue backpressure metrics.
+**Scope:** bounded task leases, worker/task heartbeats, expiry detection, fencing, worker-lost attempts, retry policy/backoff, timeout handling, duplicate delivery, idempotency contract, cooperative cancellation.
 
 **Dependencies:** Phase 5.
 
-**Validation:** two workers process independent tasks concurrently and distribution is visible in history; limits prevent unbounded dispatch.
+**Validation:** kill a worker during a lease, recover with another worker, preserve attempts, test stale results, retries, timeouts, cancellation, and restart reconciliation.
 
-**Exit criteria:** concurrent execution works across multiple workers without violating task state invariants.
+**Exit criteria:** the failure demonstration passes and at-least-once semantics are explicit in API/history.
 
-## Phase 7: Reliability and recovery
+## Phase 7: Triggers and scheduling
 **Objective:** recover safely from ambiguous distributed failures.
 
 **Scope:** bounded task leases, worker/task heartbeats, expiry detection, fencing, worker-lost attempts, retry policy/backoff, timeout handling, duplicate delivery, idempotency contract, cooperative cancellation.
