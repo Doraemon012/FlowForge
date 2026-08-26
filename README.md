@@ -1,6 +1,6 @@
 # FlowForge
 
-FlowForge is a Go service for distributed workflow orchestration. The repository currently contains **Phase 3**: the Phase 1 foundation, Phase 2 authentication/project ownership, and project-scoped workflow drafts, DAG validation, and immutable workflow versions. Workflow execution, queues, workers, scheduling, webhooks, and the dashboard are planned for later phases and are not implemented yet.
+FlowForge is a Go service for distributed workflow orchestration. The repository currently contains **Phase 4**: the Phase 1 foundation, Phase 2 authentication/project ownership, Phase 3 workflow definitions/versioning, and a durable single-process execution engine. Queue, worker, scheduling, webhook, and dashboard functionality are planned for later phases and are not implemented yet.
 
 ## Prerequisites
 
@@ -111,4 +111,17 @@ curl -X POST http://localhost:8080/api/v1/projects/<project_id>/workflows/<workf
 	-H "Authorization: Bearer <access_token>"
 ```
 
-Editing the draft after publication does not change an existing version. Workflow execution is not implemented yet.
+Editing the draft after publication does not change an existing version.
+
+## Executions
+
+Start an execution from a published version:
+
+```sh
+curl -X POST http://localhost:8080/api/v1/projects/<project_id>/workflows/<workflow_id>/executions \
+	-H "Authorization: Bearer <access_token>" \
+	-H 'Content-Type: application/json' \
+	-d '{"version_id":"<version_id>","input":{}}'
+```
+
+The API returns `202 Accepted` and persists execution/task status while the in-process engine evaluates the DAG. Phase 4 executes `transform`, `delay`, and `conditional` tasks; queue and worker execution are later phases.

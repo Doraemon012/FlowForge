@@ -31,6 +31,12 @@ func (s *Server) Router() http.Handler {
 			router.Get("/projects/{projectID}/workflows/{workflowID}/versions/{versionID}", s.GetVersion)
 			router.Post("/projects/{projectID}/workflows/{workflowID}/versions/{versionID}/activate", s.ActivateVersion)
 			router.Post("/projects/{projectID}/workflows/{workflowID}/versions/{versionID}/deactivate", s.DeactivateWorkflow)
+			if s.executions != nil && s.engine != nil {
+				router.Post("/projects/{projectID}/workflows/{workflowID}/executions", s.CreateExecution)
+				router.Get("/projects/{projectID}/executions", s.ListExecutions)
+				router.Get("/executions/{executionID}", s.GetExecution)
+				router.Get("/executions/{executionID}/tasks", s.ListTaskRuns)
+			}
 		})
 	})
 	return router

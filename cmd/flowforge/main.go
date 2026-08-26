@@ -13,6 +13,7 @@ import (
 	"github.com/neyati/flowforge/internal/auth"
 	"github.com/neyati/flowforge/internal/config"
 	"github.com/neyati/flowforge/internal/db"
+	"github.com/neyati/flowforge/internal/execution"
 	"github.com/neyati/flowforge/internal/httpapi"
 	"github.com/neyati/flowforge/internal/project"
 	"github.com/neyati/flowforge/internal/user"
@@ -36,7 +37,8 @@ func main() {
 	}
 	defer pool.Close()
 
-	server := &http.Server{Addr: cfg.HTTPAddr, Handler: httpapi.NewAuthenticatedServer(pool, user.NewPostgresRepository(pool), project.NewPostgresRepository(pool), workflow.NewPostgresRepository(pool), auth.NewTokenService(cfg.TokenSecret)).Router()}
+	executionRepository := execution.NewPostgresRepository(pool)
+	server := &http.Server{Addr: cfg.HTTPAddr, Handler: httpapi.NewExecutionServer(pool, user.NewPostgresRepository(pool), project.NewPostgresRepository(pool), workflow.NewPostgresRepository(pool), executionRepository, execution.NewEngine(executionRepository, execution.NewBuiltinRuntime(nil)), auth.NewTokenService(cfg.TokenSecret)).Router()}
 	serverErrors := make(chan error, 1)
 	go func() {
 		logger.Info("server listening", "addr", cfg.HTTPAddr)

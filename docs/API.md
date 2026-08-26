@@ -27,9 +27,9 @@ A draft definition is `{ "tasks": [...] }`. Each task is `{ "id": string, "type"
 
 ## Executions and tasks
 
-`POST /projects/{projectID}/workflows/{workflowID}/executions` creates a run from the active version, or an explicitly requested version permitted by policy. It accepts an input payload, trigger metadata, and an optional idempotency key. `GET /executions/{executionID}` returns persisted status and timestamps. `GET /executions/{executionID}/tasks` lists task executions; `GET /tasks/{taskExecutionID}/attempts` returns append-only attempts and worker assignments. `POST /executions/{executionID}/cancel` records a cancellation request and returns the current cancellation state.
+`POST /projects/{projectID}/workflows/{workflowID}/executions` creates a run from the active version, or an explicitly requested version permitted by policy. It accepts an optional JSON input payload and returns `202` immediately; an empty body uses `{}`. `GET /projects/{projectID}/executions` lists executions in an owned project. `GET /executions/{executionID}` returns persisted status and timestamps. `GET /executions/{executionID}/tasks` lists task runs. Phase 4 does not expose attempts, cancellation, or worker state yet.
 
-Execution creation fails with `409` for an inactive/deleted workflow, `422` for invalid input, and `503` when the control plane cannot durably accept the request. A successful request never implies task success.
+Execution creation fails with `409` for an inactive/deleted workflow, `422` for invalid input, and `503` when the control plane cannot durably accept the request. A successful request never implies task success. Phase 4 executes the built-in `transform`, `delay`, and `conditional` task types in-process. Other structurally valid V1 task types remain representable but fail as unsupported until their runtime integration phase.
 
 ## Schedules
 

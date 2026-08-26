@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/neyati/flowforge/internal/auth"
+	"github.com/neyati/flowforge/internal/execution"
 	"github.com/neyati/flowforge/internal/project"
 	"github.com/neyati/flowforge/internal/user"
 	"github.com/neyati/flowforge/internal/workflow"
@@ -17,11 +18,13 @@ type Database interface {
 }
 
 type Server struct {
-	database  Database
-	users     user.Repository
-	projects  project.Repository
-	workflows workflow.Repository
-	tokens    *auth.TokenService
+	database   Database
+	users      user.Repository
+	projects   project.Repository
+	workflows  workflow.Repository
+	executions execution.Repository
+	engine     *execution.Engine
+	tokens     *auth.TokenService
 }
 
 func NewServer(database Database) *Server {
@@ -30,6 +33,10 @@ func NewServer(database Database) *Server {
 
 func NewAuthenticatedServer(database Database, users user.Repository, projects project.Repository, workflows workflow.Repository, tokens *auth.TokenService) *Server {
 	return &Server{database: database, users: users, projects: projects, workflows: workflows, tokens: tokens}
+}
+
+func NewExecutionServer(database Database, users user.Repository, projects project.Repository, workflows workflow.Repository, executions execution.Repository, engine *execution.Engine, tokens *auth.TokenService) *Server {
+	return &Server{database: database, users: users, projects: projects, workflows: workflows, executions: executions, engine: engine, tokens: tokens}
 }
 
 func (s *Server) Health(w http.ResponseWriter, r *http.Request) {
