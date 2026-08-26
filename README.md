@@ -1,6 +1,6 @@
 # FlowForge
 
-FlowForge is a Go service for distributed workflow orchestration. The repository currently contains **Phase 4**: the Phase 1 foundation, Phase 2 authentication/project ownership, Phase 3 workflow definitions/versioning, and a durable single-process execution engine. Queue, worker, scheduling, webhook, and dashboard functionality are planned for later phases and are not implemented yet.
+FlowForge is a Go service for distributed workflow orchestration. The repository currently contains **Phase 6**: the Phase 1 foundation, Phase 2 authentication/project ownership, Phase 3 workflow definitions/versioning, Phase 4 durable executions, Phase 5 the durable PostgreSQL queue with independent workers, and Phase 6 fault-tolerant leases/heartbeats/recovery. Scheduling, webhooks, and dashboard functionality are planned for later phases and are not implemented yet.
 
 ## Prerequisites
 
@@ -124,7 +124,7 @@ curl -X POST http://localhost:8080/api/v1/projects/<project_id>/workflows/<workf
 	-d '{"version_id":"<version_id>","input":{}}'
 ```
 
-The API returns `202 Accepted` and persists execution/task status while the engine evaluates the DAG. Phase 4 established the execution semantics; Phase 5 routes runnable work through the durable PostgreSQL queue and independent workers. Phase 5 executes `transform`, `delay`, and `conditional` tasks; leases and worker recovery are later phases.
+The API returns `202 Accepted` and persists execution/task status while the engine evaluates the DAG. Phase 4 established the execution semantics; Phase 5 routes runnable work through the durable PostgreSQL queue and independent workers. Phase 6 makes distributed execution fault tolerant: bounded task leases with heartbeats, expired-lease recovery by any live worker, fenced results that reject stale workers, append-only attempt history, and bounded retries (3 attempts before terminal failure).
 
 Phase 5 runs task execution in independent worker processes. Start two workers in separate terminals (use a different `WORKER_ID` for each):
 
@@ -133,4 +133,4 @@ WORKER_ID=worker-1 go run ./cmd/worker
 WORKER_ID=worker-2 go run ./cmd/worker
 ```
 
-Workers claim durable queued task runs, execute them, and persist their results. Work remains in PostgreSQL while workers are stopped; Phase 6 will add leases and crash recovery.
+Workers claim durable queued task runs under a bounded lease (10s by default), renew it with heartbeats (2s interval), execute under a cancellable context, and persist results through the fenced queue path. If a worker dies mid-task, its lease expires and another live worker reclaims and re-runs the task — at-least-once semantics; after 3 lost workers the task fails terminally. Every attempt is recorded in `task_attempts`. Work remains in PostgreSQL while workers are stopped. Timing is tunable per process with `WORKER_LEASE_DURATION`, `WORKER_HEARTBEAT_INTERVAL`, and `WORKER_RECOVERY_INTERVAL` (see `.env.example`; heartbeat must stay below lease duration).

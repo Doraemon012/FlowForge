@@ -4,15 +4,21 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/neyati/flowforge/internal/workflow"
 )
 
 var ErrNoWork = errors.New("no queued work")
+var ErrLeaseNotOwned = errors.New("lease is not owned by worker")
+
+const defaultLeaseDuration = 10 * time.Second
+const defaultMaxAttempts = 3
 
 type Work struct {
 	QueueID     uuid.UUID
@@ -21,20 +27,54 @@ type Work struct {
 	Task        workflow.Task
 	Input       json.RawMessage
 	WorkerID    string
+	LeaseToken  string
+	Attempt     int
 }
 
 type Repository interface {
 	Enqueue(ctx context.Context, taskRunID uuid.UUID, now time.Time) error
 	Claim(ctx context.Context, workerID string, now time.Time) (Work, error)
-	Complete(ctx context.Context, taskRunID uuid.UUID, workerID string, now time.Time) error
-	Fail(ctx context.Context, taskRunID uuid.UUID, workerID string, now time.Time) error
+	Heartbeat(ctx context.Context, taskRunID uuid.UUID, workerID, leaseToken string, now time.Time) error
+	RecoverExpired(ctx context.Context, now time.Time) (int, error)
+	Complete(ctx context.Context, taskRunID uuid.UUID, workerID, leaseToken string, attempt int, output json.RawMessage, now time.Time) error
+	Fail(ctx context.Context, taskRunID uuid.UUID, workerID, leaseToken string, attempt int, reason string, now time.Time) error
 	QueuedCount(ctx context.Context) (int, error)
 }
 
-type PostgresRepository struct{ pool *pgxpool.Pool }
+type Option func(*PostgresRepository)
 
-func NewPostgresRepository(pool *pgxpool.Pool) *PostgresRepository {
-	return &PostgresRepository{pool: pool}
+func WithLeaseDuration(leaseDuration time.Duration) Option {
+	return func(repository *PostgresRepository) {
+		if leaseDuration > 0 {
+			repository.leaseDuration = leaseDuration
+		}
+	}
+}
+
+// WithMaxAttempts bounds how many times a single task run may be re-claimed
+// after worker loss before it is marked terminal. A task that keeps losing
+// its worker is treated as an unrecoverable failure rather than an infinite
+// retry loop.
+func WithMaxAttempts(maxAttempts int) Option {
+	return func(repository *PostgresRepository) {
+		if maxAttempts > 0 {
+			repository.maxAttempts = maxAttempts
+		}
+	}
+}
+
+type PostgresRepository struct {
+	pool          *pgxpool.Pool
+	leaseDuration time.Duration
+	maxAttempts   int
+}
+
+func NewPostgresRepository(pool *pgxpool.Pool, options ...Option) *PostgresRepository {
+	repository := &PostgresRepository{pool: pool, leaseDuration: defaultLeaseDuration, maxAttempts: defaultMaxAttempts}
+	for _, option := range options {
+		option(repository)
+	}
+	return repository
 }
 
 func (r *PostgresRepository) Enqueue(ctx context.Context, taskRunID uuid.UUID, now time.Time) error {
@@ -66,6 +106,12 @@ func (r *PostgresRepository) Claim(ctx context.Context, workerID string, now tim
 	if err != nil {
 		return Work{}, err
 	}
+	leaseToken := uuid.NewString()
+	leaseExpiresAt := now.Add(r.leaseDuration)
+	attempt := 0
+	if err := tx.QueryRow(ctx, `SELECT attempt_number + 1 FROM task_queue WHERE id = $1`, queueID).Scan(&attempt); err != nil {
+		return Work{}, err
+	}
 	var work Work
 	var workTaskID string
 	var definition []byte
@@ -79,10 +125,13 @@ func (r *PostgresRepository) Claim(ctx context.Context, workerID string, now tim
 	if err != nil {
 		return Work{}, err
 	}
-	if _, err := tx.Exec(ctx, `UPDATE task_queue SET status = 'claimed', worker_id = $1, claimed_at = $2 WHERE id = $3 AND status = 'queued'`, workerID, now, queueID); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE task_queue SET status = 'claimed', worker_id = $1, claimed_at = $2, lease_token = $3, lease_expires_at = $4, last_heartbeat_at = $2, attempt_number = $5 WHERE id = $6 AND status = 'queued'`, workerID, now, leaseToken, leaseExpiresAt, attempt, queueID); err != nil {
 		return Work{}, err
 	}
-	if _, err := tx.Exec(ctx, `UPDATE task_runs SET status = 'running', started_at = $1 WHERE id = $2 AND status = 'queued'`, now, taskRunID); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE task_runs SET status = 'running', started_at = $1, failure_reason = '' WHERE id = $2 AND status = 'queued'`, now, taskRunID); err != nil {
+		return Work{}, err
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO task_attempts (id, task_run_id, attempt_number, worker_id, lease_token, status, started_at, heartbeat_at, lease_expires_at) VALUES ($1, $2, $3, $4, $5, 'running', $6, $6, $7)`, uuid.New(), taskRunID, attempt, workerID, leaseToken, now, leaseExpiresAt); err != nil {
 		return Work{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -102,25 +151,193 @@ func (r *PostgresRepository) Claim(ctx context.Context, workerID string, now tim
 		return Work{}, errors.New("task definition not found")
 	}
 	work.WorkerID = workerID
+	work.LeaseToken = leaseToken
+	work.Attempt = attempt
 	return work, nil
 }
 
-func (r *PostgresRepository) Complete(ctx context.Context, taskRunID uuid.UUID, workerID string, now time.Time) error {
-	return r.finish(ctx, taskRunID, workerID, "completed", now)
-}
-func (r *PostgresRepository) Fail(ctx context.Context, taskRunID uuid.UUID, workerID string, now time.Time) error {
-	return r.finish(ctx, taskRunID, workerID, "failed", now)
-}
-func (r *PostgresRepository) finish(ctx context.Context, taskRunID uuid.UUID, workerID, status string, now time.Time) error {
-	tag, err := r.pool.Exec(ctx, `UPDATE task_queue SET status = $1, completed_at = $2 WHERE task_run_id = $3 AND worker_id = $4 AND status = 'claimed'`, status, now, taskRunID, workerID)
+func (r *PostgresRepository) Heartbeat(ctx context.Context, taskRunID uuid.UUID, workerID, leaseToken string, now time.Time) error {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE task_queue
+		SET last_heartbeat_at = $1, lease_expires_at = $2
+		WHERE task_run_id = $3 AND status = 'claimed' AND worker_id = $4 AND lease_token = $5`, now, now.Add(r.leaseDuration), taskRunID, workerID, leaseToken)
 	if err != nil {
 		return err
 	}
 	if tag.RowsAffected() == 0 {
-		return errors.New("queue item is not claimed by worker")
+		return ErrLeaseNotOwned
+	}
+	tag, err = r.pool.Exec(ctx, `
+		UPDATE task_attempts
+		SET heartbeat_at = $1, lease_expires_at = $2
+		WHERE task_run_id = $3 AND attempt_number = (
+			SELECT attempt_number FROM task_queue WHERE task_run_id = $3
+		) AND worker_id = $4 AND lease_token = $5 AND status = 'running'`, now, now.Add(r.leaseDuration), taskRunID, workerID, leaseToken)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrLeaseNotOwned
 	}
 	return nil
 }
+
+func (r *PostgresRepository) RecoverExpired(ctx context.Context, now time.Time) (int, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback(ctx)
+
+	rows, err := tx.Query(ctx, `
+		SELECT id, task_run_id, attempt_number, worker_id, lease_token
+		FROM task_queue
+		WHERE status = 'claimed' AND lease_expires_at <= $1
+		ORDER BY lease_expires_at, id
+		FOR UPDATE SKIP LOCKED`, now)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+
+	type expiredLease struct {
+		queueID       uuid.UUID
+		taskRunID     uuid.UUID
+		attemptNumber int
+		workerID      string
+		leaseToken    string
+	}
+
+	items := make([]expiredLease, 0)
+	for rows.Next() {
+		var item expiredLease
+		if err := rows.Scan(&item.queueID, &item.taskRunID, &item.attemptNumber, &item.workerID, &item.leaseToken); err != nil {
+			return 0, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+
+	for _, item := range items {
+		if _, err := tx.Exec(ctx, `
+			UPDATE task_attempts
+			SET status = 'worker_lost', completed_at = $1, failure_reason = 'worker heartbeat expired'
+			WHERE task_run_id = $2 AND attempt_number = $3 AND worker_id = $4 AND lease_token = $5 AND status = 'running'`, now, item.taskRunID, item.attemptNumber, item.workerID, item.leaseToken); err != nil {
+			return 0, err
+		}
+		// A task that exhausted its attempts through repeated worker loss is
+		// terminal: dependents block and the execution fails like any other
+		// failed predecessor instead of looping forever.
+		if item.attemptNumber >= r.maxAttempts {
+			reason := fmt.Sprintf("worker lost after %d attempts", item.attemptNumber)
+			if _, err := tx.Exec(ctx, `
+				UPDATE task_queue
+				SET status = 'failed', completed_at = $1, worker_id = '', claimed_at = NULL, lease_token = NULL, lease_expires_at = NULL, last_heartbeat_at = NULL
+				WHERE id = $2 AND status = 'claimed' AND lease_token = $3`, now, item.queueID, item.leaseToken); err != nil {
+				return 0, err
+			}
+			if _, err := tx.Exec(ctx, `
+				UPDATE task_runs
+				SET status = 'failed', failure_reason = $1, completed_at = $2
+				WHERE id = $3 AND status = 'running'`, reason, now, item.taskRunID); err != nil {
+				return 0, err
+			}
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			UPDATE task_queue
+			SET status = 'queued', worker_id = '', claimed_at = NULL, completed_at = NULL, lease_token = NULL, lease_expires_at = NULL, last_heartbeat_at = NULL, created_at = $1
+			WHERE id = $2 AND status = 'claimed' AND lease_token = $3`, now, item.queueID, item.leaseToken); err != nil {
+			return 0, err
+		}
+		if _, err := tx.Exec(ctx, `
+			UPDATE task_runs
+			SET status = 'queued', failure_reason = 'worker_lost'
+			WHERE id = $1 AND status = 'running'`, item.taskRunID); err != nil {
+			return 0, err
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return 0, err
+	}
+	return len(items), nil
+}
+
+func (r *PostgresRepository) Complete(ctx context.Context, taskRunID uuid.UUID, workerID, leaseToken string, attempt int, output json.RawMessage, now time.Time) error {
+	return r.finish(ctx, taskRunID, workerID, leaseToken, attempt, "completed", output, "", now)
+}
+
+func (r *PostgresRepository) Fail(ctx context.Context, taskRunID uuid.UUID, workerID, leaseToken string, attempt int, reason string, now time.Time) error {
+	return r.finish(ctx, taskRunID, workerID, leaseToken, attempt, "failed", nil, reason, now)
+}
+
+func (r *PostgresRepository) finish(ctx context.Context, taskRunID uuid.UUID, workerID, leaseToken string, attempt int, queueStatus string, output json.RawMessage, reason string, now time.Time) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	if err := requireRowsAffected(ctx, tx, `
+		UPDATE task_queue
+		SET status = $1, completed_at = $2
+		WHERE task_run_id = $3 AND status = 'claimed' AND worker_id = $4 AND lease_token = $5`, queueStatus, now, taskRunID, workerID, leaseToken); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrLeaseNotOwned
+		}
+		return err
+	}
+
+	if queueStatus == "completed" {
+		if err := requireRowsAffected(ctx, tx, `UPDATE task_runs SET status = 'succeeded', output = $2, completed_at = $3 WHERE id = $1 AND status = 'running'`, taskRunID, output, now); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrLeaseNotOwned
+			}
+			return err
+		}
+		if err := requireRowsAffected(ctx, tx, `UPDATE task_attempts SET status = 'succeeded', completed_at = $1 WHERE task_run_id = $2 AND attempt_number = $3 AND worker_id = $4 AND lease_token = $5 AND status = 'running'`, now, taskRunID, attempt, workerID, leaseToken); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrLeaseNotOwned
+			}
+			return err
+		}
+	} else {
+		if err := requireRowsAffected(ctx, tx, `UPDATE task_runs SET status = 'failed', failure_reason = $2, completed_at = $3 WHERE id = $1 AND status = 'running'`, taskRunID, reason, now); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrLeaseNotOwned
+			}
+			return err
+		}
+		if err := requireRowsAffected(ctx, tx, `UPDATE task_attempts SET status = 'failed', completed_at = $1, failure_reason = $2 WHERE task_run_id = $3 AND attempt_number = $4 AND worker_id = $5 AND lease_token = $6 AND status = 'running'`, now, reason, taskRunID, attempt, workerID, leaseToken); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrLeaseNotOwned
+			}
+			return err
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	return nil
+}
+
+func requireRowsAffected(ctx context.Context, tx interface {
+	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
+}, query string, args ...any) error {
+	tag, err := tx.Exec(ctx, query, args...)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+	return nil
+}
+
 func (r *PostgresRepository) QueuedCount(ctx context.Context) (int, error) {
 	var count int
 	err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM task_queue WHERE status = 'queued'`).Scan(&count)

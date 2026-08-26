@@ -2,7 +2,7 @@
 
 Observability covers control-plane services, scheduler, orchestrator, queue, workers, and task runtimes. It must explain both business workflow outcomes and distributed failure behavior without exposing secrets.
 
-Phase 5 workers emit structured startup, claim, completion, and failure records containing worker, task-run, execution, and task identifiers. Queue inspection exposes queued, claimed, completed, and failed state; worker liveness and recovery signals remain Phase 6.
+Phase 5 workers emit structured startup, claim, completion, and failure records containing worker, task-run, execution, and task identifiers. Phase 6 adds heartbeat/renewal records, lease-loss cancellation, expired-lease recovery sweeps, retry exhaustion (`worker lost after N attempts`), and stale-result-discard records, each carrying worker, task-run, execution, task, and attempt identifiers. Queue inspection exposes queued, claimed, completed, and failed state plus lease expiry, last-heartbeat timestamps, and per-attempt status (`running`, `succeeded`, `failed`, `worker_lost`) in the append-only attempt history.
 
 ## Correlation
 

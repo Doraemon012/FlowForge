@@ -20,7 +20,7 @@ import (
 )
 
 func TestTwoWorkersClaimIndependentTasksConcurrently(t *testing.T) {
-	handler, pool, taskQueue, executionRepository := phase5Handler(t)
+	handler, pool, taskQueue := phase5Handler(t)
 	defer pool.Close()
 	token := registerAndLogin(t, handler, "phase5-"+time.Now().Format("150405.000000000")+"@example.com", "Phase 5")
 	projectID := createTestProject(t, handler, token)
@@ -62,17 +62,14 @@ func TestTwoWorkersClaimIndependentTasksConcurrently(t *testing.T) {
 	if claimErrors[0] != nil {
 		claimedWork = claimed[1]
 	}
-	if err := executionRepository.SetTaskSucceeded(context.Background(), claimedWork.TaskRunID, json.RawMessage(`{}`), time.Now().UTC()); err != nil {
-		t.Fatal(err)
-	}
-	if err := taskQueue.Complete(context.Background(), claimedWork.TaskRunID, claimedWork.WorkerID, time.Now().UTC()); err != nil {
+	if err := taskQueue.Complete(context.Background(), claimedWork.TaskRunID, claimedWork.WorkerID, claimedWork.LeaseToken, claimedWork.Attempt, json.RawMessage(`{}`), time.Now().UTC()); err != nil {
 		t.Fatal(err)
 	}
 
 	// The engine will enqueue the second branch only after the first task completes.
 	waitForQueueCount(t, taskQueue, 1)
-	workerOne := &worker.Worker{ID: "worker-one", Queue: taskQueue, Executions: executionRepository, Runtime: execution.NewBuiltinRuntime(nil)}
-	workerTwo := &worker.Worker{ID: "worker-two", Queue: taskQueue, Executions: executionRepository, Runtime: execution.NewBuiltinRuntime(nil)}
+	workerOne := &worker.Worker{ID: "worker-one", Queue: taskQueue, Runtime: execution.NewBuiltinRuntime(nil)}
+	workerTwo := &worker.Worker{ID: "worker-two", Queue: taskQueue, Runtime: execution.NewBuiltinRuntime(nil)}
 	ctx, cancel := context.WithCancel(context.Background())
 	var workerGroup sync.WaitGroup
 	workerGroup.Add(2)
@@ -83,7 +80,7 @@ func TestTwoWorkersClaimIndependentTasksConcurrently(t *testing.T) {
 	workerGroup.Wait()
 }
 
-func phase5Handler(t *testing.T) (http.Handler, interface{ Close() }, *queue.PostgresRepository, *execution.PostgresRepository) {
+func phase5Handler(t *testing.T) (http.Handler, interface{ Close() }, *queue.PostgresRepository) {
 	t.Helper()
 	databaseURL := os.Getenv("INTEGRATION_DATABASE_URL")
 	if databaseURL == "" {
@@ -100,7 +97,7 @@ func phase5Handler(t *testing.T) (http.Handler, interface{ Close() }, *queue.Pos
 	taskQueue := queue.NewPostgresRepository(pool)
 	engine := execution.NewEngine(executionRepository, execution.NewBuiltinRuntime(nil), taskQueue)
 	handler := NewExecutionServer(pool, user.NewPostgresRepository(pool), project.NewPostgresRepository(pool), workflow.NewPostgresRepository(pool), executionRepository, engine, auth.NewTokenService("01234567890123456789012345678901")).Router()
-	return handler, pool, taskQueue, executionRepository
+	return handler, pool, taskQueue
 }
 
 func waitForQueueCount(t *testing.T, taskQueue queue.Repository, minimum int) {
