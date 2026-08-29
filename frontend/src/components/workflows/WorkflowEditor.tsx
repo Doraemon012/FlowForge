@@ -1,14 +1,33 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { CheckCircle, PlayCircle, Save, ShieldCheck } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { ArrowLeft, CheckCircle, Play, PlayCircle, Save, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
 import { ApiError } from '@/api/client'
 import type { Workflow, WorkflowTask } from '@/api/types'
-import { useUpdateWorkflow, useValidateWorkflow, usePublishWorkflow, useDeactivateWorkflow } from '@/hooks/use-workflows'
-import { TaskListEditor } from '@/components/workflows/TaskListEditor'
+import {
+  useDeactivateWorkflow,
+  usePublishWorkflow,
+  useUpdateWorkflow,
+  useValidateWorkflow,
+} from '@/hooks/use-workflows'
+import { useCreateExecution } from '@/hooks/use-executions'
+import { WorkflowBuilderLayout } from '@/components/workflows/builder/WorkflowBuilderLayout'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+
+function getStatusVariant(status: string): 'success' | 'secondary' | 'warning' | 'info' {
+  switch (status) {
+    case 'active':
+      return 'success'
+    case 'paused':
+      return 'warning'
+    case 'draft':
+      return 'secondary'
+    default:
+      return 'info'
+  }
+}
 
 interface WorkflowEditorProps {
   projectId: string
@@ -22,10 +41,12 @@ export function WorkflowEditor({ projectId, workflow }: WorkflowEditorProps) {
   const [validationErrors, setValidationErrors] = useState<string[]>([])
   const [validationMessage, setValidationMessage] = useState<string | null>(null)
 
+  const navigate = useNavigate()
   const updateMutation = useUpdateWorkflow(projectId, workflow.id)
   const validateMutation = useValidateWorkflow(projectId, workflow.id)
   const publishMutation = usePublishWorkflow(projectId, workflow.id)
   const deactivateMutation = useDeactivateWorkflow(projectId, workflow.id)
+  const createExecutionMutation = useCreateExecution(projectId, workflow.id)
 
   const originalTasks = workflow.draft_definition?.tasks ?? []
   const hasChanges =
@@ -108,92 +129,146 @@ export function WorkflowEditor({ projectId, workflow }: WorkflowEditorProps) {
     }
   }
 
+  const handleRun = async () => {
+    if (!workflow.active_version_id) return
+    try {
+      const execution = await createExecutionMutation.mutateAsync({})
+      toast.success('Execution started')
+      navigate(`/app/projects/${projectId}/executions/${execution.id}`)
+    } catch (error) {
+      if (error instanceof ApiError) {
+        toast.error(error.message)
+      } else {
+        toast.error('Could not start the execution.')
+      }
+    }
+  }
+
   const saveIsPending = updateMutation.isPending
   const validateIsPending = validateMutation.isPending || updateMutation.isPending
   const publishIsPending = publishMutation.isPending || updateMutation.isPending
   const deactivateIsPending = deactivateMutation.isPending
 
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-2">
-        {hasChanges ? (
-          <span
-            role="status"
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-warning"
-          >
-            <span className="h-2 w-2 rounded-full bg-warning" aria-hidden="true" />
-            Unsaved changes
-          </span>
-        ) : null}
-        <Button onClick={handleSave} loading={saveIsPending} disabled={!hasChanges}>
-          <Save className="mr-2 h-4 w-4" aria-hidden="true" />
-          Save
-        </Button>
-        <Button variant="outline" onClick={handleValidate} loading={validateIsPending}>
-          <ShieldCheck className="mr-2 h-4 w-4" aria-hidden="true" />
-          Validate
-        </Button>
-        <Button variant="outline" onClick={handlePublish} loading={publishIsPending}>
-          <PlayCircle className="mr-2 h-4 w-4" aria-hidden="true" />
-          Publish version
-        </Button>
-        <Link
-          to={`/app/projects/${projectId}/workflows/${workflow.id}/versions`}
-          className="inline-flex h-9 items-center px-4 text-sm font-medium underline-offset-4 hover:underline"
+  const headerLeft = (
+    <>
+      <Link
+        to={`/app/projects/${projectId}/workflows`}
+        className="inline-flex shrink-0 items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        aria-label="Back to workflows"
+      >
+        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+      </Link>
+      <Input
+        value={name}
+        onChange={(event) => setName(event.target.value)}
+        aria-invalid={name.trim().length === 0 || name.length > 200}
+        className="h-9 w-40 sm:w-64"
+        aria-label="Workflow name"
+      />
+      <Badge variant={getStatusVariant(workflow.status)} className="capitalize">
+        {workflow.status}
+      </Badge>
+      {hasChanges ? (
+        <span
+          role="status"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-warning"
         >
-          View versions
-        </Link>
-        {workflow.active_version_id ? (
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={handleDeactivate}
-            loading={deactivateIsPending}
-          >
-            Deactivate
-          </Button>
-        ) : null}
-      </div>
+          <span className="h-2 w-2 rounded-full bg-warning" aria-hidden="true" />
+          Unsaved
+        </span>
+      ) : null}
+    </>
+  )
 
+  const headerActions = (
+    <>
+      <Button onClick={handleSave} loading={saveIsPending} disabled={!hasChanges} size="sm">
+        <Save className="mr-2 h-4 w-4" aria-hidden="true" />
+        Save
+      </Button>
+      <Button variant="outline" onClick={handleValidate} loading={validateIsPending} size="sm">
+        <ShieldCheck className="mr-2 h-4 w-4" aria-hidden="true" />
+        Validate
+      </Button>
+      <Button variant="outline" onClick={handlePublish} loading={publishIsPending} size="sm">
+        <PlayCircle className="mr-2 h-4 w-4" aria-hidden="true" />
+        Publish
+      </Button>
+      <Button
+        onClick={handleRun}
+        loading={createExecutionMutation.isPending}
+        disabled={!workflow.active_version_id}
+        size="sm"
+        title={
+          workflow.active_version_id
+            ? 'Run the active version'
+            : 'Publish and activate a version to run'
+        }
+      >
+        <Play className="mr-2 h-4 w-4" aria-hidden="true" />
+        Run
+      </Button>
+      <Link
+        to={`/app/projects/${projectId}/executions`}
+        className="inline-flex h-8 items-center px-3 text-sm font-medium underline-offset-4 hover:underline"
+      >
+        Runs
+      </Link>
+      <Link
+        to={`/app/projects/${projectId}/workflows/${workflow.id}/versions`}
+        className="inline-flex h-8 items-center px-3 text-sm font-medium underline-offset-4 hover:underline"
+      >
+        Versions
+      </Link>
+      {workflow.active_version_id ? (
+        <Button
+          variant="destructive"
+          size="sm"
+          onClick={handleDeactivate}
+          loading={deactivateIsPending}
+        >
+          Deactivate
+        </Button>
+      ) : null}
+    </>
+  )
+
+  const headerSecondary = (
+    <div className="flex flex-wrap items-center gap-3">
+      <Input
+        value={description}
+        onChange={(event) => setDescription(event.target.value)}
+        placeholder="Workflow description"
+        className="h-8 max-w-md flex-1 text-sm text-muted-foreground"
+        aria-label="Workflow description"
+      />
       {validationMessage ? (
-        <div className="flex items-center gap-2 rounded-md border border-success/30 bg-success/5 px-3 py-2 text-sm text-success">
+        <span className="inline-flex items-center gap-1.5 text-sm text-success">
           <CheckCircle className="h-4 w-4" aria-hidden="true" />
           {validationMessage}
-        </div>
+        </span>
       ) : null}
-
       {validationErrors.length > 0 ? (
-        <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm">
-          <p className="font-medium text-destructive">Workflow validation failed</p>
-          <ul className="mt-1 list-inside list-disc text-destructive">
-            {validationErrors.map((error, index) => (
-              <li key={index}>{error}</li>
-            ))}
-          </ul>
-        </div>
+        <span className="inline-flex items-center gap-1.5 text-sm text-destructive" role="alert">
+          <span className="h-2 w-2 rounded-full bg-destructive" aria-hidden="true" />
+          Workflow validation failed
+          <span className="text-muted-foreground">
+            ({validationErrors.length} error{validationErrors.length === 1 ? '' : 's'})
+          </span>
+        </span>
       ) : null}
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="workflow-editor-name">Name</Label>
-          <Input
-            id="workflow-editor-name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            aria-invalid={name.trim().length === 0 || name.length > 200}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="workflow-editor-description">Description</Label>
-          <Input
-            id="workflow-editor-description"
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-          />
-        </div>
-      </div>
-
-      <TaskListEditor tasks={tasks} onChange={setTasks} />
     </div>
+  )
+
+  return (
+    <WorkflowBuilderLayout
+      key={workflow.id}
+      initialTasks={tasks}
+      onTasksChange={setTasks}
+      validationErrors={validationErrors}
+      headerLeft={headerLeft}
+      headerActions={headerActions}
+      headerSecondary={headerSecondary}
+    />
   )
 }

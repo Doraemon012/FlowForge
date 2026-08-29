@@ -16,6 +16,8 @@ import { WorkflowsPage } from '@/pages/workflows'
 import { WorkflowNewPage } from '@/pages/workflow-new'
 import { WorkflowDetailPage } from '@/pages/workflow-detail'
 import { WorkflowVersionsPage } from '@/pages/workflow-versions'
+import { ExecutionsPage } from '@/pages/executions'
+import { ExecutionDetailPage } from '@/pages/execution-detail'
 import { NotFoundPage } from '@/pages/not-found'
 
 function App() {
@@ -39,6 +41,8 @@ function App() {
                 <Route path="projects/:projectId/workflows/new" element={<WorkflowNewPage />} />
                 <Route path="projects/:projectId/workflows/:workflowId" element={<WorkflowDetailPage />} />
                 <Route path="projects/:projectId/workflows/:workflowId/versions" element={<WorkflowVersionsPage />} />
+                <Route path="projects/:projectId/executions" element={<ExecutionsPage />} />
+                <Route path="projects/:projectId/executions/:executionId" element={<ExecutionDetailPage />} />
                 <Route path="*" element={<NotFoundPage />} />
               </Route>
             </Route>
