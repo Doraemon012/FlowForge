@@ -58,6 +58,7 @@ type Version struct {
 type Repository interface {
 	Create(ctx context.Context, ownerID, projectID uuid.UUID, workflow Workflow) error
 	GetOwned(ctx context.Context, ownerID, workflowID uuid.UUID) (Workflow, error)
+	ListByProject(ctx context.Context, ownerID, projectID uuid.UUID) ([]Workflow, error)
 	UpdateOwned(ctx context.Context, ownerID, workflowID uuid.UUID, name, description string, definition Definition, updatedAt time.Time) (Workflow, error)
 	ListVersionsOwned(ctx context.Context, ownerID, workflowID uuid.UUID) ([]Version, error)
 	GetVersionOwned(ctx context.Context, ownerID, workflowID, versionID uuid.UUID) (Version, error)
@@ -190,6 +191,35 @@ func (r *PostgresRepository) GetOwned(ctx context.Context, ownerID, workflowID u
 		return Workflow{}, err
 	}
 	return result, nil
+}
+
+func (r *PostgresRepository) ListByProject(ctx context.Context, ownerID, projectID uuid.UUID) ([]Workflow, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT w.id, w.project_id, w.name, w.description, w.status, w.draft_definition, w.active_version_id, w.created_at, w.updated_at
+		FROM workflows w
+		JOIN projects p ON p.id = w.project_id
+		WHERE w.project_id = $1 AND p.owner_id = $2 AND w.status <> 'archived'
+		ORDER BY w.created_at, w.id`, projectID, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	workflows := make([]Workflow, 0)
+	for rows.Next() {
+		var result Workflow
+		var definition []byte
+		if err := rows.Scan(&result.ID, &result.ProjectID, &result.Name, &result.Description, &result.Status, &definition, &result.ActiveVersionID, &result.CreatedAt, &result.UpdatedAt); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(definition, &result.DraftDefinition); err != nil {
+			return nil, err
+		}
+		workflows = append(workflows, result)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return workflows, nil
 }
 
 func (r *PostgresRepository) UpdateOwned(ctx context.Context, ownerID, workflowID uuid.UUID, name, description string, definition Definition, updatedAt time.Time) (Workflow, error) {

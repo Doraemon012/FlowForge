@@ -23,6 +23,7 @@ func (s *Server) Router() http.Handler {
 			router.Patch("/projects/{projectID}", s.UpdateProject)
 			router.Delete("/projects/{projectID}", s.DeleteProject)
 			router.Post("/projects/{projectID}/workflows", s.CreateWorkflow)
+			router.Get("/projects/{projectID}/workflows", s.ListWorkflows)
 			router.Get("/projects/{projectID}/workflows/{workflowID}", s.GetWorkflow)
 			router.Patch("/projects/{projectID}/workflows/{workflowID}", s.UpdateWorkflow)
 			router.Post("/projects/{projectID}/workflows/{workflowID}/validate", s.ValidateWorkflow)

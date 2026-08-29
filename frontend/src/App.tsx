@@ -12,6 +12,10 @@ import { SignupPage } from '@/pages/signup'
 import { DashboardPage } from '@/pages/dashboard'
 import { ProjectsPage } from '@/pages/projects'
 import { ProjectOverviewPage } from '@/pages/project-overview'
+import { WorkflowsPage } from '@/pages/workflows'
+import { WorkflowNewPage } from '@/pages/workflow-new'
+import { WorkflowDetailPage } from '@/pages/workflow-detail'
+import { WorkflowVersionsPage } from '@/pages/workflow-versions'
 import { NotFoundPage } from '@/pages/not-found'
 
 function App() {
@@ -31,6 +35,10 @@ function App() {
                 <Route index element={<DashboardPage />} />
                 <Route path="projects" element={<ProjectsPage />} />
                 <Route path="projects/:projectId" element={<ProjectOverviewPage />} />
+                <Route path="projects/:projectId/workflows" element={<WorkflowsPage />} />
+                <Route path="projects/:projectId/workflows/new" element={<WorkflowNewPage />} />
+                <Route path="projects/:projectId/workflows/:workflowId" element={<WorkflowDetailPage />} />
+                <Route path="projects/:projectId/workflows/:workflowId/versions" element={<WorkflowVersionsPage />} />
                 <Route path="*" element={<NotFoundPage />} />
               </Route>
             </Route>

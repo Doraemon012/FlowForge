@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/neyati/flowforge/internal/project"
 	"github.com/neyati/flowforge/internal/workflow"
 )
 
@@ -60,6 +61,32 @@ func (s *Server) CreateWorkflow(w http.ResponseWriter, r *http.Request) {
 	} else {
 		writeJSON(w, http.StatusCreated, item)
 	}
+}
+
+func (s *Server) ListWorkflows(w http.ResponseWriter, r *http.Request) {
+	ownerID, ok := authenticatedUserID(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "authentication required")
+		return
+	}
+	projectID, err := uuid.Parse(chi.URLParam(r, "projectID"))
+	if err != nil {
+		writeError(w, http.StatusNotFound, "project_not_found", "project not found")
+		return
+	}
+	if _, err := s.projects.GetOwned(r.Context(), ownerID, projectID); errors.Is(err, project.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "project_not_found", "project not found")
+		return
+	} else if err != nil {
+		writeError(w, http.StatusInternalServerError, "project_lookup_failed", "unable to retrieve project")
+		return
+	}
+	items, err := s.workflows.ListByProject(r.Context(), ownerID, projectID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "workflow_lookup_failed", "unable to list workflows")
+		return
+	}
+	writeJSON(w, http.StatusOK, items)
 }
 
 func (s *Server) GetWorkflow(w http.ResponseWriter, r *http.Request) {
