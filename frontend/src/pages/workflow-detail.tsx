@@ -8,7 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 function WorkflowDetailSkeleton() {
   return (
-    <div className="flex h-[calc(100svh-56px)] flex-col overflow-hidden rounded-lg border bg-card">
+    <div className="flex h-[calc(100svh-56px)] flex-col overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm">
       <div className="flex h-14 shrink-0 items-center gap-3 border-b px-3">
         <Skeleton className="h-8 w-8" />
         <Skeleton className="h-8 w-56" />

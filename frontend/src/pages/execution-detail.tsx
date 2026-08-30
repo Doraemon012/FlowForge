@@ -20,7 +20,7 @@ function ExecutionDetailSkeleton() {
         <Skeleton className="h-8 w-1/2" />
         <Skeleton className="h-4 w-1/3" />
       </div>
-      <div className="rounded-xl border bg-card p-6">
+      <div className="rounded-xl border border-border/80 bg-card p-6 shadow-sm">
         <Skeleton className="h-5 w-24" />
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <Skeleton className="h-12 w-full" />
@@ -29,7 +29,7 @@ function ExecutionDetailSkeleton() {
           <Skeleton className="h-12 w-full" />
         </div>
       </div>
-      <div className="rounded-xl border bg-card p-6">
+      <div className="rounded-xl border border-border/80 bg-card p-6 shadow-sm">
         <Skeleton className="h-5 w-24" />
         <div className="mt-4 space-y-3">
           <Skeleton className="h-16 w-full" />
@@ -123,7 +123,7 @@ export function ExecutionDetailPage() {
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">
+          <h1 className="font-display text-2xl font-semibold tracking-tight">
             {workflow?.name ?? 'Execution'}
           </h1>
           <p className="text-sm text-muted-foreground">{project?.name ?? 'Project'} execution</p>

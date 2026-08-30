@@ -75,15 +75,25 @@ export function WorkflowCanvas({
         proOptions={{ hideAttribution: false }}
         className="bg-background"
       >
-        <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
-        <Controls className="!bg-card !shadow-sm !border" />
+        <Background
+          variant={BackgroundVariant.Lines}
+          gap={24}
+          size={1}
+          color="var(--border)"
+        />
+        <Controls
+          className="!rounded-lg !border !border-border/80 !bg-card !shadow-md"
+          showInteractive={false}
+        />
         <MiniMap
-          className="!bg-card !border"
+          className="!rounded-lg !border !border-border/80 !bg-card !shadow-md"
           nodeColor={(node) => {
             const data = (node as WorkflowGraphNode).data
             return data?.typeMeta?.accent ?? '#999'
           }}
           maskColor="rgba(0, 0, 0, 0.08)"
+          pannable
+          zoomable
         />
       </ReactFlow>
     </div>

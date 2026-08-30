@@ -54,13 +54,13 @@ export function WorkflowVersionDetailsDialog({
         </DialogHeader>
 
         {tasks.length === 0 ? (
-          <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+          <p className="rounded-xl border border-dashed border-border/80 bg-card/40 p-6 text-center text-sm text-muted-foreground">
             This version has no tasks.
           </p>
         ) : (
           <div className="space-y-3">
             {tasks.map((task, index) => (
-              <div key={`${task.id}-${index}`} className="rounded-lg border p-4">
+              <div key={`${task.id}-${index}`} className="rounded-xl border border-border/80 bg-card p-4 shadow-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{task.id}</p>
@@ -76,7 +76,7 @@ export function WorkflowVersionDetailsDialog({
                     <Badge variant="outline">No dependencies</Badge>
                   )}
                 </div>
-                <pre className="mt-3 overflow-x-auto rounded-md bg-muted/50 p-3 font-mono text-xs">
+                <pre className="mt-3 overflow-x-auto rounded-lg border border-border/60 bg-muted/50 p-3 font-mono text-xs leading-relaxed">
                   {JSON.stringify(task.config ?? {}, null, 2)}
                 </pre>
               </div>

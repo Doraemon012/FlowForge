@@ -38,7 +38,7 @@ function ConfigField({ value, onChange, label, disabled }: ConfigFieldProps) {
         onChange={(event) => handleChange(event.target.value)}
         disabled={disabled}
         rows={4}
-        className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 font-mono text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex w-full rounded-md border border-input bg-background/50 px-3 py-2 font-mono text-sm shadow-sm transition-colors duration-150 hover:border-muted-foreground/30 focus-visible:outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50"
         aria-label={label}
       />
     </div>
@@ -83,13 +83,13 @@ export function TaskListEditor({ tasks, onChange, disabled }: TaskListEditorProp
       </div>
 
       {tasks.length === 0 ? (
-        <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+        <p className="rounded-xl border border-dashed border-border/80 bg-card/40 p-6 text-center text-sm text-muted-foreground">
           No tasks yet. Add a task to build your workflow.
         </p>
       ) : (
         <div className="space-y-3">
           {tasks.map((task, index) => (
-            <div key={`${task.id}-${index}`} className="space-y-3 rounded-lg border p-4">
+            <div key={`${task.id}-${index}`} className="space-y-3 rounded-xl border border-border/80 bg-card p-4 shadow-sm">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">Task {index + 1}</span>
                 <Button
@@ -122,7 +122,7 @@ export function TaskListEditor({ tasks, onChange, disabled }: TaskListEditorProp
                     value={task.type}
                     onChange={(event) => updateTask(index, { type: event.target.value })}
                     disabled={disabled}
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="flex h-9 w-full rounded-md border border-input bg-background/50 px-3 py-1 text-sm shadow-sm transition-colors duration-150 hover:border-muted-foreground/30 focus-visible:outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50"
                     aria-label={`Task ${index + 1} type`}
                   >
                     {SUPPORTED_TYPES.map((type) => (

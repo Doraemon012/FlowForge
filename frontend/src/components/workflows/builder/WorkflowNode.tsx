@@ -8,27 +8,37 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowGraphNode>) {
   const { task, typeMeta, validationErrors } = data
   const Icon = typeMeta.icon
   const hasErrors = validationErrors.length > 0
+  const accent = typeMeta.accent
 
   return (
     <div
       className={cn(
-        'relative flex w-52 flex-col rounded-lg border bg-card px-3 py-2.5 shadow-sm transition-colors',
+        'relative flex w-56 flex-col rounded-xl border bg-card px-3.5 py-3 shadow-sm transition-all duration-150',
         selected
-          ? 'border-ring ring-2 ring-ring/30'
-          : 'border-border hover:border-muted-foreground/40',
-        hasErrors && 'border-destructive ring-1 ring-destructive/40',
+          ? 'border-primary/50 shadow-md ring-2 ring-primary/20'
+          : 'border-border/80 hover:border-muted-foreground/30 hover:shadow-md',
+        hasErrors && 'border-destructive/50 ring-1 ring-destructive/25',
       )}
       data-node-id={task.id}
     >
+      <span
+        className="absolute inset-y-3 left-0 w-1 rounded-r-full"
+        style={{ backgroundColor: accent }}
+        aria-hidden="true"
+      />
+
       <Handle
         type="target"
         position={Position.Left}
         className="!h-3 !w-3 !border-2 !border-background !bg-muted-foreground"
       />
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2.5">
         <span
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border bg-secondary/60"
-          style={{ color: typeMeta.accent }}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-black/5"
+          style={{
+            color: accent,
+            backgroundColor: `color-mix(in oklch, ${accent} 10%, var(--card))`,
+          }}
         >
           <Icon className="h-4 w-4" aria-hidden="true" />
         </span>
@@ -39,15 +49,22 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowGraphNode>) {
           </p>
         </div>
       </div>
-      <div className="mt-2 rounded border bg-secondary/30 px-2 py-1">
-        <p className="truncate font-mono text-[10px] leading-4 text-muted-foreground">
+      <div className="mt-2.5 rounded-lg border border-border/70 bg-muted/40 px-2.5 py-1.5">
+        <p
+          className={cn(
+            'truncate font-mono text-[11px] leading-4',
+            summarizeTaskConfig(task) === 'Not configured'
+              ? 'italic text-muted-foreground/70'
+              : 'text-muted-foreground',
+          )}
+        >
           {summarizeTaskConfig(task)}
         </p>
       </div>
       {hasErrors ? (
-        <div className="mt-1.5 flex items-center gap-1 text-destructive">
-          <AlertCircle className="h-3 w-3 shrink-0" aria-hidden="true" />
-          <span className="text-xs">
+        <div className="mt-2 flex items-center gap-1.5 text-destructive">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span className="text-xs font-medium">
             {validationErrors.length} error{validationErrors.length === 1 ? '' : 's'}
           </span>
         </div>

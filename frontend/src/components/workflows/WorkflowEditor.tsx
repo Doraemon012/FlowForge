@@ -208,18 +208,12 @@ export function WorkflowEditor({ projectId, workflow }: WorkflowEditorProps) {
         <Play className="mr-2 h-4 w-4" aria-hidden="true" />
         Run
       </Button>
-      <Link
-        to={`/app/projects/${projectId}/executions`}
-        className="inline-flex h-8 items-center px-3 text-sm font-medium underline-offset-4 hover:underline"
-      >
-        Runs
-      </Link>
-      <Link
-        to={`/app/projects/${projectId}/workflows/${workflow.id}/versions`}
-        className="inline-flex h-8 items-center px-3 text-sm font-medium underline-offset-4 hover:underline"
-      >
-        Versions
-      </Link>
+      <Button asChild variant="ghost" size="sm">
+        <Link to={`/app/projects/${projectId}/executions`}>Runs</Link>
+      </Button>
+      <Button asChild variant="ghost" size="sm">
+        <Link to={`/app/projects/${projectId}/workflows/${workflow.id}/versions`}>Versions</Link>
+      </Button>
       {workflow.active_version_id ? (
         <Button
           variant="destructive"

@@ -22,9 +22,9 @@ export function TaskPalette({ onAddTask, className }: TaskPaletteProps) {
       className={cn('flex h-full flex-col overflow-hidden', className)}
       aria-label="Task palette"
     >
-      <div className="flex items-center gap-2 border-b p-3">
+      <div className="flex items-center gap-2 border-b px-4 py-3">
         <Box className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-        <h2 className="text-sm font-semibold">Tasks</h2>
+        <h2 className="font-display text-sm font-semibold tracking-tight">Tasks</h2>
       </div>
       <div className="flex-1 space-y-1 overflow-y-auto p-2">
         {SUPPORTED_TASK_TYPES.map((type) => {
@@ -37,7 +37,7 @@ export function TaskPalette({ onAddTask, className }: TaskPaletteProps) {
               draggable
               onDragStart={(event) => handleDragStart(event, type)}
               onClick={() => onAddTask(type)}
-              className="group flex w-full items-center gap-2 rounded-md border border-transparent p-2 text-left transition-colors hover:border-border hover:bg-secondary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="group flex w-full items-center gap-2.5 rounded-lg border border-transparent p-2 text-left transition-all hover:border-border/80 hover:bg-secondary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               aria-label={`Add ${meta.label} task`}
             >
               <GripVertical
@@ -45,8 +45,11 @@ export function TaskPalette({ onAddTask, className }: TaskPaletteProps) {
                 aria-hidden="true"
               />
               <span
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border bg-secondary/60"
-                style={{ color: meta.accent }}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-black/5"
+                style={{
+                  color: meta.accent,
+                  backgroundColor: `color-mix(in oklch, ${meta.accent} 10%, var(--card))`,
+                }}
               >
                 <Icon className="h-4 w-4" aria-hidden="true" />
               </span>
@@ -60,8 +63,8 @@ export function TaskPalette({ onAddTask, className }: TaskPaletteProps) {
           )
         })}
       </div>
-      <div className="border-t p-3">
-        <p className="text-xs text-muted-foreground">
+      <div className="border-t px-4 py-3">
+        <p className="text-xs leading-relaxed text-muted-foreground">
           Drag a task onto the canvas, or click to add it.
         </p>
       </div>

@@ -30,10 +30,10 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
                 onClick={onNavigate}
                 className={({ isActive }) =>
                   cn(
-                    'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                    'flex items-center gap-2 rounded-md border-l-2 px-3 py-2 text-sm font-medium transition-colors',
                     isActive
-                      ? 'bg-secondary text-secondary-foreground'
-                      : 'text-muted-foreground hover:bg-secondary/60 hover:text-foreground',
+                      ? 'border-l-primary bg-secondary/70 text-foreground'
+                      : 'border-l-transparent text-muted-foreground hover:bg-secondary/60 hover:text-foreground',
                   )
                 }
               >

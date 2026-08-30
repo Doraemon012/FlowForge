@@ -43,7 +43,7 @@ export function TopBar({ onToggleSidebar }: TopBarProps) {
   }
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between border-b bg-background px-4">
+    <header className="flex h-14 shrink-0 items-center justify-between border-b border-border/80 bg-background/80 px-4 backdrop-blur-sm">
       <div className="flex items-center gap-2">
         <Button
           variant="ghost"

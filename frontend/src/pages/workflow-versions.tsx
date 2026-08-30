@@ -15,7 +15,7 @@ import { formatDateTime } from '@/lib/utils'
 
 function VersionSkeleton() {
   return (
-    <div className="rounded-lg border bg-card p-4">
+    <div className="rounded-xl border border-border/80 bg-card p-4 shadow-sm">
       <div className="flex items-center justify-between">
         <div className="space-y-2">
           <Skeleton className="h-4 w-32" />

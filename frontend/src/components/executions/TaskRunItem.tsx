@@ -20,7 +20,7 @@ export function TaskRunItem({ taskRun }: TaskRunItemProps) {
   const failure = taskRun.failure_reason
 
   return (
-    <div className="rounded-lg border bg-card p-4">
+    <div className="rounded-xl border border-border/80 bg-card p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <span className="truncate font-mono text-sm font-medium">{taskRun.task_id}</span>
@@ -47,7 +47,7 @@ export function TaskRunItem({ taskRun }: TaskRunItemProps) {
         {output ? (
           <div>
             <p className="mb-1 font-medium text-muted-foreground">Output</p>
-            <pre className="max-h-56 overflow-auto rounded-md bg-muted p-3 text-xs">{output}</pre>
+            <pre className="max-h-56 overflow-auto rounded-lg border border-border/60 bg-muted/50 p-3 font-mono text-xs leading-relaxed text-muted-foreground">{output}</pre>
           </div>
         ) : null}
       </div>
