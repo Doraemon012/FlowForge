@@ -7,7 +7,6 @@ import { ApiError } from '@/api/client'
 import { useAuth } from '@/hooks/use-auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 
 const loginSchema = z.object({
   email: z.string().min(1, 'Email is required').email('Enter a valid email address'),
@@ -48,24 +47,22 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
-      <div className="space-y-2">
-        <Label htmlFor="email">Email</Label>
+    <form onSubmit={handleSubmit(onSubmit)} className="auth-form" noValidate>
+      <div className="field">
+        <label htmlFor="email">Email</label>
         <Input
           id="email"
           type="email"
-          placeholder="you@example.com"
+          placeholder="you@company.com"
           autoComplete="email"
           aria-invalid={errors.email ? true : undefined}
           {...register('email')}
         />
-        {errors.email ? (
-          <p className="text-sm text-destructive">{errors.email.message}</p>
-        ) : null}
+        {errors.email ? <p className="help" style={{ color: 'var(--failed)' }}>{errors.email.message}</p> : null}
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="password">Password</Label>
+      <div className="field">
+        <label htmlFor="password">Password</label>
         <Input
           id="password"
           type="password"
@@ -74,21 +71,19 @@ export function LoginForm() {
           aria-invalid={errors.password ? true : undefined}
           {...register('password')}
         />
-        {errors.password ? (
-          <p className="text-sm text-destructive">{errors.password.message}</p>
-        ) : null}
+        {errors.password ? <p className="help" style={{ color: 'var(--failed)' }}>{errors.password.message}</p> : null}
       </div>
 
       {serverError ? (
         <div
           role="alert"
-          className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+          className="rounded-md border border-failed/30 bg-failed/5 px-3 py-2 text-sm text-failed"
         >
           {serverError}
         </div>
       ) : null}
 
-      <Button type="submit" className="w-full" loading={isSubmitting}>
+      <Button type="submit" className="w-full justify-center" loading={isSubmitting}>
         Sign in
       </Button>
     </form>

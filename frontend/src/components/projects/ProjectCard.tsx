@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { ChevronRight, FolderKanban } from 'lucide-react'
+import { FolderKanban } from 'lucide-react'
 import type { Project } from '@/api/types'
 import { formatDate } from '@/lib/utils'
 
@@ -11,25 +11,31 @@ export function ProjectCard({ project }: ProjectCardProps) {
   return (
     <Link
       to={`/app/projects/${project.id}`}
-      className="group flex items-center justify-between rounded-xl border border-border/80 bg-card p-4 shadow-sm transition-all duration-150 hover:-translate-y-0.5 hover:border-border hover:shadow-md"
+      className="proj-card"
     >
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-border/80 bg-secondary/50 text-muted-foreground transition-colors group-hover:border-primary/30 group-hover:text-primary">
+      <div className="proj-head">
+        <div className="proj-icon">
           <FolderKanban className="h-4 w-4" aria-hidden="true" />
         </div>
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium transition-colors group-hover:text-primary">
-            {project.name}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Created {formatDate(project.created_at)}
-          </p>
+        <div>
+          <div className="proj-name">{project.name}</div>
+          <div className="proj-meta">
+            {project.id.slice(0, 8)} · {formatDate(project.created_at)}
+          </div>
         </div>
       </div>
-      <ChevronRight
-        className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
-        aria-hidden="true"
-      />
+      <div className="proj-stats" style={{ marginTop: 10 }}>
+        <div>
+          <span>Status</span>
+          <b className="capitalize" style={{ color: project.status === 'active' ? 'var(--success)' : 'var(--muted)' }}>
+            {project.status}
+          </b>
+        </div>
+        <div>
+          <span>Updated</span>
+          <b>{formatDate(project.updated_at)}</b>
+        </div>
+      </div>
     </Link>
   )
 }

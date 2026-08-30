@@ -1,85 +1,200 @@
 import { Link } from 'react-router-dom'
 import {
   ArrowRight,
+  CheckCircle2,
+  ChevronRight,
+  Copy,
   GitBranch,
   History,
+  Play,
   RefreshCw,
-  Workflow,
+  Workflow as WorkflowIcon,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
-const features = [
+const steps = [
   {
-    icon: GitBranch,
-    title: 'Graph-based definitions',
+    num: 'STEP 01',
+    title: 'Define your graph',
     description:
-      'Model work as a directed acyclic graph of dependent tasks, then publish immutable versions.',
+      'Model work as tasks with dependencies. Use our TypeScript SDK, YAML, or the visual editor.',
+    code: (
+      <div className="step-visual">
+        <span className="c">// workflow.ts</span>
+        <br />
+        <span className="k">export const</span> <span className="var">wf</span> ={' '}
+        <span className="k">defineWorkflow</span>({'('}
+        <br />
+        <span>  </span>
+        <span className="var">id</span>: <span className="str">"order-fulfillment"</span>,
+        <br />
+        <span>  </span>
+        <span className="var">tasks</span>:{' '}
+        <span>{'{'}</span>
+        <br />
+        <span>    </span>
+        <span className="n">fetch</span>: <span className="k">http</span>({'('}
+        <span>{'{'}</span> <span className="var">url</span>: <span className="str">"…"</span>{' '}
+        <span>{'}'}</span>
+        <span>{')'}</span>
+        <span>,</span>
+        <br />
+        <span>    </span>
+        <span className="n">validate</span>: <span>{'{'}</span> <span className="var">deps</span>:{' '}
+        [<span className="str">"fetch"</span>] <span>{'}'}</span>
+        <span>,</span>
+        <br />
+        <span>    </span>
+        <span className="n">notify</span>: <span>{'{'}</span> <span className="var">deps</span>:{' '}
+        [<span className="str">"validate"</span>] <span>{'}'}</span>
+        <br />
+        <span>  </span>
+        <span>{'}'}</span>
+        <br />
+        <span>{'}'}</span>
+        <span>);</span>
+      </div>
+    ),
   },
   {
-    icon: RefreshCw,
-    title: 'Fault-tolerant execution',
+    num: 'STEP 02',
+    title: 'Publish a version',
     description:
-      'Durable leases and heartbeats let live workers recover work abandoned by failed ones.',
+      'Every publish is immutable. Roll back instantly. Old runs finish on their pinned version.',
+    code: (
+      <div className="step-visual">
+        <span className="c">$ flowforge publish</span>
+        <br />
+        <br />
+        <span className="s">✓</span> validated <span className="var">order-fulfillment</span>
+        <br />
+        <span className="s">✓</span> published <span className="n">v3</span> · sha 8a2f01c9
+        <br />
+        <span className="s">✓</span> activated in <span className="var">prod</span>
+        <br />
+        <br />
+        <span className="c">→ triggers armed · webhooks ready</span>
+        <br />
+        <span className="c">→ dashboard: flowforge.app/…/v3</span>
+      </div>
+    ),
   },
   {
-    icon: History,
-    title: 'Complete attempt history',
+    num: 'STEP 03',
+    title: 'Watch it run',
     description:
-      'Every retry and recovery is recorded, so you always know exactly what happened.',
+      'Live graph view, timeline, logs, retries — everything you need at 2am when something breaks.',
+    code: (
+      <div className="step-visual">
+        <span className="c">// live · c013970d</span>
+        <br />
+        <span className="s">✓</span> <span className="n">fetch</span> &nbsp;&nbsp;&nbsp;&nbsp;
+        <span className="num">412ms</span>
+        <br />
+        <span className="s">✓</span> <span className="n">validate</span> &nbsp;
+        <span className="num">89ms</span>
+        <br />
+        <span className="s">✓</span> <span className="n">persist</span> &nbsp;&nbsp;
+        <span className="num">34ms</span>
+        <br />
+        <span className="s">✓</span> <span className="n">route</span> &nbsp;&nbsp;&nbsp;&nbsp;
+        <span className="num">12ms</span>
+        <br />
+        <span style={{ color: '#60a5fa' }}>▍</span> <span className="n">notify</span>{' '}
+        &nbsp;&nbsp;&nbsp;<span style={{ color: '#60a5fa' }}>running…</span>
+      </div>
+    ),
   },
 ]
 
+const whyGood = [
+  'Retries built-in with exponential backoff + jitter',
+  'Durable state — every step, every attempt',
+  'Visual timeline for every run, always',
+  'Immutable versions + one-click rollback',
+]
+
+const whyBad = [
+  'Retry logic re-invented per job',
+  'State lost when workers restart',
+  'Debug via grep across three services',
+  'Versioning? Good luck.',
+]
+
+const codeExample = `import { defineWorkflow, step } from "@flowforge/sdk";
+
+export const orderFulfillment = defineWorkflow({
+  id: "order-fulfillment",
+  trigger: { event: "order.created" },
+
+  async run(ctx, order) {
+    // Each step is durable — resumes exactly where it left off.
+    const customer = await step("fetch", () =>
+      fetch(\`/api/customers/\${order.customerId}\`).then(r => r.json()));
+
+    await step("validate", { retries: 3 }, () => validate(order));
+    await step("persist", () => db.insert(order));
+
+    // Sleep durably — worker can die, the wait continues.
+    await ctx.sleep("30s");
+
+    await step("notify", () => sendEmail(customer.email));
+  }
+});`
+
 function FlowGraph() {
   const nodes = [
-    { label: 'HTTP', sub: 'Fetch transcript', x: 10, y: 34, accent: 'oklch(0.64 0.13 235)' },
-    { label: 'Transform', sub: 'Normalize data', x: 210, y: 14, accent: 'oklch(0.72 0.14 190)' },
-    { label: 'Email', sub: 'Send summary', x: 210, y: 54, accent: 'oklch(0.60 0.15 340)' },
+    { label: 'HTTP', sub: 'Fetch transcript', x: '10%', y: '34%', cls: 'ti-http' },
+    { label: 'Transform', sub: 'Normalize data', x: '50%', y: '14%', cls: 'ti-transform' },
+    { label: 'Email', sub: 'Send summary', x: '50%', y: '54%', cls: 'ti-email' },
   ]
 
   return (
-    <div className="relative w-full max-w-xl overflow-hidden rounded-xl border border-border/70 bg-card shadow-surface-lg">
-      <div className="flex items-center gap-1.5 border-b border-border/70 bg-muted/30 px-4 py-2.5">
-        <span className="h-2 w-2 rounded-full bg-destructive/70" aria-hidden="true" />
-        <span className="h-2 w-2 rounded-full bg-warning/70" aria-hidden="true" />
-        <span className="h-2 w-2 rounded-full bg-success/70" aria-hidden="true" />
-        <span className="ml-2 font-mono text-xs text-muted-foreground">workflow.graph</span>
+    <div className="max-w-xl w-full overflow-hidden rounded-lg border border-border/70 bg-surface shadow-surface-lg">
+      <div className="flex items-center gap-1.5 border-b border-border/70 bg-surface-2 px-4 py-2.5">
+        <span className="h-2 w-2 rounded-full bg-border-strong" aria-hidden="true" />
+        <span className="h-2 w-2 rounded-full bg-border-strong" aria-hidden="true" />
+        <span className="h-2 w-2 rounded-full bg-border-strong" aria-hidden="true" />
+        <span className="ml-2 font-mono text-xs text-muted">workflow.graph</span>
       </div>
-      <div className="relative h-56 w-full">
-        <svg
-          className="absolute inset-0 h-full w-full"
-          viewBox="0 0 420 200"
-          aria-hidden="true"
-        >
-          <path
-            d="M 95 95 L 200 60"
-            stroke="var(--border)"
-            strokeWidth="1.5"
-            fill="none"
-          />
-          <path
-            d="M 95 95 L 200 130"
-            stroke="var(--border)"
-            strokeWidth="1.5"
-            fill="none"
-          />
-          <circle cx="200" cy="60" r="3" fill="var(--primary)" />
-          <circle cx="200" cy="130" r="3" fill="var(--primary)" />
+      <div
+        className="relative h-64 w-full bg-bg"
+        style={{
+          backgroundImage: 'radial-gradient(circle at 1px 1px, #1a1d21 1px, transparent 0)',
+          backgroundSize: '24px 24px',
+        }}
+      >
+        <svg className="absolute inset-0 h-full w-full" viewBox="0 0 420 200" aria-hidden="true">
+          <path d="M 95 95 L 200 60" stroke="#3a4048" strokeWidth="1.5" fill="none" />
+          <path d="M 95 95 L 200 130" stroke="#3a4048" strokeWidth="1.5" fill="none" />
+          <circle cx="200" cy="60" r="3" fill="var(--accent)" />
+          <circle cx="200" cy="130" r="3" fill="var(--accent)" />
         </svg>
         {nodes.map((node) => (
           <div
             key={node.label}
-            className="absolute flex -translate-y-1/2 flex-col rounded-lg border bg-card px-3 py-2 shadow-sm"
-            style={{ left: node.x, top: node.y * 1.9, borderColor: 'var(--border)' }}
+            className="absolute flex -translate-y-1/2 flex-col rounded-lg border border-border-strong bg-surface px-3 py-2 shadow-sm"
+            style={{ left: node.x, top: node.y }}
           >
             <div className="flex items-center gap-2">
-              <span
-                className="h-2 w-2 rounded-full"
-                style={{ backgroundColor: node.accent }}
-                aria-hidden="true"
-              />
+              <span className={`h-5 w-5 rounded-md grid place-items-center ${node.cls}`}>
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  aria-hidden="true"
+                >
+                  {node.label === 'HTTP' ? <circle cx="12" cy="12" r="9" /> : null}
+                  {node.label === 'Transform' ? <path d="M4 7h16M4 12h10M4 17h16" /> : null}
+                  {node.label === 'Email' ? <path d="M3 6h18v12H3z" /> : null}
+                </svg>
+              </span>
               <span className="text-sm font-medium">{node.label}</span>
             </div>
-            <span className="mt-0.5 text-[11px] text-muted-foreground">{node.sub}</span>
+            <span className="mt-0.5 text-[11px] text-muted">{node.sub}</span>
           </div>
         ))}
       </div>
@@ -89,83 +204,379 @@ function FlowGraph() {
 
 export function LandingPage() {
   return (
-    <div className="flex min-h-svh flex-col">
-      <header className="flex h-16 shrink-0 items-center justify-between border-b border-border/70 bg-background/70 px-6 backdrop-blur-sm lg:px-10">
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-sm">
-            <Workflow className="h-5 w-5" aria-hidden="true" />
+    <div className="min-h-svh flex flex-col" style={{ background: 'var(--bg)' }}>
+      <header className="lnav">
+        <div className="flex items-center gap-4">
+          <div className="logo">
+            <span className="logo-mark">F</span>
+            <span>FlowForge</span>
           </div>
-          <span className="font-display text-lg font-semibold tracking-tight">FlowForge</span>
+          <span className="badge" style={{ padding: '2px 8px', fontSize: '10px' }}>
+            v2.0 · beta
+          </span>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" asChild>
+        <nav className="lnav-links">
+          <a>Product</a>
+          <a>Docs</a>
+          <a>Pricing</a>
+          <a>Changelog</a>
+          <a>Customers</a>
+        </nav>
+        <div className="lnav-cta">
+          <Button variant="ghost" size="sm" asChild>
             <Link to="/login">Sign in</Link>
           </Button>
-          <Button asChild>
+          <Button size="sm" asChild>
             <Link to="/signup">
-              Create account
-              <ArrowRight className="ml-1.5 h-4 w-4" aria-hidden="true" />
+              Start free
+              <ArrowRight className="ml-1 h-3.5 w-3.5" aria-hidden="true" />
             </Link>
           </Button>
         </div>
       </header>
 
       <main className="flex-1">
-        <section className="relative mx-auto flex max-w-6xl flex-col items-center gap-12 px-6 py-24 text-center lg:py-28">
-          <div className="space-y-5">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-card px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm">
-              <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden="true" />
-              Durable workflow orchestration
-            </span>
-            <h1 className="font-display text-5xl font-semibold leading-[1.05] tracking-tight sm:text-6xl">
-              Ship reliable
-              <br />
-              <span className="text-primary">workflows</span> with confidence
-            </h1>
-            <p className="mx-auto max-w-2xl text-lg leading-relaxed text-muted-foreground">
-              Define a graph of tasks once. FlowForge runs it asynchronously,
-              recovers from failures, and records every attempt.
-            </p>
+        <section className="lhero">
+          <div className="lhero-bg" aria-hidden="true">
+            <div className="grid" />
+            <div className="glow" />
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="lhero-eyebrow" style={{ position: 'relative', zIndex: 1 }}>
+            <span className="live-dot" aria-hidden="true" />
+            <span>
+              Now in public beta ·{' '}
+              <span style={{ color: 'var(--accent)' }}>14-day free trial</span>
+            </span>
+          </div>
+
+          <h1>
+            Workflows that
+            <br />
+            <span className="grad">never lose state.</span>
+          </h1>
+          <p>
+            Define a graph of tasks once. FlowForge runs it asynchronously, recovers from worker
+            failures automatically, and records every attempt — so you always know what happened.
+          </p>
+
+          <div className="lhero-ctas">
             <Button size="lg" asChild>
               <Link to="/signup">
-                Get started
+                Start building free
                 <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
               </Link>
             </Button>
             <Button size="lg" variant="outline" asChild>
-              <Link to="/login">Sign in</Link>
+              <Link to="/login">
+                <Play className="mr-2 h-4 w-4" aria-hidden="true" />
+                Watch 90-sec demo
+              </Link>
             </Button>
           </div>
+          <div className="lhero-meta">
+            No credit card · deploy in 2 minutes · <a>read the docs →</a>
+          </div>
 
-          <FlowGraph />
+          <div className="lhero-dag" style={{ position: 'relative' }}>
+            <FlowGraph />
+          </div>
         </section>
 
-        <section className="border-t border-border/70 bg-card/40">
-          <div className="mx-auto grid max-w-6xl gap-8 px-6 py-16 sm:grid-cols-3 lg:px-10">
-            {features.map((feature) => (
-              <div key={feature.title} className="group space-y-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-border/80 bg-background shadow-sm transition-colors group-hover:border-primary/30">
-                  <feature.icon className="h-4 w-4 text-primary" aria-hidden="true" />
+        <section className="logos">
+          <div className="label">Trusted by teams shipping mission-critical workflows</div>
+          <div className="logos-row">
+            <div className="logo-slot">◆ Vertex</div>
+            <div className="logo-slot">● Orbit</div>
+            <div className="logo-slot">◆ Kepler</div>
+            <div className="logo-slot">■ Blockstream</div>
+            <div className="logo-slot">▲ Nexus</div>
+            <div className="logo-slot">■ Ridge</div>
+            <div className="logo-slot">◐ Halcyon</div>
+          </div>
+          <div className="logos-metric">
+            <span className="text-accent">2.4B</span>+ workflow tasks executed · <b>99.99%</b>{' '}
+            uptime
+          </div>
+          <div className="logos-metric-sub">across 40+ engineering teams in production</div>
+        </section>
+
+        <section className="lsection">
+          <div className="lsection-inner">
+            <div className="lsection-head">
+              <div className="lsection-eyebrow">How it works</div>
+              <h2 className="lsection-title">
+                From code to running graph
+                <br />
+                in three steps.
+              </h2>
+              <p className="lsection-sub">
+                No queues to configure. No state machine to write. Define, publish, watch it run.
+              </p>
+            </div>
+            <div className="steps">
+              {steps.map((step) => (
+                <div className="step" key={step.num}>
+                  <div className="step-num">{step.num}</div>
+                  <div className="step-title">{step.title}</div>
+                  <div className="step-desc">{step.description}</div>
+                  {step.code}
                 </div>
-                <h2 className="font-display text-base font-semibold tracking-tight">
-                  {feature.title}
-                </h2>
-                <p className="text-sm leading-relaxed text-muted-foreground">
-                  {feature.description}
-                </p>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="lsection" style={{ paddingTop: 20 }}>
+          <div className="lsection-inner">
+            <div className="lsection-head">
+              <div className="lsection-eyebrow">Built for reliability</div>
+              <h2 className="lsection-title">
+                Every feature exists because
+                <br />
+                an on-call engineer needed it.
+              </h2>
+            </div>
+            <div className="bento">
+              <div className="bento-card b-1">
+                <div className="bi">
+                  <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                </div>
+                <div className="bt">Durable execution</div>
+                <div className="bd">
+                  Worker crashed mid-task? Another picks it up. Leases and heartbeats guarantee
+                  at-least-once execution.
+                </div>
+                <div className="fillvis">
+                  <div className="flex items-center gap-2 font-mono text-[11px] text-muted mb-3">
+                    <span className="live-dot" aria-hidden="true" /> worker-01a · task-3 · lease 30s
+                  </div>
+                  <div className="durable-bar">
+                    <div
+                      className="durable-bar-fill"
+                      style={{ width: '100%', background: 'var(--running)' }}
+                    />
+                  </div>
+                  <div className="durable-demo">
+                    <div className="durable-line in" style={{ color: 'var(--success)' }}>
+                      ✓ resumed on w-02b
+                    </div>
+                    <div className="durable-line in" style={{ color: 'var(--success)' }}>
+                      ✓ completed · no data lost
+                    </div>
+                  </div>
+                </div>
               </div>
-            ))}
+              <div className="bento-card b-2">
+                <div className="bi">
+                  <GitBranch className="h-4 w-4" aria-hidden="true" />
+                </div>
+                <div className="bt">Immutable versions</div>
+                <div className="bd">Publish creates a frozen snapshot. Rollback in one click.</div>
+                <div className="flex gap-6 mt-auto">
+                  <span className="badge">v1</span>
+                  <span className="badge">v2</span>
+                  <span className="badge active">
+                    <span className="dot" />
+                    v3
+                  </span>
+                </div>
+              </div>
+              <div className="bento-card b-3">
+                <div className="bi">
+                  <WorkflowIcon className="h-4 w-4" aria-hidden="true" />
+                </div>
+                <div className="bt">Visual + code, either way</div>
+                <div className="bd">Design in the drag-drop editor. Ship YAML/TS from CI.</div>
+                <div className="fillvis" style={{ padding: 14 }}>
+                  <svg viewBox="0 0 260 90" style={{ width: '100%', height: '100%' }} aria-hidden="true">
+                    <rect x="10" y="30" width="60" height="30" rx="4" fill="var(--surface-3)" stroke="var(--success)" />
+                    <rect x="100" y="10" width="60" height="30" rx="4" fill="var(--surface-3)" stroke="var(--border-strong)" />
+                    <rect x="100" y="50" width="60" height="30" rx="4" fill="var(--surface-3)" stroke="var(--border-strong)" />
+                    <rect x="190" y="30" width="60" height="30" rx="4" fill="var(--surface-3)" stroke="var(--accent)" />
+                    <path d="M70,45 C85,45 85,25 100,25" fill="none" stroke="#3a4048" strokeWidth="1.4" />
+                    <path d="M70,45 C85,45 85,65 100,65" fill="none" stroke="#3a4048" strokeWidth="1.4" />
+                    <path d="M160,25 C175,25 175,45 190,45" fill="none" stroke="#3a4048" strokeWidth="1.4" />
+                    <path d="M160,65 C175,65 175,45 190,45" fill="none" stroke="#3a4048" strokeWidth="1.4" />
+                  </svg>
+                </div>
+              </div>
+              <div className="bento-card b-4">
+                <div className="bi">
+                  <History className="h-4 w-4" aria-hidden="true" />
+                </div>
+                <div className="bt">Deep observability</div>
+                <div className="bd">Timelines, logs, inputs — per task, per run.</div>
+              </div>
+              <div className="bento-card b-5">
+                <div className="bi">
+                  <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                </div>
+                <div className="bt">Smart retries</div>
+                <div className="bd">Exponential backoff, jitter, dead-letter.</div>
+              </div>
+              <div className="bento-card b-6">
+                <div className="bi">
+                  <Play className="h-4 w-4" aria-hidden="true" />
+                </div>
+                <div className="bt">Any trigger</div>
+                <div className="bd">Cron, webhooks, events, API.</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="lsection" style={{ paddingTop: 20 }}>
+          <div className="lsection-inner" style={{ maxWidth: 960 }}>
+            <div className="lsection-head">
+              <div className="lsection-eyebrow">Developer-first API</div>
+              <h2 className="lsection-title">
+                Feels like writing
+                <br />
+                regular functions.
+              </h2>
+              <p className="lsection-sub">
+                Because it is. FlowForge just makes them durable, retriable, and observable.
+              </p>
+            </div>
+            <div className="code-block">
+              <div className="code-head">
+                <div className="dots" aria-hidden="true">
+                  <i />
+                  <i />
+                  <i />
+                </div>
+                <span style={{ flex: 1, textAlign: 'center' }}>order-fulfillment.ts</span>
+                <span>TypeScript</span>
+              </div>
+              <button className="copy-btn" type="button">
+                <Copy className="mr-1 h-3 w-3" aria-hidden="true" />
+                Copy
+              </button>
+              <div className="code-body">
+                <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{codeExample}</pre>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="lsection" style={{ paddingTop: 20 }}>
+          <div className="lsection-inner">
+            <div className="lsection-head">
+              <div className="lsection-eyebrow">Why FlowForge</div>
+              <h2 className="lsection-title">The bar has moved.</h2>
+            </div>
+            <div className="why-grid">
+              <div className="why-card why-bad">
+                <h4>
+                  <ChevronRight className="h-4 w-4 rotate-45" aria-hidden="true" />
+                  Cron + queues + custom retry logic
+                </h4>
+                <ul className="why-list">
+                  {whyBad.map((item) => (
+                    <li key={item}>
+                      <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="why-card why-good">
+                <h4>
+                  <CheckCircle2 className="h-4 w-4 text-success" aria-hidden="true" />
+                  FlowForge
+                </h4>
+                <ul className="why-list">
+                  {whyGood.map((item) => (
+                    <li key={item}>
+                      <CheckCircle2 className="h-3.5 w-3.5 text-success" aria-hidden="true" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="lcta">
+          <div className="lcta-bg" aria-hidden="true" />
+          <h2>
+            Ship your first
+            <br />
+            durable workflow tonight.
+          </h2>
+          <p>
+            Free for the first 10,000 runs / month. No credit card. Set up in under two minutes.
+          </p>
+          <div className="lcta-btns">
+            <Button size="lg" asChild>
+              <Link to="/signup">
+                Start free
+                <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
+              </Link>
+            </Button>
+            <Button size="lg" variant="outline">
+              Book a demo
+            </Button>
           </div>
         </section>
       </main>
 
-      <footer className="border-t border-border/70 py-6 text-center text-sm text-muted-foreground">
-        <span className="font-mono text-xs">
-          FlowForge — durable distributed workflow orchestration
-        </span>
+      <footer className="lfoot">
+        <div className="lfoot-brand">
+          <div className="logo">
+            <span className="logo-mark">F</span>
+            <span>FlowForge</span>
+          </div>
+          <p>
+            Durable distributed workflow orchestration. Built for the moment your infrastructure is
+            on fire.
+          </p>
+          <div className="status">
+            <span className="live-dot" aria-hidden="true" />
+            All systems operational
+          </div>
+        </div>
+        <div>
+          <h5>Product</h5>
+          <ul>
+            <li>Editor</li>
+            <li>Observability</li>
+            <li>Versions</li>
+            <li>Triggers</li>
+            <li>Changelog</li>
+          </ul>
+        </div>
+        <div>
+          <h5>Developers</h5>
+          <ul>
+            <li>Documentation</li>
+            <li>API reference</li>
+            <li>SDKs</li>
+            <li>Examples</li>
+            <li>Status</li>
+          </ul>
+        </div>
+        <div>
+          <h5>Company</h5>
+          <ul>
+            <li>About</li>
+            <li>Blog</li>
+            <li>Careers</li>
+            <li>Customers</li>
+            <li>Contact</li>
+          </ul>
+        </div>
+        <div>
+          <h5>Legal</h5>
+          <ul>
+            <li>Privacy</li>
+            <li>Terms</li>
+            <li>Security</li>
+            <li>DPA</li>
+          </ul>
+        </div>
       </footer>
     </div>
   )

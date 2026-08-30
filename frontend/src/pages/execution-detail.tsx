@@ -20,7 +20,7 @@ function ExecutionDetailSkeleton() {
         <Skeleton className="h-8 w-1/2" />
         <Skeleton className="h-4 w-1/3" />
       </div>
-      <div className="rounded-xl border border-border/80 bg-card p-6 shadow-sm">
+      <div className="panel p-6">
         <Skeleton className="h-5 w-24" />
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <Skeleton className="h-12 w-full" />
@@ -29,7 +29,7 @@ function ExecutionDetailSkeleton() {
           <Skeleton className="h-12 w-full" />
         </div>
       </div>
-      <div className="rounded-xl border border-border/80 bg-card p-6 shadow-sm">
+      <div className="panel p-6">
         <Skeleton className="h-5 w-24" />
         <div className="mt-4 space-y-3">
           <Skeleton className="h-16 w-full" />
@@ -47,7 +47,6 @@ export function ExecutionDetailPage() {
     executionId: string
   }>()
   const {
-    data: project,
     isLoading: projectLoading,
     isError: projectError,
     error: projectErr,
@@ -121,14 +120,63 @@ export function ExecutionDetailPage() {
         Execution history
       </Link>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="space-y-1">
-          <h1 className="font-display text-2xl font-semibold tracking-tight">
-            {workflow?.name ?? 'Execution'}
-          </h1>
-          <p className="text-sm text-muted-foreground">{project?.name ?? 'Project'} execution</p>
+      <div className="exec-head">
+        <div>
+          <div className="exec-title">
+            <span className="truncate">{workflow?.name ?? 'Execution'}</span>
+          </div>
+          <div className="exec-meta">
+            <div className="m">
+              <span className="lbl">Status</span>
+              <span className="val">
+                <ExecutionStatusBadge status={execution.status} />
+              </span>
+            </div>
+            <div className="m">
+              <span className="lbl">Created</span>
+              <span className="val">{formatDateTime(execution.created_at)}</span>
+            </div>
+            {execution.started_at ? (
+              <div className="m">
+                <span className="lbl">Started</span>
+                <span className="val">{formatDateTime(execution.started_at)}</span>
+              </div>
+            ) : null}
+            {execution.completed_at ? (
+              <div className="m">
+                <span className="lbl">Completed</span>
+                <span className="val">{formatDateTime(execution.completed_at)}</span>
+              </div>
+            ) : null}
+            <div className="m">
+              <span className="lbl">Workflow</span>
+              <span className="val">
+                {workflow ? (
+                  <Link
+                    to={`/app/projects/${projectId}/workflows/${workflow.id}`}
+                    className="text-accent underline-offset-4 hover:underline"
+                  >
+                    {workflow.name}
+                  </Link>
+                ) : (
+                  execution.workflow_id
+                )}
+              </span>
+            </div>
+            <div className="m">
+              <span className="lbl">Execution</span>
+              <span className="val">{execution.id.slice(0, 12)}…</span>
+            </div>
+          </div>
         </div>
-        <ExecutionStatusBadge status={execution.status} />
+        {execution.failure_reason ? (
+          <div
+            className="rounded-lg border border-failed/30 bg-failed/5 px-3 py-2 text-sm text-failed"
+            role="alert"
+          >
+            {execution.failure_reason}
+          </div>
+        ) : null}
       </div>
 
       <Card>
@@ -137,30 +185,30 @@ export function ExecutionDetailPage() {
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
           <div>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Status</p>
+            <p className="text-xs uppercase tracking-wide text-muted">Status</p>
             <div className="mt-1">
               <ExecutionStatusBadge status={execution.status} />
             </div>
           </div>
           <div>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Created</p>
-            <p className="mt-1 text-sm font-medium">{formatDateTime(execution.created_at)}</p>
+            <p className="text-xs uppercase tracking-wide text-muted">Created</p>
+            <p className="mt-1 font-mono text-sm">{formatDateTime(execution.created_at)}</p>
           </div>
           <div>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Started</p>
-            <p className="mt-1 text-sm font-medium">{formatDateTime(execution.started_at)}</p>
+            <p className="text-xs uppercase tracking-wide text-muted">Started</p>
+            <p className="mt-1 font-mono text-sm">{formatDateTime(execution.started_at)}</p>
           </div>
           <div>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Completed</p>
-            <p className="mt-1 text-sm font-medium">{formatDateTime(execution.completed_at)}</p>
+            <p className="text-xs uppercase tracking-wide text-muted">Completed</p>
+            <p className="mt-1 font-mono text-sm">{formatDateTime(execution.completed_at)}</p>
           </div>
           <div>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Workflow</p>
+            <p className="text-xs uppercase tracking-wide text-muted">Workflow</p>
             <p className="mt-1 text-sm font-medium">
               {workflow ? (
                 <Link
                   to={`/app/projects/${projectId}/workflows/${workflow.id}`}
-                  className="text-primary underline-offset-4 hover:underline"
+                  className="text-accent underline-offset-4 hover:underline"
                 >
                   {workflow.name}
                 </Link>
@@ -170,19 +218,9 @@ export function ExecutionDetailPage() {
             </p>
           </div>
           <div>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Execution ID</p>
+            <p className="text-xs uppercase tracking-wide text-muted">Execution ID</p>
             <p className="mt-1 break-all font-mono text-sm">{execution.id}</p>
           </div>
-          {execution.failure_reason ? (
-            <div className="sm:col-span-2">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                Failure reason
-              </p>
-              <p className="mt-1 text-sm font-medium text-destructive">
-                {execution.failure_reason}
-              </p>
-            </div>
-          ) : null}
         </CardContent>
       </Card>
 

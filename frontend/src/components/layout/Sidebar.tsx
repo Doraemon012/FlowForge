@@ -1,11 +1,36 @@
 import { NavLink } from 'react-router-dom'
-import { FolderKanban, LayoutDashboard } from 'lucide-react'
+import { LayoutDashboard, FolderKanban, PlayCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useSession } from '@/lib/auth-store'
 
-const navItems = [
-  { to: '/app', label: 'Overview', icon: LayoutDashboard, end: true },
-  { to: '/app/projects', label: 'Projects', icon: FolderKanban, end: false },
+const groups = [
+  {
+    label: 'Workspace',
+    items: [
+      { to: '/app', label: 'Overview', icon: LayoutDashboard, end: true },
+      { to: '/app/projects', label: 'Projects', icon: FolderKanban, end: false },
+    ],
+  },
+  {
+    label: 'Observe',
+    items: [{ to: '/app/projects', label: 'Runs', icon: PlayCircle, end: false }],
+  },
 ]
+
+function getInitials(user: { displayName?: string; email?: string } | null): string {
+  if (user?.displayName) {
+    return user.displayName
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join('')
+  }
+  if (user?.email) {
+    return user.email[0]?.toUpperCase() ?? '?'
+  }
+  return '?'
+}
 
 interface SidebarProps {
   className?: string
@@ -13,37 +38,49 @@ interface SidebarProps {
 }
 
 export function Sidebar({ className, onNavigate }: SidebarProps) {
+  const session = useSession()
+  const user = session?.user ?? null
+  const initials = getInitials(user)
+
   return (
-    <aside
-      className={cn(
-        'flex w-60 shrink-0 flex-col border-r bg-card',
-        className,
-      )}
-    >
-      <nav className="flex-1 p-3" aria-label="Primary navigation">
-        <ul className="space-y-1">
-          {navItems.map((item) => (
-            <li key={item.to}>
+    <aside className={cn('sidebar', className)}>
+      <div className="sb-workspace" role="button" tabIndex={0}>
+        <div className="sb-avatar">{initials}</div>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div className="name">{user?.displayName ?? 'FlowForge'}</div>
+          <div className="env">workspace</div>
+        </div>
+      </div>
+
+      <nav aria-label="Primary navigation" className="flex-1">
+        {groups.map((group) => (
+          <div key={group.label}>
+            <div className="sb-group">{group.label}</div>
+            {group.items.map((item) => (
               <NavLink
+                key={item.to}
                 to={item.to}
                 end={item.end}
                 onClick={onNavigate}
                 className={({ isActive }) =>
-                  cn(
-                    'flex items-center gap-2 rounded-md border-l-2 px-3 py-2 text-sm font-medium transition-colors',
-                    isActive
-                      ? 'border-l-primary bg-secondary/70 text-foreground'
-                      : 'border-l-transparent text-muted-foreground hover:bg-secondary/60 hover:text-foreground',
-                  )
+                  cn('sb-item', isActive && 'active')
                 }
               >
-                <item.icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-                {item.label}
+                <item.icon aria-hidden="true" />
+                <span>{item.label}</span>
               </NavLink>
-            </li>
-          ))}
-        </ul>
+            ))}
+          </div>
+        ))}
       </nav>
+
+      <div className="sb-bottom">
+        <div className="avatar">{initials}</div>
+        <div>
+          <div className="who">{user?.displayName ?? user?.email ?? 'Account'}</div>
+          <div className="plan">Team plan</div>
+        </div>
+      </div>
     </aside>
   )
 }

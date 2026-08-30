@@ -1,5 +1,4 @@
 import type * as React from 'react'
-import { Workflow } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface AuthLayoutProps {
@@ -18,73 +17,97 @@ const highlights = [
 
 export function AuthLayout({ title, description, children, footer, className }: AuthLayoutProps) {
   return (
-    <div className="flex min-h-svh">
-      <div className="relative hidden w-1/2 overflow-hidden bg-foreground lg:block">
-        <div
-          className="absolute inset-0 opacity-90"
-          style={{
-            backgroundImage:
-              'radial-gradient(600px 400px at 20% 20%, color-mix(in oklch, var(--primary) 22%, transparent), transparent 60%)',
-          }}
-          aria-hidden="true"
-        />
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage:
-              'linear-gradient(to bottom right, color-mix(in oklch, var(--primary) 12%, transparent) 1px, transparent 1px)',
-            backgroundSize: '28px 28px',
-          }}
-          aria-hidden="true"
-        />
-        <div className="relative flex h-full flex-col justify-between p-12">
-          <div className="flex items-center gap-2 text-background">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-lg">
-              <Workflow className="h-5 w-5" aria-hidden="true" />
+    <div className="auth">
+      <div
+        className="auth-l"
+        style={{
+          backgroundImage:
+            'radial-gradient(circle at 30% 60%, rgba(94, 234, 212, 0.08), transparent 60%)',
+        }}
+      >
+        <div className="inner">
+          <div className="logo">
+            <span className="logo-mark">F</span>
+            <span>FlowForge</span>
+          </div>
+          <h1>
+            Durable workflow
+            <br />
+            orchestration for
+            <br />
+            developers.
+          </h1>
+          <ul>
+            {highlights.map((highlight) => (
+              <li key={highlight}>
+                <span className="live-dot" aria-hidden="true" />
+                {highlight}
+              </li>
+            ))}
+          </ul>
+          <div className="dagpreview" aria-hidden="true">
+            <div className="lnode" style={{ left: 24, top: 80, width: 140 }}>
+              <div className="lnode-head">
+                <div className="task-icon ti-http" style={{ width: 20, height: 20 }}>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="9" />
+                  </svg>
+                </div>
+                <div className="lnode-title" style={{ fontSize: '11.5px' }}>Fetch</div>
+              </div>
             </div>
-            <span className="font-display text-lg font-semibold tracking-tight">FlowForge</span>
+            <div className="lnode" style={{ left: 210, top: 40, width: 140 }}>
+              <div className="lnode-head">
+                <div className="task-icon ti-transform" style={{ width: 20, height: 20 }}>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M4 7h16" />
+                  </svg>
+                </div>
+                <div className="lnode-title" style={{ fontSize: '11.5px' }}>Transform</div>
+              </div>
+            </div>
+            <div className="lnode" style={{ left: 210, top: 130, width: 140 }}>
+              <div className="lnode-head">
+                <div className="task-icon ti-email" style={{ width: 20, height: 20 }}>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M3 6h18v12H3z" />
+                  </svg>
+                </div>
+                <div className="lnode-title" style={{ fontSize: '11.5px' }}>Notify</div>
+              </div>
+            </div>
+            <svg style={{ position: 'absolute', inset: 0 }} width="100%" height="100%" viewBox="0 0 380 240">
+              <path d="M165,100 C190,100 190,55 210,55" stroke="#5EEAD4" strokeWidth="1.4" fill="none" />
+              <path d="M165,110 C190,110 190,150 210,150" stroke="#60A5FA" strokeWidth="1.4" fill="none" strokeDasharray="4 3" />
+            </svg>
           </div>
-
-          <div className="space-y-6">
-            <h2 className="font-display text-4xl font-semibold leading-tight tracking-tight text-background">
-              Durable workflow orchestration for developers.
-            </h2>
-            <ul className="space-y-2.5">
-              {highlights.map((highlight) => (
-                <li key={highlight} className="flex items-center gap-2 text-background/80">
-                  <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden="true" />
-                  <span className="text-sm">{highlight}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <p className="text-xs text-background/60">© {new Date().getFullYear()} FlowForge</p>
+        </div>
+        <div
+          style={{
+            position: 'relative',
+            zIndex: 1,
+            color: 'var(--dim)',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 11,
+          }}
+        >
+          © {new Date().getFullYear()} FlowForge
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col items-center justify-center px-6 py-10">
-        <div className={cn('flex w-full max-w-sm flex-col gap-6', className)}>
+      <div className="auth-r">
+        <div className={cn('auth-card', className)}>
           <div className="flex items-center justify-center gap-2 lg:hidden">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
-              <Workflow className="h-5 w-5" aria-hidden="true" />
-            </div>
+            <div className="logo-mark">F</div>
             <span className="font-display text-lg font-semibold tracking-tight">FlowForge</span>
           </div>
 
-          <div className="surface rounded-xl p-6">
-            <div className="space-y-1">
-              <h1 className="font-display text-xl font-semibold tracking-tight">{title}</h1>
-              {description ? (
-                <p className="text-sm text-muted-foreground">{description}</p>
-              ) : null}
-            </div>
-            <div className="mt-6">{children}</div>
-          </div>
+          <h2>{title}</h2>
+          {description ? <p className="lead">{description}</p> : null}
 
-          {footer ? (
-            <div className="text-center text-sm text-muted-foreground">{footer}</div>
-          ) : null}
+          <div className="auth-form">{children}</div>
+
+          {footer ? <div className="auth-foot">{footer}</div> : null}
         </div>
       </div>
     </div>

@@ -254,7 +254,7 @@ export function WorkflowBuilderLayout({
         ) : null}
 
         <div className="flex min-h-0 flex-1">
-          <aside className="hidden w-56 shrink-0 border-r bg-card md:block">
+          <aside className="hidden w-56 shrink-0 border-r bg-surface md:block">
             <TaskPalette onAddTask={addTask} />
           </aside>
 
@@ -298,7 +298,7 @@ export function WorkflowBuilderLayout({
               </div>
             ) : null}
 
-            <aside className="absolute inset-y-0 right-0 hidden w-80 shrink-0 border-l bg-card md:block">
+            <aside className="absolute inset-y-0 right-0 hidden w-80 shrink-0 border-l bg-surface md:block">
               <TaskConfigPanel
                 task={selectedTask}
                 onChange={(patch) => {
