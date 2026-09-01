@@ -55,7 +55,7 @@ export const DEFAULT_CONFIG_BY_TYPE: Record<SupportedTaskType, Record<string, un
   http: { url: '', method: 'GET' },
   transform: { expression: '' },
   delay: { seconds: 5 },
-  conditional: { condition: '' },
+  conditional: { field: '', equals: '', condition: '' },
   email: { to: '', subject: '', body: '' },
 }
 
@@ -66,6 +66,7 @@ export interface ConfigFieldSpec {
   placeholder?: string
   options?: string[]
   required?: boolean
+  help?: string
 }
 
 export const TASK_CONFIG_FIELDS: Record<SupportedTaskType, ConfigFieldSpec[]> = {
@@ -84,17 +85,39 @@ export const TASK_CONFIG_FIELDS: Record<SupportedTaskType, ConfigFieldSpec[]> = 
       label: 'Expression',
       type: 'textarea',
       placeholder: 'return data.value * 2',
-      required: true,
+    },
+    {
+      key: 'output',
+      label: 'Output',
+      type: 'textarea',
+      placeholder: 'Static JSON output returned by this transform, e.g. {"transcript": "..."}',
     },
   ],
   delay: [{ key: 'seconds', label: 'Seconds', type: 'number', required: true }],
   conditional: [
     {
+      key: 'field',
+      label: 'Field',
+      type: 'text',
+      placeholder: 'e.g. priority',
+      required: true,
+      help: 'Input field to read (e.g. "priority").',
+    },
+    {
+      key: 'equals',
+      label: 'Equals',
+      type: 'text',
+      placeholder: 'e.g. high',
+      required: true,
+      help: 'Value to compare against the field (e.g. "high").',
+    },
+    {
       key: 'condition',
       label: 'Condition',
       type: 'textarea',
       placeholder: 'data.status === "success"',
-      required: true,
+      required: false,
+      help: 'Optional human-readable description of the condition.',
     },
   ],
   email: [

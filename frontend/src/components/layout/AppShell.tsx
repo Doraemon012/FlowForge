@@ -8,9 +8,11 @@ import { Button } from '@/components/ui/button'
 
 export function AppShell() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   const closeSidebar = () => setSidebarOpen(false)
   const toggleSidebar = () => setSidebarOpen((open) => !open)
+  const toggleCollapse = () => setSidebarCollapsed((collapsed) => !collapsed)
 
   useEffect(() => {
     if (!sidebarOpen) return
@@ -26,7 +28,7 @@ export function AppShell() {
   return (
     <div className="appview">
       {/* Desktop sidebar */}
-      <Sidebar className="hidden md:flex" />
+      <Sidebar className="hidden md:flex" collapsed={sidebarCollapsed} />
 
       {/* Mobile sidebar drawer */}
       {sidebarOpen ? (
@@ -42,7 +44,7 @@ export function AppShell() {
             aria-hidden="true"
           />
           <div className="absolute inset-y-0 left-0 flex h-full shadow-xl">
-            <Sidebar className="flex h-full sidebar" onNavigate={closeSidebar} />
+            <Sidebar className="flex h-full sidebar sidebar-drawer" onNavigate={closeSidebar} />
             <Button
               variant="ghost"
               size="icon"
@@ -57,7 +59,11 @@ export function AppShell() {
       ) : null}
 
       <div className="main">
-        <TopBar onToggleSidebar={toggleSidebar} />
+        <TopBar
+          onToggleSidebar={toggleSidebar}
+          sidebarCollapsed={sidebarCollapsed}
+          onToggleCollapse={toggleCollapse}
+        />
         <div className="page">
           <div className="page-inner">
             <Outlet />

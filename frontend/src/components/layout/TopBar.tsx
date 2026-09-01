@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { LogOut, Menu, Search } from 'lucide-react'
+import { LogOut, Menu, PanelLeftClose, PanelLeftOpen, Search } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -55,9 +55,11 @@ function buildCrumbs(pathname: string): { label: string; path: string }[] {
 
 interface TopBarProps {
   onToggleSidebar?: () => void
+  sidebarCollapsed?: boolean
+  onToggleCollapse?: () => void
 }
 
-export function TopBar({ onToggleSidebar }: TopBarProps) {
+export function TopBar({ onToggleSidebar, sidebarCollapsed, onToggleCollapse }: TopBarProps) {
   const navigate = useNavigate()
   const location = useLocation()
   const { user, logout } = useAuth()
@@ -79,6 +81,23 @@ export function TopBar({ onToggleSidebar }: TopBarProps) {
       >
         <Menu className="h-4 w-4" aria-hidden="true" />
       </Button>
+
+      {onToggleCollapse ? (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="hidden md:inline-flex"
+          aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-expanded={!sidebarCollapsed}
+          onClick={onToggleCollapse}
+        >
+          {sidebarCollapsed ? (
+            <PanelLeftOpen className="h-4 w-4" aria-hidden="true" />
+          ) : (
+            <PanelLeftClose className="h-4 w-4" aria-hidden="true" />
+          )}
+        </Button>
+      ) : null}
 
       <nav className="crumbs" aria-label="Breadcrumb">
         {crumbs.map((crumb, index) => (

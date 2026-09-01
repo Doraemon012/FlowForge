@@ -169,6 +169,11 @@ export function WorkflowBuilderLayout({
     setSelectedNodeIds(new Set(params.nodes.map((node) => node.id)))
     setSelectedEdgeIds(new Set(params.edges.map((edge) => edge.id)))
     setConfigOpenMobile(params.nodes.length > 0)
+    // Opening the inspector should close the task palette so the two panels
+    // never stack awkwardly on top of each other on mobile.
+    if (params.nodes.length > 0) {
+      setPaletteOpen(false)
+    }
   }, [])
 
   const handleTaskChange = useCallback(
@@ -228,6 +233,25 @@ export function WorkflowBuilderLayout({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [deleteSelected, selectedNodeIds, selectedEdgeIds])
 
+  useEffect(() => {
+    if (!paletteOpen && !configOpenMobile) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setPaletteOpen(false)
+        setConfigOpenMobile(false)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [paletteOpen, configOpenMobile])
+
+  // Toggle the task palette as a single clean action. When opening it, close
+  // any open config panel so the two never overlap on mobile.
+  const togglePalette = useCallback(() => {
+    setPaletteOpen((open) => !open)
+    setConfigOpenMobile(false)
+  }, [])
+
   const selectedTask = nodes.find((node) => selectedNodeIds.has(node.id))?.data.task ?? null
 
   return (
@@ -240,7 +264,9 @@ export function WorkflowBuilderLayout({
               variant="outline"
               size="sm"
               className="md:hidden"
-              onClick={() => setPaletteOpen(true)}
+              onClick={togglePalette}
+              aria-expanded={paletteOpen}
+              aria-controls="task-palette-drawer"
             >
               <Box className="mr-1 h-4 w-4" aria-hidden="true" />
               Tasks
@@ -271,7 +297,7 @@ export function WorkflowBuilderLayout({
             />
 
             {paletteOpen ? (
-              <div className="absolute inset-0 z-30 flex md:hidden">
+              <div className="absolute inset-0 z-30 flex md:hidden" id="task-palette-drawer">
                 <div
                   className="absolute inset-0 bg-black/50"
                   onClick={() => setPaletteOpen(false)}
@@ -317,6 +343,11 @@ export function WorkflowBuilderLayout({
 
             {configOpenMobile && selectedTask ? (
               <div className="absolute inset-0 z-30 flex md:hidden">
+                <div
+                  className="absolute inset-0 bg-black/50"
+                  onClick={() => setConfigOpenMobile(false)}
+                  aria-hidden="true"
+                />
                 <div className="relative ml-auto flex h-full w-full max-w-sm shadow-xl">
                   <TaskConfigPanel
                     task={selectedTask}

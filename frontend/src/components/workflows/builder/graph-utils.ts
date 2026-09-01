@@ -209,10 +209,16 @@ export function summarizeTaskConfig(task: WorkflowTask): string {
     case 'http':
       return config.url ? `${config.method ?? 'GET'} ${config.url}` : 'Not configured'
     case 'transform':
+      if (config.output != null) {
+        return `Output: ${JSON.stringify(config.output)}`
+      }
       return config.expression ? String(config.expression) : 'Not configured'
     case 'delay':
       return config.seconds != null ? `Wait ${config.seconds}s` : 'Not configured'
     case 'conditional':
+      if (config.field && config.equals) {
+        return `${config.field} = ${config.equals}`
+      }
       return config.condition ? String(config.condition) : 'Not configured'
     case 'email':
       return config.to ? `To ${config.to}` : 'Not configured'

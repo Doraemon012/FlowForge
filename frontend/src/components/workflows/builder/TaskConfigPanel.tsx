@@ -106,6 +106,10 @@ function ConfigField({ field, value, onChange }: ConfigFieldProps) {
   const id = `task-config-${field.key}`
   const current = value ?? ''
 
+  const help = field.help ? (
+    <p className="text-xs text-muted-foreground">{field.help}</p>
+  ) : null
+
   if (field.type === 'select') {
     return (
       <div className="space-y-1.5">
@@ -126,6 +130,7 @@ function ConfigField({ field, value, onChange }: ConfigFieldProps) {
             </option>
           ))}
         </select>
+        {help}
       </div>
     )
   }
@@ -146,6 +151,7 @@ function ConfigField({ field, value, onChange }: ConfigFieldProps) {
           className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 font-mono text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-label={field.label}
         />
+        {help}
       </div>
     )
   }
@@ -165,6 +171,7 @@ function ConfigField({ field, value, onChange }: ConfigFieldProps) {
           placeholder={field.placeholder}
           aria-label={field.label}
         />
+        {help}
       </div>
     )
   }
@@ -183,6 +190,7 @@ function ConfigField({ field, value, onChange }: ConfigFieldProps) {
         placeholder={field.placeholder}
         aria-label={field.label}
       />
+      {help}
     </div>
   )
 }

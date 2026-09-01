@@ -29,15 +29,44 @@ function getStatusVariant(status: string): 'success' | 'secondary' | 'warning' |
   }
 }
 
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value)
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`
+  return `{${Object.keys(value as Record<string, unknown>)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${stableStringify((value as Record<string, unknown>)[key])}`)
+    .join(',')}}`
+}
+
+function normalizeTask(task: WorkflowTask): string {
+  return stableStringify({
+    id: task.id,
+    type: task.type,
+    config: task.config ?? {},
+    depends_on: [...(task.depends_on ?? [])].sort(),
+  })
+}
+
+function tasksEqual(a: WorkflowTask[], b: WorkflowTask[]): boolean {
+  if (a.length !== b.length) return false
+  return a.every((task, index) => normalizeTask(task) === normalizeTask(b[index]))
+}
+
 interface WorkflowEditorProps {
   projectId: string
   workflow: Workflow
 }
 
 export function WorkflowEditor({ projectId, workflow }: WorkflowEditorProps) {
+  const initialTasks = workflow.draft_definition?.tasks ?? []
   const [name, setName] = useState(workflow.name)
   const [description, setDescription] = useState(workflow.description)
-  const [tasks, setTasks] = useState<WorkflowTask[]>(workflow.draft_definition?.tasks ?? [])
+  const [tasks, setTasks] = useState<WorkflowTask[]>(initialTasks)
+  const [savedState, setSavedState] = useState(() => ({
+    name: workflow.name,
+    description: workflow.description,
+    tasks: initialTasks,
+  }))
   const [validationErrors, setValidationErrors] = useState<string[]>([])
   const [validationMessage, setValidationMessage] = useState<string | null>(null)
 
@@ -48,19 +77,34 @@ export function WorkflowEditor({ projectId, workflow }: WorkflowEditorProps) {
   const deactivateMutation = useDeactivateWorkflow(projectId, workflow.id)
   const createExecutionMutation = useCreateExecution(projectId, workflow.id)
 
-  const originalTasks = workflow.draft_definition?.tasks ?? []
+  // Track the last-saved snapshot so "Unsaved" is computed against what is
+  // actually persisted, not against a prop that may still be stale while the
+  // query cache is being updated.
   const hasChanges =
-    name !== workflow.name ||
-    description !== workflow.description ||
-    JSON.stringify(tasks) !== JSON.stringify(originalTasks)
+    name !== savedState.name ||
+    description !== savedState.description ||
+    !tasksEqual(tasks, savedState.tasks)
+
+  const syncFromSaved = (updated: Workflow) => {
+    const savedTasks = updated.draft_definition?.tasks ?? []
+    setName(updated.name)
+    setDescription(updated.description)
+    setTasks(savedTasks)
+    setSavedState({
+      name: updated.name,
+      description: updated.description,
+      tasks: savedTasks,
+    })
+  }
 
   const handleSave = async () => {
     try {
-      await updateMutation.mutateAsync({
+      const updated = await updateMutation.mutateAsync({
         name,
         description,
         definition: { tasks },
       })
+      syncFromSaved(updated)
       toast.success('Workflow saved')
     } catch (error) {
       if (error instanceof ApiError) {
@@ -73,11 +117,12 @@ export function WorkflowEditor({ projectId, workflow }: WorkflowEditorProps) {
 
   const handleValidate = async () => {
     try {
-      await updateMutation.mutateAsync({
+      const updated = await updateMutation.mutateAsync({
         name,
         description,
         definition: { tasks },
       })
+      syncFromSaved(updated)
       const result = await validateMutation.mutateAsync()
       setValidationErrors(result.errors)
       setValidationMessage(result.valid ? 'Workflow is valid.' : null)
@@ -96,11 +141,12 @@ export function WorkflowEditor({ projectId, workflow }: WorkflowEditorProps) {
 
   const handlePublish = async () => {
     try {
-      await updateMutation.mutateAsync({
+      const updated = await updateMutation.mutateAsync({
         name,
         description,
         definition: { tasks },
       })
+      syncFromSaved(updated)
       const version = await publishMutation.mutateAsync()
       toast.success(`Workflow version ${version.version_number} published`)
     } catch (error) {

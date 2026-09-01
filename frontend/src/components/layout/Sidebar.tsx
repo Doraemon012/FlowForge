@@ -35,39 +35,49 @@ function getInitials(user: { displayName?: string; email?: string } | null): str
 interface SidebarProps {
   className?: string
   onNavigate?: () => void
+  collapsed?: boolean
 }
 
-export function Sidebar({ className, onNavigate }: SidebarProps) {
+export function Sidebar({ className, onNavigate, collapsed = false }: SidebarProps) {
   const session = useSession()
   const user = session?.user ?? null
   const initials = getInitials(user)
+  const workspaceName = user?.displayName ?? 'FlowForge'
 
   return (
-    <aside className={cn('sidebar', className)}>
-      <div className="sb-workspace" role="button" tabIndex={0}>
+    <aside
+      className={cn('sidebar', collapsed && 'sb-collapsed', className)}
+      style={collapsed ? { width: 64 } : undefined}
+      aria-label="Primary"
+    >
+      <div className="sb-workspace" role="button" tabIndex={0} title={collapsed ? workspaceName : undefined}>
         <div className="sb-avatar">{initials}</div>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div className="name">{user?.displayName ?? 'FlowForge'}</div>
-          <div className="env">workspace</div>
-        </div>
+        {!collapsed ? (
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div className="name">{workspaceName}</div>
+            <div className="env">workspace</div>
+          </div>
+        ) : null}
       </div>
 
       <nav aria-label="Primary navigation" className="flex-1">
         {groups.map((group) => (
           <div key={group.label}>
-            <div className="sb-group">{group.label}</div>
+            {!collapsed ? <div className="sb-group">{group.label}</div> : null}
             {group.items.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
                 end={item.end}
                 onClick={onNavigate}
+                title={collapsed ? item.label : undefined}
+                aria-label={collapsed ? item.label : undefined}
                 className={({ isActive }) =>
                   cn('sb-item', isActive && 'active')
                 }
               >
                 <item.icon aria-hidden="true" />
-                <span>{item.label}</span>
+                {!collapsed ? <span>{item.label}</span> : null}
               </NavLink>
             ))}
           </div>
@@ -76,10 +86,12 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
 
       <div className="sb-bottom">
         <div className="avatar">{initials}</div>
-        <div>
-          <div className="who">{user?.displayName ?? user?.email ?? 'Account'}</div>
-          <div className="plan">Team plan</div>
-        </div>
+        {!collapsed ? (
+          <div>
+            <div className="who">{user?.displayName ?? user?.email ?? 'Account'}</div>
+            <div className="plan">Team plan</div>
+          </div>
+        ) : null}
       </div>
     </aside>
   )

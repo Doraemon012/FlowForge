@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowRight,
+  Check,
   CheckCircle2,
   ChevronRight,
   Copy,
@@ -203,6 +205,18 @@ function FlowGraph() {
 }
 
 export function LandingPage() {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(codeExample)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 2000)
+    } catch {
+      setCopied(false)
+    }
+  }
+
   return (
     <div className="min-h-svh flex flex-col" style={{ background: 'var(--bg)' }}>
       <header className="lnav">
@@ -216,11 +230,9 @@ export function LandingPage() {
           </span>
         </div>
         <nav className="lnav-links">
-          <a>Product</a>
-          <a>Docs</a>
-          <a>Pricing</a>
-          <a>Changelog</a>
-          <a>Customers</a>
+          <a href="#product">Product</a>
+          <a href="#docs">Docs</a>
+          <a href="#features">Features</a>
         </nav>
         <div className="lnav-cta">
           <Button variant="ghost" size="sm" asChild>
@@ -301,7 +313,7 @@ export function LandingPage() {
           <div className="logos-metric-sub">across 40+ engineering teams in production</div>
         </section>
 
-        <section className="lsection">
+        <section className="lsection" id="product">
           <div className="lsection-inner">
             <div className="lsection-head">
               <div className="lsection-eyebrow">How it works</div>
@@ -327,7 +339,7 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section className="lsection" style={{ paddingTop: 20 }}>
+        <section className="lsection" id="features" style={{ paddingTop: 20 }}>
           <div className="lsection-inner">
             <div className="lsection-head">
               <div className="lsection-eyebrow">Built for reliability</div>
@@ -426,7 +438,7 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section className="lsection" style={{ paddingTop: 20 }}>
+        <section className="lsection" id="docs" style={{ paddingTop: 20 }}>
           <div className="lsection-inner" style={{ maxWidth: 960 }}>
             <div className="lsection-head">
               <div className="lsection-eyebrow">Developer-first API</div>
@@ -449,9 +461,18 @@ export function LandingPage() {
                 <span style={{ flex: 1, textAlign: 'center' }}>order-fulfillment.ts</span>
                 <span>TypeScript</span>
               </div>
-              <button className="copy-btn" type="button">
-                <Copy className="mr-1 h-3 w-3" aria-hidden="true" />
-                Copy
+              <button
+                className="copy-btn"
+                type="button"
+                onClick={handleCopy}
+                aria-label="Copy code example"
+              >
+                {copied ? (
+                  <Check className="mr-1 h-3 w-3" aria-hidden="true" />
+                ) : (
+                  <Copy className="mr-1 h-3 w-3" aria-hidden="true" />
+                )}
+                {copied ? 'Copied!' : 'Copy'}
               </button>
               <div className="code-body">
                 <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{codeExample}</pre>
