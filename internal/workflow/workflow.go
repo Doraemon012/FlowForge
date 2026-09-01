@@ -58,6 +58,7 @@ type Version struct {
 type Repository interface {
 	Create(ctx context.Context, ownerID, projectID uuid.UUID, workflow Workflow) error
 	GetOwned(ctx context.Context, ownerID, workflowID uuid.UUID) (Workflow, error)
+	GetActiveVersion(ctx context.Context, workflowID uuid.UUID) (uuid.UUID, error)
 	ListByProject(ctx context.Context, ownerID, projectID uuid.UUID) ([]Workflow, error)
 	UpdateOwned(ctx context.Context, ownerID, workflowID uuid.UUID, name, description string, definition Definition, updatedAt time.Time) (Workflow, error)
 	ListVersionsOwned(ctx context.Context, ownerID, workflowID uuid.UUID) ([]Version, error)
@@ -191,6 +192,15 @@ func (r *PostgresRepository) GetOwned(ctx context.Context, ownerID, workflowID u
 		return Workflow{}, err
 	}
 	return result, nil
+}
+
+func (r *PostgresRepository) GetActiveVersion(ctx context.Context, workflowID uuid.UUID) (uuid.UUID, error) {
+	var versionID uuid.UUID
+	err := r.pool.QueryRow(ctx, `SELECT active_version_id FROM workflows WHERE id = $1 AND active_version_id IS NOT NULL`, workflowID).Scan(&versionID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, ErrNotFound
+	}
+	return versionID, err
 }
 
 func (r *PostgresRepository) ListByProject(ctx context.Context, ownerID, projectID uuid.UUID) ([]Workflow, error) {

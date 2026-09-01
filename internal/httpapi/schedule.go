@@ -70,6 +70,12 @@ func (s *Server) CreateSchedule(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := time.Now().UTC()
+	next, err := schedule.ComputeNextOccurrence(req.CronExpression, req.Timezone, now)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_schedule", "invalid cron expression or timezone")
+		return
+	}
+
 	sched := schedule.Schedule{
 		ID:             uuid.New(),
 		ProjectID:      projectID,
@@ -77,6 +83,7 @@ func (s *Server) CreateSchedule(w http.ResponseWriter, r *http.Request) {
 		CronExpression: req.CronExpression,
 		Timezone:       req.Timezone,
 		Enabled:        true,
+		NextOccurrence: &next,
 		CreatedAt:      now,
 		UpdatedAt:      now,
 	}
@@ -97,6 +104,7 @@ func (s *Server) CreateSchedule(w http.ResponseWriter, r *http.Request) {
 		CronExpression: sched.CronExpression,
 		Timezone:       sched.Timezone,
 		Enabled:        sched.Enabled,
+		NextOccurrence: sched.NextOccurrence,
 		CreatedAt:      sched.CreatedAt,
 		UpdatedAt:      sched.UpdatedAt,
 	})
@@ -212,15 +220,28 @@ func (s *Server) UpdateSchedule(w http.ResponseWriter, r *http.Request) {
 		req.Timezone = "UTC"
 	}
 
-	updated, err := s.schedules.UpdateOwned(r.Context(), ownerID, projectID, existing.ID, req.CronExpression, req.Timezone, req.Enabled, time.Now().UTC())
-	if errors.Is(err, schedule.ErrNotFound) {
-		writeError(w, http.StatusNotFound, "schedule_not_found", "schedule not found")
+	now := time.Now().UTC()
+	next, err := schedule.ComputeNextOccurrence(req.CronExpression, req.Timezone, now)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_schedule", "invalid cron expression or timezone")
 		return
 	}
-	if err != nil {
+
+	updated, err := s.schedules.UpdateOwned(r.Context(), ownerID, projectID, existing.ID, req.CronExpression, req.Timezone, req.Enabled, now)
+	switch {
+	case errors.Is(err, schedule.ErrNotFound):
+		writeError(w, http.StatusNotFound, "schedule_not_found", "schedule not found")
+		return
+	case err != nil:
 		writeError(w, http.StatusInternalServerError, "schedule_update_failed", "unable to update schedule")
 		return
 	}
+	if err := s.schedules.SetNextOccurrence(r.Context(), updated.ID, &next, now); err != nil {
+		writeError(w, http.StatusInternalServerError, "schedule_update_failed", "unable to update schedule")
+		return
+	}
+	nextPtr := next
+	updated.NextOccurrence = &nextPtr
 
 	writeJSON(w, http.StatusOK, scheduleResponse{
 		ID:              updated.ID,

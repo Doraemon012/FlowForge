@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -32,6 +33,12 @@ type webhookResponse struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
+
+// webhookTimestampTolerance bounds how old a replayable webhook timestamp may
+// be. Signature-only verification is enough for V1; the timestamp adds a
+// cheap replay window so an attacker cannot silently re-deliver an old,
+// already-processed payload with a fresh signature.
+const webhookTimestampTolerance = 5 * time.Minute
 
 func (s *Server) CreateWebhook(w http.ResponseWriter, r *http.Request) {
 	ownerID, ok := authenticatedUserID(r.Context())
@@ -74,9 +81,6 @@ func (s *Server) CreateWebhook(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().UTC()
 	webhookID := "wh_" + uuid.New().String()[:12]
 
-	// Hash the secret for storage
-	secretHash := webhook.SignPayload(req.Secret, []byte(webhookID))
-
 	wh := webhook.Webhook{
 		ID:         webhookID,
 		ProjectID:  projectID,
@@ -86,7 +90,9 @@ func (s *Server) CreateWebhook(w http.ResponseWriter, r *http.Request) {
 		UpdatedAt:  now,
 	}
 
-	if err := s.webhooks.Create(r.Context(), wh, secretHash); err != nil {
+	// Store the raw secret material. The secret is shown once at creation and
+	// is required to verify HMAC signatures on subsequent deliveries.
+	if err := s.webhooks.Create(r.Context(), wh, req.Secret); err != nil {
 		writeError(w, http.StatusInternalServerError, "webhook_create_failed", "unable to create webhook")
 		return
 	}
@@ -122,11 +128,8 @@ func (s *Server) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	// Get webhook
-	// Note: we don't know projectID yet, so we fetch without project constraint
-	// In production, the webhook table should have a full URL or we need to lookup differently
-	// For now, we'll fetch by ID only (less secure but matches current schema)
-	wh, err := s.webhooks.GetByID(r.Context(), uuid.Nil, webhookID)
+	// Public lookup by ID along: the webhook is invoked without a user token.
+	wh, err := s.webhooks.GetByPublicID(r.Context(), webhookID)
 	if errors.Is(err, webhook.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "webhook_not_found", "webhook not found")
 		return
@@ -141,61 +144,93 @@ func (s *Server) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get secret hash for verification
-	secretHash, err := s.webhooks.GetSecretHash(r.Context(), webhookID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "webhook_secret_lookup_failed", "unable to verify webhook")
-		return
+	// Verify timestamp for replay protection (optional header).
+	if timestampHeader := r.Header.Get("X-Webhook-Timestamp"); timestampHeader != "" {
+		ts, parseErr := strconv.ParseInt(timestampHeader, 10, 64)
+		if parseErr != nil {
+			writeError(w, http.StatusBadRequest, "invalid_timestamp", "webhook timestamp must be a unix epoch integer")
+			return
+		}
+		received := time.Unix(ts, 0).UTC()
+		if time.Since(received) > webhookTimestampTolerance {
+			writeError(w, http.StatusUnauthorized, "stale_timestamp", "webhook timestamp is too old")
+			return
+		}
+		if received.After(time.Now().UTC().Add(webhookTimestampTolerance)) {
+			writeError(w, http.StatusUnauthorized, "future_timestamp", "webhook timestamp is in the future")
+			return
+		}
 	}
 
-	// Verify signature from header
+	// Verify signature from header.
 	signature := r.Header.Get("X-Webhook-Signature")
 	if signature == "" {
 		writeError(w, http.StatusUnauthorized, "missing_signature", "webhook signature required")
 		return
 	}
 
-	// Extract the secret from the signature verification
-	// In this case, we need to verify that the signature is valid
-	// This is a simplified version - in production, you'd have the secret stored securely
-	if !verifyWebhookSignature(payload, secretHash, signature) {
+	secret, err := s.webhooks.GetSecretHash(r.Context(), webhookID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "webhook_secret_lookup_failed", "unable to verify webhook")
+		return
+	}
+
+	if !webhook.VerifySignature(secret, payload, signature) {
 		writeError(w, http.StatusUnauthorized, "invalid_signature", "webhook signature verification failed")
 		return
 	}
 
-	// Use delivery ID for idempotency
+	// A disabled (paused/deactivated) workflow must not accept new runs.
+	activeVersionID, err := s.workflows.GetActiveVersion(r.Context(), wh.WorkflowID)
+	if errors.Is(err, workflow.ErrNotFound) {
+		writeError(w, http.StatusConflict, "workflow_not_active", "workflow is not active")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "workflow_lookup_failed", "unable to retrieve workflow")
+		return
+	}
+
+	// The execution ownership check needs the project owner, not the project ID.
+	ownerID, err := s.projects.GetOwner(r.Context(), wh.ProjectID)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "project_not_found", "project not found")
+		return
+	}
+
+	// Use delivery ID for idempotency.
 	deliveryID := r.Header.Get("X-Delivery-ID")
 	if deliveryID == "" {
 		deliveryID = "manual-" + uuid.New().String()
 	}
 
-	// Check idempotency
+	// Check idempotency.
 	_, err = s.idempotency.GetExecutionByIdempotencyKey(r.Context(), wh.ProjectID, deliveryID)
 	if err == nil {
-		// Already processed, return success
-		w.WriteHeader(http.StatusOK)
+		// Already processed, return success.
+		writeJSON(w, http.StatusOK, map[string]string{"status": "already_processed"})
 		return
 	} else if err != execution.ErrIdempotencyNotFound {
 		writeError(w, http.StatusInternalServerError, "idempotency_check_failed", "unable to check idempotency")
 		return
 	}
 
-	// Create execution
+	// Create execution.
 	now := time.Now().UTC()
 	input := json.RawMessage(payload)
 	if len(payload) == 0 {
 		input = json.RawMessage(`{}`)
 	}
 
-	execRecord, err := s.executions.CreateOwned(r.Context(), wh.ProjectID, wh.WorkflowID, uuid.Nil, input, now)
+	execRecord, err := s.executions.CreateOwned(r.Context(), ownerID, wh.WorkflowID, activeVersionID, input, now)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "execution_create_failed", "unable to create execution")
 		return
 	}
 
-	// Record idempotency key
+	// Record idempotency key.
 	if err := s.idempotency.RecordIdempotencyKey(r.Context(), wh.ProjectID, execRecord.ID, deliveryID, now); err != nil {
-		// Log but don't fail - execution was created
+		// Log but don't fail - execution was created.
 		s.logger.Error("record webhook idempotency", "webhook_id", webhookID, "error", err)
 	}
 
@@ -353,13 +388,4 @@ func (s *Server) DeleteWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
-}
-
-// verifyWebhookSignature checks if the provided signature matches the payload
-func verifyWebhookSignature(payload []byte, secretHash, signature string) bool {
-	// In a real implementation, this would verify using HMAC-SHA256
-	// For now, we verify that the signature is valid
-	// This is a simplified implementation
-	expected := webhook.SignPayload(secretHash, payload)
-	return expected == signature
 }

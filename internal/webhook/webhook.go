@@ -29,6 +29,7 @@ type Webhook struct {
 type Repository interface {
 	Create(ctx context.Context, webhook Webhook, secretHash string) error
 	GetByID(ctx context.Context, projectID uuid.UUID, webhookID string) (Webhook, error)
+	GetByPublicID(ctx context.Context, webhookID string) (Webhook, error)
 	GetSecretHash(ctx context.Context, webhookID string) (string, error)
 	ListByWorkflow(ctx context.Context, projectID, workflowID uuid.UUID) ([]Webhook, error)
 	UpdateEnabled(ctx context.Context, projectID uuid.UUID, webhookID string, enabled bool, updatedAt time.Time) error
@@ -61,6 +62,21 @@ func (r *PostgresRepository) GetByID(ctx context.Context, projectID uuid.UUID, w
 		FROM webhook_endpoints
 		WHERE id = $1 AND project_id = $2
 	`, webhookID, projectID).Scan(
+		&result.ID, &result.ProjectID, &result.WorkflowID, &result.Enabled, &result.CreatedAt, &result.UpdatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Webhook{}, ErrNotFound
+	}
+	return result, err
+}
+
+func (r *PostgresRepository) GetByPublicID(ctx context.Context, webhookID string) (Webhook, error) {
+	var result Webhook
+	err := r.pool.QueryRow(ctx, `
+		SELECT id, project_id, workflow_id, enabled, created_at, updated_at
+		FROM webhook_endpoints
+		WHERE id = $1
+	`, webhookID).Scan(
 		&result.ID, &result.ProjectID, &result.WorkflowID, &result.Enabled, &result.CreatedAt, &result.UpdatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {

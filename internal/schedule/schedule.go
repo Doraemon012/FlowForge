@@ -7,7 +7,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/robfig/cron/v3"
 )
 
 var (
@@ -37,6 +39,7 @@ type Repository interface {
 	DeleteOwned(ctx context.Context, ownerID, projectID, scheduleID uuid.UUID) error
 	FindDueSchedules(ctx context.Context, now time.Time) ([]Schedule, error)
 	MarkTriggered(ctx context.Context, scheduleID uuid.UUID, now time.Time) error
+	SetNextOccurrence(ctx context.Context, scheduleID uuid.UUID, nextOccurrence *time.Time, updatedAt time.Time) error
 }
 
 type PostgresRepository struct {
@@ -63,7 +66,8 @@ func (r *PostgresRepository) Create(ctx context.Context, schedule Schedule) erro
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`, schedule.ID, schedule.ProjectID, schedule.WorkflowID, schedule.CronExpression, schedule.Timezone, schedule.Enabled, schedule.NextOccurrence, schedule.CreatedAt, schedule.UpdatedAt)
 
-	if err != nil && err.Error() == "ERROR: duplicate key value violates unique constraint \"schedules_project_workflow_unique\" (SQLSTATE 23505)" {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 		return ErrConflict
 	}
 	return err
@@ -75,8 +79,9 @@ func (r *PostgresRepository) GetOwned(ctx context.Context, ownerID, projectID, s
 		SELECT s.id, s.project_id, s.workflow_id, s.cron_expression, s.timezone, s.enabled, s.next_occurrence, s.last_triggered_at, s.created_at, s.updated_at
 		FROM schedules s
 		JOIN workflows w ON s.workflow_id = w.id
-		WHERE s.id = $1 AND s.project_id = $2 AND w.project_id = $2
-	`, scheduleID, projectID).Scan(
+		JOIN projects p ON p.id = w.project_id
+		WHERE s.id = $1 AND s.project_id = $2 AND p.owner_id = $3
+	`, scheduleID, projectID, ownerID).Scan(
 		&result.ID, &result.ProjectID, &result.WorkflowID, &result.CronExpression, &result.Timezone, &result.Enabled,
 		&result.NextOccurrence, &result.LastTriggeredAt, &result.CreatedAt, &result.UpdatedAt,
 	)
@@ -107,9 +112,10 @@ func (r *PostgresRepository) ListOwned(ctx context.Context, ownerID, projectID u
 		SELECT s.id, s.project_id, s.workflow_id, s.cron_expression, s.timezone, s.enabled, s.next_occurrence, s.last_triggered_at, s.created_at, s.updated_at
 		FROM schedules s
 		JOIN workflows w ON s.workflow_id = w.id
-		WHERE s.project_id = $1 AND w.project_id = $1
+		JOIN projects p ON p.id = w.project_id
+		WHERE s.project_id = $1 AND p.owner_id = $2
 		ORDER BY s.created_at, s.id
-	`, projectID)
+	`, projectID, ownerID)
 	if err != nil {
 		return nil, err
 	}
@@ -143,9 +149,12 @@ func (r *PostgresRepository) UpdateOwned(ctx context.Context, ownerID, projectID
 	var result Schedule
 	err := r.pool.QueryRow(ctx, `
 		UPDATE schedules SET cron_expression = $1, timezone = $2, enabled = $3, updated_at = $4
-		WHERE id = $5 AND project_id = $6
+		WHERE id = $5 AND project_id = $6 AND EXISTS (
+			SELECT 1 FROM workflows w JOIN projects p ON p.id = w.project_id
+			WHERE w.id = schedules.workflow_id AND p.owner_id = $7
+		)
 		RETURNING id, project_id, workflow_id, cron_expression, timezone, enabled, next_occurrence, last_triggered_at, created_at, updated_at
-	`, cron, tz, enabled, updatedAt, scheduleID, projectID).Scan(
+	`, cron, tz, enabled, updatedAt, scheduleID, projectID, ownerID).Scan(
 		&result.ID, &result.ProjectID, &result.WorkflowID, &result.CronExpression, &result.Timezone, &result.Enabled,
 		&result.NextOccurrence, &result.LastTriggeredAt, &result.CreatedAt, &result.UpdatedAt,
 	)
@@ -157,12 +166,18 @@ func (r *PostgresRepository) UpdateOwned(ctx context.Context, ownerID, projectID
 
 func (r *PostgresRepository) DeleteOwned(ctx context.Context, ownerID, projectID, scheduleID uuid.UUID) error {
 	tag, err := r.pool.Exec(ctx, `
-		DELETE FROM schedules WHERE id = $1 AND project_id = $2
-	`, scheduleID, projectID)
+		DELETE FROM schedules WHERE id = $1 AND project_id = $2 AND EXISTS (
+			SELECT 1 FROM workflows w JOIN projects p ON p.id = w.project_id
+			WHERE w.id = schedules.workflow_id AND p.owner_id = $3
+		)
+	`, scheduleID, projectID, ownerID)
+	if err != nil {
+		return err
+	}
 	if tag.RowsAffected() == 0 {
 		return ErrNotFound
 	}
-	return err
+	return nil
 }
 
 func (r *PostgresRepository) FindDueSchedules(ctx context.Context, now time.Time) ([]Schedule, error) {
@@ -199,4 +214,28 @@ func (r *PostgresRepository) MarkTriggered(ctx context.Context, scheduleID uuid.
 		UPDATE schedules SET last_triggered_at = $1, updated_at = $1 WHERE id = $2
 	`, now, scheduleID)
 	return err
+}
+
+func (r *PostgresRepository) SetNextOccurrence(ctx context.Context, scheduleID uuid.UUID, nextOccurrence *time.Time, updatedAt time.Time) error {
+	_, err := r.pool.Exec(ctx, `
+		UPDATE schedules SET next_occurrence = $1, updated_at = $2 WHERE id = $3
+	`, nextOccurrence, updatedAt, scheduleID)
+	return err
+}
+
+// ComputeNextOccurrence returns the next future occurrence of the cron
+// expression in the given timezone, strictly after the reference time.
+func ComputeNextOccurrence(cronExpr, timezone string, after time.Time) (time.Time, error) {
+	if timezone == "" {
+		timezone = "UTC"
+	}
+	loc, err := time.LoadLocation(timezone)
+	if err != nil {
+		return time.Time{}, err
+	}
+	cronSchedule, err := cron.ParseStandard(cronExpr)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return cronSchedule.Next(after.In(loc)), nil
 }

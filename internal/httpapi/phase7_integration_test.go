@@ -54,12 +54,13 @@ func TestPhase7ScheduleTriggersExecution(t *testing.T) {
 	idempotencyRepo := execution.NewPostgresIdempotencyRepository(pool)
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 
-	schedulerService := scheduler.NewScheduler(scheduleRepo, executionRepo, idempotencyRepo, logger)
+	schedulerService := scheduler.NewScheduler(scheduleRepo, executionRepo, idempotencyRepo, workflowRepo, projectRepo, logger)
 
 	// Create user
 	testUser := user.User{
 		ID:           uuid.New(),
 		Email:        fmt.Sprintf("phase7test%d@example.com", time.Now().UnixNano()),
+		DisplayName:  "Phase7 Test User",
 		PasswordHash: "hashed",
 		CreatedAt:    time.Now().UTC(),
 	}
@@ -125,7 +126,7 @@ func TestPhase7ScheduleTriggersExecution(t *testing.T) {
 	}
 
 	// Run scheduler tick
-	schedulerService.Run(ctx)
+	schedulerService.Tick(ctx)
 
 	// Verify execution was created
 	executions, err := executionRepo.ListOwned(ctx, testUser.ID, testProject.ID)
@@ -139,7 +140,7 @@ func TestPhase7ScheduleTriggersExecution(t *testing.T) {
 
 	// Verify idempotency (running scheduler again should not create duplicate)
 	initialCount := len(executions)
-	schedulerService.Run(ctx)
+	schedulerService.Tick(ctx)
 
 	executions, err = executionRepo.ListOwned(ctx, testUser.ID, testProject.ID)
 	if err != nil {
@@ -192,6 +193,7 @@ func TestPhase7WebhookTriggersExecution(t *testing.T) {
 	testUser := user.User{
 		ID:           uuid.New(),
 		Email:        fmt.Sprintf("phase7webhook%d@example.com", time.Now().UnixNano()),
+		DisplayName:  "Phase7 Webhook User",
 		PasswordHash: "hashed",
 		CreatedAt:    time.Now().UTC(),
 	}
@@ -241,7 +243,7 @@ func TestPhase7WebhookTriggersExecution(t *testing.T) {
 
 	// Create webhook
 	secret := "test-webhook-secret-1234567890ab"
-	webhookID := "wh_testphase7webhook"
+	webhookID := fmt.Sprintf("wh_%s", uuid.New().String()[:12])
 	wh := webhook.Webhook{
 		ID:         webhookID,
 		ProjectID:  testProject.ID,
@@ -250,8 +252,7 @@ func TestPhase7WebhookTriggersExecution(t *testing.T) {
 		CreatedAt:  time.Now().UTC(),
 		UpdatedAt:  time.Now().UTC(),
 	}
-	secretHash := webhook.SignPayload(secret, []byte(webhookID))
-	if err := webhookRepo.Create(ctx, wh, secretHash); err != nil {
+	if err := webhookRepo.Create(ctx, wh, secret); err != nil {
 		t.Fatalf("create webhook: %v", err)
 	}
 
@@ -303,35 +304,92 @@ func TestPhase7IdempotencyPreventsDuplicateExecutions(t *testing.T) {
 	}
 	defer pool.Close()
 
+	userRepo := user.NewPostgresRepository(pool)
+	projectRepo := project.NewPostgresRepository(pool)
+	workflowRepo := workflow.NewPostgresRepository(pool)
+	executionRepo := execution.NewPostgresRepository(pool)
 	idempotencyRepo := execution.NewPostgresIdempotencyRepository(pool)
-	projectID := uuid.New()
-	executionID1 := uuid.New()
-	executionID2 := uuid.New()
+
+	// Set up a real project and workflow so executions satisfy the FK.
+	testUser := user.User{
+		ID:           uuid.New(),
+		Email:        fmt.Sprintf("phase7idem%d@example.com", time.Now().UnixNano()),
+		DisplayName:  "Phase7 Idempotency User",
+		PasswordHash: "hashed",
+		CreatedAt:    time.Now().UTC(),
+	}
+	if err := userRepo.Create(ctx, testUser); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	testProject := project.Project{
+		ID:        uuid.New(),
+		OwnerID:   testUser.ID,
+		Name:      "Phase7 Idempotency Project",
+		CreatedAt: time.Now().UTC(),
+	}
+	if err := projectRepo.Create(ctx, testProject); err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+
+	def := workflow.Definition{
+		Tasks: []workflow.Task{{ID: "task1", Type: "transform", Config: json.RawMessage(`{"output":{}}`)}},
+	}
+	testWorkflow := workflow.Workflow{
+		ID:              uuid.New(),
+		ProjectID:       testProject.ID,
+		Name:            "Phase7 Idempotency Workflow",
+		Status:          "draft",
+		DraftDefinition: def,
+		CreatedAt:       time.Now().UTC(),
+		UpdatedAt:       time.Now().UTC(),
+	}
+	if err := workflowRepo.Create(ctx, testUser.ID, testProject.ID, testWorkflow); err != nil {
+		t.Fatalf("create workflow: %v", err)
+	}
+	version, err := workflowRepo.PublishOwned(ctx, testUser.ID, testWorkflow.ID, def, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("publish version: %v", err)
+	}
+	if err := workflowRepo.ActivateVersionOwned(ctx, testUser.ID, testWorkflow.ID, version.ID, time.Now().UTC()); err != nil {
+		t.Fatalf("activate version: %v", err)
+	}
+
+	// Create the two real executions referenced by idempotency keys.
+	execution1, err := executionRepo.CreateOwned(ctx, testUser.ID, testWorkflow.ID, version.ID, json.RawMessage(`{}`), time.Now().UTC())
+	if err != nil {
+		t.Fatalf("create first execution: %v", err)
+	}
+	execution2, err := executionRepo.CreateOwned(ctx, testUser.ID, testWorkflow.ID, version.ID, json.RawMessage(`{}`), time.Now().UTC())
+	if err != nil {
+		t.Fatalf("create second execution: %v", err)
+	}
+
 	key := "test-idempotency-key"
 	now := time.Now().UTC()
 
 	// Record first execution
-	if err := idempotencyRepo.RecordIdempotencyKey(ctx, projectID, executionID1, key, now); err != nil {
+	if err := idempotencyRepo.RecordIdempotencyKey(ctx, testProject.ID, execution1.ID, key, now); err != nil {
 		t.Fatalf("record first execution: %v", err)
 	}
 
 	// Try to record different execution with same key
-	err = idempotencyRepo.RecordIdempotencyKey(ctx, projectID, executionID2, key, now)
+	err = idempotencyRepo.RecordIdempotencyKey(ctx, testProject.ID, execution2.ID, key, now)
 	if err != execution.ErrIdempotencyKeyExists {
 		t.Fatalf("expected ErrIdempotencyKeyExists, got %v", err)
 	}
 
 	// Verify first execution is stored
-	retrieved, err := idempotencyRepo.GetExecutionByIdempotencyKey(ctx, projectID, key)
+	retrieved, err := idempotencyRepo.GetExecutionByIdempotencyKey(ctx, testProject.ID, key)
 	if err != nil {
 		t.Fatalf("retrieve execution: %v", err)
 	}
-	if retrieved != executionID1 {
-		t.Fatalf("expected execution ID %s, got %s", executionID1, retrieved)
+	if retrieved != execution1.ID {
+		t.Fatalf("expected execution ID %s, got %s", execution1.ID, retrieved)
 	}
 
 	// Recording same execution again should not error
-	if err := idempotencyRepo.RecordIdempotencyKey(ctx, projectID, executionID1, key, now); err != nil {
+	if err := idempotencyRepo.RecordIdempotencyKey(ctx, testProject.ID, execution1.ID, key, now); err != nil {
 		t.Fatalf("re-record same execution: %v", err)
 	}
 }

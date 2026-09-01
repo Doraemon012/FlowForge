@@ -57,6 +57,30 @@ func (s *Server) CreateExecution(w http.ResponseWriter, r *http.Request) {
 	if len(request.Input) == 0 {
 		request.Input = json.RawMessage(`{}`)
 	}
+
+	// Manual/API trigger hardening: an Idempotency-Key header lets a client
+	// safely retry a trigger without creating a duplicate execution.
+	if idempotencyKey := r.Header.Get("Idempotency-Key"); idempotencyKey != "" {
+		if s.idempotency == nil {
+			writeError(w, http.StatusNotImplemented, "not_implemented", "idempotency not configured")
+			return
+		}
+		existingExecutionID, idemErr := s.idempotency.GetExecutionByIdempotencyKey(r.Context(), projectID, idempotencyKey)
+		switch {
+		case idemErr == nil:
+			existing, getErr := s.executions.GetOwned(r.Context(), ownerID, existingExecutionID)
+			if getErr != nil {
+				writeError(w, http.StatusInternalServerError, "execution_lookup_failed", "unable to retrieve prior execution")
+				return
+			}
+			writeJSON(w, http.StatusOK, existing)
+			return
+		case !errors.Is(idemErr, execution.ErrIdempotencyNotFound):
+			writeError(w, http.StatusInternalServerError, "idempotency_check_failed", "unable to check idempotency")
+			return
+		}
+	}
+
 	created, err := s.executions.CreateOwned(r.Context(), ownerID, workflowID, request.VersionID, request.Input, time.Now().UTC())
 	if errors.Is(err, execution.ErrVersionInvalid) {
 		writeError(w, http.StatusUnprocessableEntity, "invalid_version", "workflow version is not executable")
@@ -66,6 +90,13 @@ func (s *Server) CreateExecution(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "execution_create_failed", "execution could not be created")
 		return
 	}
+
+	if idempotencyKey := r.Header.Get("Idempotency-Key"); idempotencyKey != "" {
+		if err := s.idempotency.RecordIdempotencyKey(r.Context(), projectID, created.ID, idempotencyKey, time.Now().UTC()); err != nil {
+			s.logger.Error("record execution idempotency", "execution_id", created.ID, "error", err)
+		}
+	}
+
 	s.engine.Start(context.Background(), ownerID, created.ID)
 	writeJSON(w, http.StatusAccepted, created)
 }

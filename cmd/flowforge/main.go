@@ -58,7 +58,7 @@ func main() {
 	}
 
 	// Create scheduler service
-	schedulerService := scheduler.NewScheduler(scheduleRepository, executionRepository, idempotencyRepository, logger)
+	schedulerService := scheduler.NewScheduler(scheduleRepository, executionRepository, idempotencyRepository, workflow.NewPostgresRepository(pool), project.NewPostgresRepository(pool), logger)
 
 	server := &http.Server{
 		Addr: cfg.HTTPAddr,

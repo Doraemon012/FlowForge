@@ -11,36 +11,47 @@ import (
 	"github.com/neyati/flowforge/internal/schedule"
 )
 
+type WorkflowRepository interface {
+	GetActiveVersion(ctx context.Context, workflowID uuid.UUID) (uuid.UUID, error)
+}
+
+type ProjectRepository interface {
+	GetOwner(ctx context.Context, projectID uuid.UUID) (uuid.UUID, error)
+}
+
 type Scheduler struct {
 	scheduleRepo    schedule.Repository
 	executionRepo   execution.Repository
 	idempotencyRepo execution.IdempotencyRepository
-	workflowRepo    interface {
-		GetPublishedVersion(ctx context.Context, projectID, workflowID uuid.UUID) (interface{}, error)
-	}
-	logger       *slog.Logger
-	tickInterval time.Duration
-	systemUser   uuid.UUID // System user ID for triggered executions
+	workflowRepo    WorkflowRepository
+	projectRepo     ProjectRepository
+	logger          *slog.Logger
+	tickInterval    time.Duration
+	now             func() time.Time
 }
 
-// NewScheduler creates a new scheduler service
+// NewScheduler creates a new scheduler service.
 func NewScheduler(
 	scheduleRepo schedule.Repository,
 	executionRepo execution.Repository,
 	idempotencyRepo execution.IdempotencyRepository,
+	workflowRepo WorkflowRepository,
+	projectRepo ProjectRepository,
 	logger *slog.Logger,
 ) *Scheduler {
 	return &Scheduler{
 		scheduleRepo:    scheduleRepo,
 		executionRepo:   executionRepo,
 		idempotencyRepo: idempotencyRepo,
+		workflowRepo:    workflowRepo,
+		projectRepo:     projectRepo,
 		logger:          logger,
 		tickInterval:    10 * time.Second,
-		systemUser:      uuid.Nil, // Will be set at runtime
+		now:             time.Now,
 	}
 }
 
-// Run starts the scheduler loop (blocks until ctx is cancelled)
+// Run starts the scheduler loop and blocks until ctx is cancelled.
 func (s *Scheduler) Run(ctx context.Context) {
 	ticker := time.NewTicker(s.tickInterval)
 	defer ticker.Stop()
@@ -51,15 +62,17 @@ func (s *Scheduler) Run(ctx context.Context) {
 			s.logger.Info("scheduler stopped")
 			return
 		case <-ticker.C:
-			s.tick(ctx)
+			s.Tick(ctx)
 		}
 	}
 }
 
-func (s *Scheduler) tick(ctx context.Context) {
-	now := time.Now()
+// Tick processes all currently-due schedules exactly once. Exposing it
+// separately from Run makes the scheduler unit/integration testable without
+// waiting on a real tick interval.
+func (s *Scheduler) Tick(ctx context.Context) {
+	now := s.now()
 
-	// Find all schedules that are due
 	schedules, err := s.scheduleRepo.FindDueSchedules(ctx, now)
 	if err != nil {
 		s.logger.Error("find due schedules", "error", err)
@@ -67,55 +80,82 @@ func (s *Scheduler) tick(ctx context.Context) {
 	}
 
 	for _, sched := range schedules {
-		// Create execution with idempotency key based on schedule ID and occurrence time
-		idempotencyKey := scheduleIdempotencyKey(sched.ID, now)
-
-		// Check if already triggered (idempotency)
-		_, err := s.idempotencyRepo.GetExecutionByIdempotencyKey(ctx, sched.ProjectID, idempotencyKey)
-		if err == nil {
-			// Already triggered, mark as triggered and skip
-			if err := s.scheduleRepo.MarkTriggered(ctx, sched.ID, now); err != nil {
-				s.logger.Error("mark schedule triggered", "schedule_id", sched.ID, "error", err)
-			}
-			continue
-		} else if err != execution.ErrIdempotencyNotFound {
-			// Real error checking idempotency
-			s.logger.Error("check idempotency", "schedule_id", sched.ID, "error", err)
-			continue
-		}
-
-		// Create execution
-		input := json.RawMessage(`{}`)
-		execRecord, err := s.executionRepo.CreateOwned(ctx, sched.ProjectID, sched.WorkflowID, uuid.Nil, input, now)
-		if err != nil {
-			s.logger.Error("create execution for schedule",
-				"schedule_id", sched.ID,
-				"workflow_id", sched.WorkflowID,
-				"error", err)
-			continue
-		}
-
-		// Record idempotency key
-		if err := s.idempotencyRepo.RecordIdempotencyKey(ctx, sched.ProjectID, execRecord.ID, idempotencyKey, now); err != nil {
-			s.logger.Error("record idempotency", "schedule_id", sched.ID, "error", err)
-			continue
-		}
-
-		// Mark schedule as triggered
-		if err := s.scheduleRepo.MarkTriggered(ctx, sched.ID, now); err != nil {
-			s.logger.Error("mark schedule triggered", "schedule_id", sched.ID, "error", err)
-			continue
-		}
-
-		s.logger.Info("schedule triggered", "schedule_id", sched.ID, "workflow_id", sched.WorkflowID, "execution_id", execRecord.ID)
+		s.processSchedule(ctx, sched, now)
 	}
 }
 
-// scheduleIdempotencyKey generates a deterministic idempotency key for a schedule occurrence
-// Using the schedule ID and a time bucket (minute granularity) ensures that multiple
-// scheduler runs in the same minute are deduplicated
-func scheduleIdempotencyKey(scheduleID uuid.UUID, now time.Time) string {
-	// Use minute granularity for idempotency key to handle scheduler retries within same minute
-	bucket := now.Truncate(time.Minute)
-	return "schedule:" + scheduleID.String() + ":" + bucket.Format(time.RFC3339)
+func (s *Scheduler) processSchedule(ctx context.Context, sched schedule.Schedule, now time.Time) {
+	// A schedule only fires when its workflow has an active published version.
+	versionID, err := s.workflowRepo.GetActiveVersion(ctx, sched.WorkflowID)
+	if err != nil {
+		s.logger.Warn("schedule skipped; workflow has no active version",
+			"schedule_id", sched.ID, "workflow_id", sched.WorkflowID, "error", err)
+		s.advanceSchedule(ctx, sched)
+		return
+	}
+
+	// The execution needs the project owner to satisfy the ownership check.
+	ownerID, err := s.projectRepo.GetOwner(ctx, sched.ProjectID)
+	if err != nil {
+		s.logger.Error("schedule skipped; project owner lookup failed",
+			"schedule_id", sched.ID, "project_id", sched.ProjectID, "error", err)
+		s.advanceSchedule(ctx, sched)
+		return
+	}
+
+	// Idempotency is anchored to the precise scheduled occurrence, not the
+	// tick time, so a retried/overlapping tick cannot double-fire one
+	// occurrence while still allowing the NEXT occurrence to fire later.
+	occurrenceKey := scheduleOccurrenceKey(sched.ID, *sched.NextOccurrence)
+	_, err = s.idempotencyRepo.GetExecutionByIdempotencyKey(ctx, sched.ProjectID, occurrenceKey)
+	if err == nil {
+		// Occurrence already processed; just move next_occurrence forward.
+		s.advanceSchedule(ctx, sched)
+		return
+	} else if err != execution.ErrIdempotencyNotFound {
+		s.logger.Error("schedule idempotency check failed",
+			"schedule_id", sched.ID, "error", err)
+		s.advanceSchedule(ctx, sched)
+		return
+	}
+
+	input := json.RawMessage(`{}`)
+	execRecord, err := s.executionRepo.CreateOwned(ctx, ownerID, sched.WorkflowID, versionID, input, now)
+	if err != nil {
+		s.logger.Error("create execution for schedule",
+			"schedule_id", sched.ID, "workflow_id", sched.WorkflowID, "error", err)
+		s.advanceSchedule(ctx, sched)
+		return
+	}
+
+	if err := s.idempotencyRepo.RecordIdempotencyKey(ctx, sched.ProjectID, execRecord.ID, occurrenceKey, now); err != nil {
+		s.logger.Error("record schedule idempotency", "schedule_id", sched.ID, "error", err)
+	}
+
+	if err := s.scheduleRepo.MarkTriggered(ctx, sched.ID, now); err != nil {
+		s.logger.Error("mark schedule triggered", "schedule_id", sched.ID, "error", err)
+	}
+
+	s.advanceSchedule(ctx, sched)
+	s.logger.Info("schedule triggered",
+		"schedule_id", sched.ID, "workflow_id", sched.WorkflowID, "execution_id", execRecord.ID)
+}
+
+// advanceSchedule moves next_occurrence to the next future occurrence after
+// now. This implements the V1 missed-occurrence policy: an overdue schedule
+// fires at most once on the tick that catches it, then resumes its regular
+// cadence from the next future slot (rather than replaying every missed run).
+func (s *Scheduler) advanceSchedule(ctx context.Context, sched schedule.Schedule) {
+	next, err := schedule.ComputeNextOccurrence(sched.CronExpression, sched.Timezone, s.now())
+	if err != nil {
+		s.logger.Error("compute next occurrence", "schedule_id", sched.ID, "error", err)
+		return
+	}
+	if err := s.scheduleRepo.SetNextOccurrence(ctx, sched.ID, &next, s.now()); err != nil {
+		s.logger.Error("advance schedule next occurrence", "schedule_id", sched.ID, "error", err)
+	}
+}
+
+func scheduleOccurrenceKey(scheduleID uuid.UUID, occurrence time.Time) string {
+	return "schedule:" + scheduleID.String() + ":" + occurrence.UTC().Format(time.RFC3339)
 }

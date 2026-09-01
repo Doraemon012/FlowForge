@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -60,9 +61,10 @@ func (r *PostgresIdempotencyRepository) RecordIdempotencyKey(ctx context.Context
 		VALUES ($1, $2, $3, $4)
 	`, idempotencyKey, executionID, projectID, createdAt)
 
-	// Handle race condition where another request inserted the same key
-	if err != nil && err.Error() == "ERROR: duplicate key value violates unique constraint \"execution_idempotency_pkey\" (SQLSTATE 23505)" {
-		// Check if it's the same execution ID
+	// Handle race condition where another request inserted the same key.
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		// Check if it's the same execution ID.
 		err = r.pool.QueryRow(ctx, `
 			SELECT execution_id FROM execution_idempotency WHERE idempotency_key = $1 AND project_id = $2
 		`, idempotencyKey, projectID).Scan(&existingExecutionID)

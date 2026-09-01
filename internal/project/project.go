@@ -26,6 +26,7 @@ type Project struct {
 type Repository interface {
 	Create(ctx context.Context, project Project) error
 	GetOwned(ctx context.Context, ownerID, projectID uuid.UUID) (Project, error)
+	GetOwner(ctx context.Context, projectID uuid.UUID) (uuid.UUID, error)
 	ListOwned(ctx context.Context, ownerID uuid.UUID) ([]Project, error)
 	UpdateOwned(ctx context.Context, ownerID, projectID uuid.UUID, name string, updatedAt time.Time) (Project, error)
 	ArchiveOwned(ctx context.Context, ownerID, projectID uuid.UUID, updatedAt time.Time) error
@@ -61,6 +62,15 @@ func (r *PostgresRepository) GetOwned(ctx context.Context, ownerID, projectID uu
 		return Project{}, err
 	}
 	return result, nil
+}
+
+func (r *PostgresRepository) GetOwner(ctx context.Context, projectID uuid.UUID) (uuid.UUID, error) {
+	var ownerID uuid.UUID
+	err := r.pool.QueryRow(ctx, `SELECT owner_id FROM projects WHERE id = $1`, projectID).Scan(&ownerID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, ErrNotFound
+	}
+	return ownerID, err
 }
 
 func (r *PostgresRepository) ListOwned(ctx context.Context, ownerID uuid.UUID) ([]Project, error) {
