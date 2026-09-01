@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/neyati/flowforge/internal/artifact"
 	"github.com/neyati/flowforge/internal/execution"
 	"github.com/neyati/flowforge/internal/project"
 	"github.com/neyati/flowforge/internal/workflow"
@@ -56,6 +57,10 @@ func (s *Server) CreateExecution(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(request.Input) == 0 {
 		request.Input = json.RawMessage(`{}`)
+	}
+	if len(request.Input) > artifact.MaxInputBytes {
+		writeError(w, http.StatusUnprocessableEntity, "input_too_large", "execution input exceeds the maximum allowed size")
+		return
 	}
 
 	// Manual/API trigger hardening: an Idempotency-Key header lets a client

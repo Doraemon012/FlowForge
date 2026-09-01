@@ -223,7 +223,7 @@ func (r *PostgresRepository) RecoverExpired(ctx context.Context, now time.Time) 
 	for _, item := range items {
 		if _, err := tx.Exec(ctx, `
 			UPDATE task_attempts
-			SET status = 'worker_lost', completed_at = $1, failure_reason = 'worker heartbeat expired'
+			SET status = 'worker_lost', completed_at = $1, failure_reason = 'worker heartbeat expired', failure_classification = 'transient'
 			WHERE task_run_id = $2 AND attempt_number = $3 AND worker_id = $4 AND lease_token = $5 AND status = 'running'`, now, item.taskRunID, item.attemptNumber, item.workerID, item.leaseToken); err != nil {
 			return 0, err
 		}
@@ -240,7 +240,7 @@ func (r *PostgresRepository) RecoverExpired(ctx context.Context, now time.Time) 
 			}
 			if _, err := tx.Exec(ctx, `
 				UPDATE task_runs
-				SET status = 'failed', failure_reason = $1, completed_at = $2
+				SET status = 'failed', failure_reason = $1, failure_classification = 'terminal', completed_at = $2
 				WHERE id = $3 AND status = 'running'`, reason, now, item.taskRunID); err != nil {
 				return 0, err
 			}
@@ -267,14 +267,21 @@ func (r *PostgresRepository) RecoverExpired(ctx context.Context, now time.Time) 
 }
 
 func (r *PostgresRepository) Complete(ctx context.Context, taskRunID uuid.UUID, workerID, leaseToken string, attempt int, output json.RawMessage, now time.Time) error {
-	return r.finish(ctx, taskRunID, workerID, leaseToken, attempt, "completed", output, "", now)
+	return r.finish(ctx, taskRunID, workerID, leaseToken, attempt, "completed", output, "", "", now)
 }
 
 func (r *PostgresRepository) Fail(ctx context.Context, taskRunID uuid.UUID, workerID, leaseToken string, attempt int, reason string, now time.Time) error {
-	return r.finish(ctx, taskRunID, workerID, leaseToken, attempt, "failed", nil, reason, now)
+	return r.finish(ctx, taskRunID, workerID, leaseToken, attempt, "failed", nil, reason, "terminal", now)
 }
 
-func (r *PostgresRepository) finish(ctx context.Context, taskRunID uuid.UUID, workerID, leaseToken string, attempt int, queueStatus string, output json.RawMessage, reason string, now time.Time) error {
+// FailClassified records a task failure together with its failure
+// classification so retry policy and observability can distinguish transient
+// from terminal failures without changing the Fail contract.
+func (r *PostgresRepository) FailClassified(ctx context.Context, taskRunID uuid.UUID, workerID, leaseToken string, attempt int, reason, classification string, now time.Time) error {
+	return r.finish(ctx, taskRunID, workerID, leaseToken, attempt, "failed", nil, reason, classification, now)
+}
+
+func (r *PostgresRepository) finish(ctx context.Context, taskRunID uuid.UUID, workerID, leaseToken string, attempt int, queueStatus string, output json.RawMessage, reason, classification string, now time.Time) error {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -305,13 +312,13 @@ func (r *PostgresRepository) finish(ctx context.Context, taskRunID uuid.UUID, wo
 			return err
 		}
 	} else {
-		if err := requireRowsAffected(ctx, tx, `UPDATE task_runs SET status = 'failed', failure_reason = $2, completed_at = $3 WHERE id = $1 AND status = 'running'`, taskRunID, reason, now); err != nil {
+		if err := requireRowsAffected(ctx, tx, `UPDATE task_runs SET status = 'failed', failure_reason = $2, failure_classification = $3, completed_at = $4 WHERE id = $1 AND status = 'running'`, taskRunID, reason, classification, now); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrLeaseNotOwned
 			}
 			return err
 		}
-		if err := requireRowsAffected(ctx, tx, `UPDATE task_attempts SET status = 'failed', completed_at = $1, failure_reason = $2 WHERE task_run_id = $3 AND attempt_number = $4 AND worker_id = $5 AND lease_token = $6 AND status = 'running'`, now, reason, taskRunID, attempt, workerID, leaseToken); err != nil {
+		if err := requireRowsAffected(ctx, tx, `UPDATE task_attempts SET status = 'failed', completed_at = $1, failure_reason = $2, failure_classification = $3 WHERE task_run_id = $4 AND attempt_number = $5 AND worker_id = $6 AND lease_token = $7 AND status = 'running'`, now, reason, classification, taskRunID, attempt, workerID, leaseToken); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrLeaseNotOwned
 			}

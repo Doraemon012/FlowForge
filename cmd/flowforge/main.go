@@ -12,6 +12,7 @@ import (
 
 	"github.com/neyati/flowforge/internal/auth"
 	"github.com/neyati/flowforge/internal/config"
+	"github.com/neyati/flowforge/internal/credential"
 	"github.com/neyati/flowforge/internal/db"
 	"github.com/neyati/flowforge/internal/execution"
 	"github.com/neyati/flowforge/internal/httpapi"
@@ -47,7 +48,11 @@ func main() {
 	webhookRepository := webhook.NewPostgresRepository(pool)
 	idempotencyRepository := execution.NewPostgresIdempotencyRepository(pool)
 
-	executionEngine := execution.NewEngine(executionRepository, execution.NewBuiltinRuntime(nil), taskQueue)
+	runtime := execution.NewBuiltinRuntime(nil,
+		execution.WithCredentialProvider(credential.EnvSecretProvider{}),
+		execution.WithMailer(execution.NewLogMailer(logger)),
+	)
+	executionEngine := execution.NewEngine(executionRepository, runtime, taskQueue)
 	activeExecutions, err := executionRepository.ListActive(context.Background())
 	if err != nil {
 		logger.Error("reconcile active executions", "error", err)

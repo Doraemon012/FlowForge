@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/neyati/flowforge/internal/execution"
 	"github.com/neyati/flowforge/internal/queue"
 )
@@ -15,6 +16,13 @@ const (
 	defaultRecoveryInterval  = 1 * time.Second
 	defaultClaimPollInterval = 50 * time.Millisecond
 )
+
+// classifyingQueue is implemented by queue backends that can record a failure
+// classification alongside the failure reason. Workers fall back to the plain
+// Fail contract when the queue does not support it.
+type classifyingQueue interface {
+	FailClassified(ctx context.Context, taskRunID uuid.UUID, workerID, leaseToken string, attempt int, reason, classification string, now time.Time) error
+}
 
 type Worker struct {
 	ID      string
@@ -92,15 +100,26 @@ func (w *Worker) execute(ctx context.Context, work queue.Work, logger *slog.Logg
 			return
 		}
 		logger.Error("task failed", append(logFields, "error", taskErr)...)
-		w.reportResult(ctx, work, func(now time.Time) error {
-			return w.Queue.Fail(context.Background(), work.TaskRunID, work.WorkerID, work.LeaseToken, work.Attempt, taskErr.Error(), now)
-		}, "failed", logFields, logger)
+		w.reportFailure(ctx, work, taskErr, logFields, logger)
 		return
 	}
 	logger.Info("task succeeded", logFields...)
 	w.reportResult(ctx, work, func(now time.Time) error {
 		return w.Queue.Complete(context.Background(), work.TaskRunID, work.WorkerID, work.LeaseToken, work.Attempt, output, now)
 	}, "succeeded", logFields, logger)
+}
+
+func (w *Worker) reportFailure(ctx context.Context, work queue.Work, taskErr error, logFields []any, logger *slog.Logger) {
+	classification := "terminal"
+	if execution.IsRetryable(taskErr) {
+		classification = "transient"
+	}
+	w.reportResult(ctx, work, func(now time.Time) error {
+		if cq, ok := w.Queue.(classifyingQueue); ok {
+			return cq.FailClassified(context.Background(), work.TaskRunID, work.WorkerID, work.LeaseToken, work.Attempt, taskErr.Error(), classification, now)
+		}
+		return w.Queue.Fail(context.Background(), work.TaskRunID, work.WorkerID, work.LeaseToken, work.Attempt, taskErr.Error(), now)
+	}, "failed", logFields, logger)
 }
 
 func (w *Worker) reportResult(ctx context.Context, work queue.Work, report func(time.Time) error, outcome string, logFields []any, logger *slog.Logger) {

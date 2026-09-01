@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/neyati/flowforge/internal/artifact"
 	"github.com/neyati/flowforge/internal/queue"
 	"github.com/neyati/flowforge/internal/workflow"
 )
@@ -303,52 +304,47 @@ type Runtime interface {
 	Execute(context.Context, workflow.Task, json.RawMessage) (json.RawMessage, error)
 }
 
-type BuiltinRuntime struct{ client *http.Client }
+type BuiltinRuntime struct {
+	client             *http.Client
+	credentialProvider CredentialProvider
+	mailer             Mailer
+	maxOutputBytes     int
+}
 
-func NewBuiltinRuntime(client *http.Client) *BuiltinRuntime {
+func NewBuiltinRuntime(client *http.Client, options ...BuiltinRuntimeOption) *BuiltinRuntime {
 	if client == nil {
 		client = http.DefaultClient
 	}
-	return &BuiltinRuntime{client: client}
+	runtime := &BuiltinRuntime{client: client, maxOutputBytes: artifact.MaxOutputBytes}
+	for _, option := range options {
+		option(runtime)
+	}
+	return runtime
 }
 
 func (r *BuiltinRuntime) Execute(ctx context.Context, task workflow.Task, input json.RawMessage) (json.RawMessage, error) {
 	var config map[string]json.RawMessage
 	if err := json.Unmarshal(task.Config, &config); err != nil {
-		return nil, fmt.Errorf("invalid task config: %w", err)
+		return nil, NewTerminalError(fmt.Errorf("invalid task config: %w", err))
 	}
+	var output json.RawMessage
+	var err error
 	switch task.Type {
 	case "transform":
-		if output, ok := config["output"]; ok {
-			return output, nil
-		}
-		return task.Config, nil
+		output, err = r.executeTransform(config, task)
 	case "delay":
-		var seconds float64
-		if raw, ok := config["seconds"]; ok {
-			if err := json.Unmarshal(raw, &seconds); err != nil || seconds < 0 {
-				return nil, errors.New("delay seconds must be non-negative")
-			}
-		}
-		timer := time.NewTimer(time.Duration(seconds * float64(time.Second)))
-		defer timer.Stop()
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-timer.C:
-			return input, nil
-		}
+		output, err = r.executeDelay(ctx, config, input)
 	case "conditional":
-		var field, expected string
-		_ = json.Unmarshal(config["field"], &field)
-		_ = json.Unmarshal(config["equals"], &expected)
-		var values map[string]any
-		if err := json.Unmarshal(input, &values); err != nil {
-			return []byte(`false`), nil
-		}
-		actual, _ := values[field].(string)
-		return json.Marshal(actual == expected)
+		output, err = r.executeConditional(config, input)
+	case "http":
+		output, err = r.executeHTTP(ctx, config, input)
+	case "email":
+		output, err = r.executeEmail(ctx, config, input)
 	default:
-		return nil, fmt.Errorf("task type is not executable in Phase 4: %s", task.Type)
+		return nil, NewTerminalError(fmt.Errorf("unsupported task type: %s", task.Type))
 	}
+	if err != nil {
+		return nil, err
+	}
+	return r.limitOutput(output)
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/neyati/flowforge/internal/artifact"
 )
 
 var (
@@ -101,6 +102,9 @@ func ValidateDefinition(definition Definition) []string {
 			if err := json.Unmarshal(task.Config, &config); err != nil || config == nil {
 				errorsFound = append(errorsFound, fmt.Sprintf("task config must be a JSON object: %s", task.ID))
 			}
+			if len(task.Config) > artifact.MaxTaskConfigBytes {
+				errorsFound = append(errorsFound, fmt.Sprintf("task config exceeds maximum size: %s", task.ID))
+			}
 		}
 	}
 
@@ -153,6 +157,10 @@ func ValidateDefinition(definition Definition) []string {
 	sort.Strings(allIDs)
 	for _, id := range allIDs {
 		visit(id)
+	}
+
+	if encoded, err := json.Marshal(definition); err == nil && len(encoded) > artifact.MaxDefinitionBytes {
+		errorsFound = append(errorsFound, "workflow definition exceeds maximum size")
 	}
 
 	sort.Strings(errorsFound)

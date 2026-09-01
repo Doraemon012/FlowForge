@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/neyati/flowforge/internal/config"
+	"github.com/neyati/flowforge/internal/credential"
 	"github.com/neyati/flowforge/internal/db"
 	"github.com/neyati/flowforge/internal/execution"
 	"github.com/neyati/flowforge/internal/queue"
@@ -57,9 +58,12 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	err = (&worker.Worker{
-		ID:                workerID,
-		Queue:             queue.NewPostgresRepository(pool, queue.WithLeaseDuration(leaseDuration)),
-		Runtime:           execution.NewBuiltinRuntime(nil),
+		ID:    workerID,
+		Queue: queue.NewPostgresRepository(pool, queue.WithLeaseDuration(leaseDuration)),
+		Runtime: execution.NewBuiltinRuntime(nil,
+			execution.WithCredentialProvider(credential.EnvSecretProvider{}),
+			execution.WithMailer(execution.NewLogMailer(logger)),
+		),
 		Logger:            logger,
 		HeartbeatInterval: heartbeatInterval,
 		RecoveryInterval:  recoveryInterval,
