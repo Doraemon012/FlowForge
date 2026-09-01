@@ -3,6 +3,8 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"sync"
@@ -96,7 +98,20 @@ func phase5Handler(t *testing.T) (http.Handler, interface{ Close() }, *queue.Pos
 	executionRepository := execution.NewPostgresRepository(pool)
 	taskQueue := queue.NewPostgresRepository(pool)
 	engine := execution.NewEngine(executionRepository, execution.NewBuiltinRuntime(nil), taskQueue)
-	handler := NewExecutionServer(pool, user.NewPostgresRepository(pool), project.NewPostgresRepository(pool), workflow.NewPostgresRepository(pool), executionRepository, engine, auth.NewTokenService("01234567890123456789012345678901")).Router()
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	handler := NewExecutionServer(
+		pool,
+		user.NewPostgresRepository(pool),
+		project.NewPostgresRepository(pool),
+		workflow.NewPostgresRepository(pool),
+		executionRepository,
+		engine,
+		auth.NewTokenService("01234567890123456789012345678901"),
+		nil, // schedules
+		nil, // webhooks
+		nil, // idempotency
+		logger,
+	).Router()
 	return handler, pool, taskQueue
 }
 

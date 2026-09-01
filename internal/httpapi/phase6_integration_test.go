@@ -48,7 +48,20 @@ func phase6Handler(t *testing.T) (http.Handler, *pgxpool.Pool, *queue.PostgresRe
 	executionRepository := execution.NewPostgresRepository(pool)
 	taskQueue := queue.NewPostgresRepository(pool, queue.WithLeaseDuration(phase6LeaseDuration))
 	engine := execution.NewEngine(executionRepository, execution.NewBuiltinRuntime(nil), taskQueue)
-	handler := NewExecutionServer(pool, user.NewPostgresRepository(pool), project.NewPostgresRepository(pool), workflow.NewPostgresRepository(pool), executionRepository, engine, auth.NewTokenService("01234567890123456789012345678901")).Router()
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	handler := NewExecutionServer(
+		pool,
+		user.NewPostgresRepository(pool),
+		project.NewPostgresRepository(pool),
+		workflow.NewPostgresRepository(pool),
+		executionRepository,
+		engine,
+		auth.NewTokenService("01234567890123456789012345678901"),
+		nil, // schedules
+		nil, // webhooks
+		nil, // idempotency
+		logger,
+	).Router()
 	return handler, pool, taskQueue
 }
 

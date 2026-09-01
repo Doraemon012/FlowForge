@@ -15,6 +15,8 @@ func (s *Server) Router() http.Handler {
 	router.Route("/api/v1", func(router chi.Router) {
 		router.Post("/auth/register", s.Register)
 		router.Post("/auth/login", s.Login)
+		// Public webhook endpoint (no auth required)
+		router.Post("/webhooks/{webhookID}", s.HandleWebhook)
 		router.Group(func(router chi.Router) {
 			router.Use(s.RequireAuth)
 			router.Post("/projects", s.CreateProject)
@@ -37,6 +39,18 @@ func (s *Server) Router() http.Handler {
 				router.Get("/projects/{projectID}/executions", s.ListExecutions)
 				router.Get("/executions/{executionID}", s.GetExecution)
 				router.Get("/executions/{executionID}/tasks", s.ListTaskRuns)
+			}
+			if s.schedules != nil {
+				router.Post("/projects/{projectID}/workflows/{workflowID}/schedules", s.CreateSchedule)
+				router.Get("/projects/{projectID}/workflows/{workflowID}/schedules", s.GetSchedule)
+				router.Patch("/projects/{projectID}/workflows/{workflowID}/schedules", s.UpdateSchedule)
+				router.Delete("/projects/{projectID}/workflows/{workflowID}/schedules", s.DeleteSchedule)
+			}
+			if s.webhooks != nil {
+				router.Post("/projects/{projectID}/workflows/{workflowID}/webhooks", s.CreateWebhook)
+				router.Get("/projects/{projectID}/workflows/{workflowID}/webhooks/{webhookID}", s.GetWebhook)
+				router.Patch("/projects/{projectID}/workflows/{workflowID}/webhooks/{webhookID}", s.UpdateWebhook)
+				router.Delete("/projects/{projectID}/workflows/{workflowID}/webhooks/{webhookID}", s.DeleteWebhook)
 			}
 		})
 	})

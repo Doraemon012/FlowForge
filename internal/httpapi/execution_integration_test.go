@@ -3,6 +3,8 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"testing"
@@ -114,7 +116,20 @@ func phase4Handler(t *testing.T) (http.Handler, interface{ Close() }) {
 		t.Fatalf("open database: %v", err)
 	}
 	repository := execution.NewPostgresRepository(pool)
-	return NewExecutionServer(pool, user.NewPostgresRepository(pool), project.NewPostgresRepository(pool), workflow.NewPostgresRepository(pool), repository, execution.NewEngine(repository, execution.NewBuiltinRuntime(nil)), auth.NewTokenService("01234567890123456789012345678901")).Router(), pool
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	return NewExecutionServer(
+		pool,
+		user.NewPostgresRepository(pool),
+		project.NewPostgresRepository(pool),
+		workflow.NewPostgresRepository(pool),
+		repository,
+		execution.NewEngine(repository, execution.NewBuiltinRuntime(nil)),
+		auth.NewTokenService("01234567890123456789012345678901"),
+		nil, // schedules
+		nil, // webhooks
+		nil, // idempotency
+		logger,
+	).Router(), pool
 }
 
 func createTestProject(t *testing.T, handler http.Handler, token string) string {

@@ -17,7 +17,10 @@ import (
 	"github.com/neyati/flowforge/internal/httpapi"
 	"github.com/neyati/flowforge/internal/project"
 	"github.com/neyati/flowforge/internal/queue"
+	"github.com/neyati/flowforge/internal/schedule"
+	"github.com/neyati/flowforge/internal/scheduler"
 	"github.com/neyati/flowforge/internal/user"
+	"github.com/neyati/flowforge/internal/webhook"
 	"github.com/neyati/flowforge/internal/workflow"
 )
 
@@ -40,6 +43,10 @@ func main() {
 
 	executionRepository := execution.NewPostgresRepository(pool)
 	taskQueue := queue.NewPostgresRepository(pool)
+	scheduleRepository := schedule.NewPostgresRepository(pool)
+	webhookRepository := webhook.NewPostgresRepository(pool)
+	idempotencyRepository := execution.NewPostgresIdempotencyRepository(pool)
+
 	executionEngine := execution.NewEngine(executionRepository, execution.NewBuiltinRuntime(nil), taskQueue)
 	activeExecutions, err := executionRepository.ListActive(context.Background())
 	if err != nil {
@@ -49,12 +56,36 @@ func main() {
 	for _, active := range activeExecutions {
 		executionEngine.Start(context.Background(), active.OwnerID, active.ID)
 	}
-	server := &http.Server{Addr: cfg.HTTPAddr, Handler: httpapi.NewExecutionServer(pool, user.NewPostgresRepository(pool), project.NewPostgresRepository(pool), workflow.NewPostgresRepository(pool), executionRepository, executionEngine, auth.NewTokenService(cfg.TokenSecret)).Router()}
+
+	// Create scheduler service
+	schedulerService := scheduler.NewScheduler(scheduleRepository, executionRepository, idempotencyRepository, logger)
+
+	server := &http.Server{
+		Addr: cfg.HTTPAddr,
+		Handler: httpapi.NewExecutionServer(
+			pool,
+			user.NewPostgresRepository(pool),
+			project.NewPostgresRepository(pool),
+			workflow.NewPostgresRepository(pool),
+			executionRepository,
+			executionEngine,
+			auth.NewTokenService(cfg.TokenSecret),
+			scheduleRepository,
+			webhookRepository,
+			idempotencyRepository,
+			logger,
+		).Router(),
+	}
+
 	serverErrors := make(chan error, 1)
 	go func() {
 		logger.Info("server listening", "addr", cfg.HTTPAddr)
 		serverErrors <- server.ListenAndServe()
 	}()
+
+	// Start scheduler in background
+	schedulerCtx, schedulerCancel := context.WithCancel(context.Background())
+	go schedulerService.Run(schedulerCtx)
 
 	shutdown, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -66,6 +97,7 @@ func main() {
 			os.Exit(1)
 		}
 	case <-shutdown.Done():
+		schedulerCancel()
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := server.Shutdown(ctx); err != nil {
