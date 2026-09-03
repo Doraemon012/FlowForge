@@ -19,24 +19,35 @@ type ProjectRepository interface {
 	GetOwner(ctx context.Context, projectID uuid.UUID) (uuid.UUID, error)
 }
 
+// ExecutionStarter launches an execution's orchestrator loop. The API server's
+// execution engine implements this; the scheduler uses it so that scheduled
+// runs flow through the same orchestration path as manual/API triggers.
+type ExecutionStarter interface {
+	Start(ctx context.Context, ownerID, executionID uuid.UUID)
+}
+
 type Scheduler struct {
 	scheduleRepo    schedule.Repository
 	executionRepo   execution.Repository
 	idempotencyRepo execution.IdempotencyRepository
 	workflowRepo    WorkflowRepository
 	projectRepo     ProjectRepository
+	starter         ExecutionStarter
 	logger          *slog.Logger
 	tickInterval    time.Duration
 	now             func() time.Time
 }
 
-// NewScheduler creates a new scheduler service.
+// NewScheduler creates a new scheduler service. The starter is required so a
+// due schedule that creates an execution is immediately orchestrated; a nil
+// starter disables execution dispatch for tests that only inspect persistence.
 func NewScheduler(
 	scheduleRepo schedule.Repository,
 	executionRepo execution.Repository,
 	idempotencyRepo execution.IdempotencyRepository,
 	workflowRepo WorkflowRepository,
 	projectRepo ProjectRepository,
+	starter ExecutionStarter,
 	logger *slog.Logger,
 ) *Scheduler {
 	return &Scheduler{
@@ -45,6 +56,7 @@ func NewScheduler(
 		idempotencyRepo: idempotencyRepo,
 		workflowRepo:    workflowRepo,
 		projectRepo:     projectRepo,
+		starter:         starter,
 		logger:          logger,
 		tickInterval:    10 * time.Second,
 		now:             time.Now,
@@ -134,6 +146,12 @@ func (s *Scheduler) processSchedule(ctx context.Context, sched schedule.Schedule
 
 	if err := s.scheduleRepo.MarkTriggered(ctx, sched.ID, now); err != nil {
 		s.logger.Error("mark schedule triggered", "schedule_id", sched.ID, "error", err)
+	}
+
+	// A scheduled run must be orchestrated immediately, not just persisted,
+	// otherwise it would sit in pending until the API process restarts.
+	if s.starter != nil {
+		s.starter.Start(ctx, ownerID, execRecord.ID)
 	}
 
 	s.advanceSchedule(ctx, sched)

@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/neyati/flowforge/internal/artifact"
+	"github.com/neyati/flowforge/internal/observ"
 	"github.com/neyati/flowforge/internal/queue"
 	"github.com/neyati/flowforge/internal/workflow"
 )
@@ -53,6 +54,7 @@ type OwnedExecution struct {
 
 type Repository interface {
 	CreateOwned(ctx context.Context, ownerID, workflowID, versionID uuid.UUID, input json.RawMessage, now time.Time) (Execution, error)
+	CreateOwnedWithIdempotency(ctx context.Context, ownerID, workflowID, versionID uuid.UUID, input json.RawMessage, now time.Time, projectID uuid.UUID, idempotencyKey string) (Execution, error)
 	GetOwned(ctx context.Context, ownerID, executionID uuid.UUID) (Execution, error)
 	ListOwned(ctx context.Context, ownerID, projectID uuid.UUID) ([]Execution, error)
 	ListTaskRunsOwned(ctx context.Context, ownerID, executionID uuid.UUID) ([]TaskRun, error)
@@ -71,8 +73,36 @@ type Engine struct {
 	repository Repository
 	runtime    Runtime
 	queue      queue.Repository
+	recorder   observ.Recorder
 	mu         sync.Mutex
 	running    map[uuid.UUID]struct{}
+}
+
+// SetRecorder wires an optional domain event recorder. It is safe to call
+// before any execution starts; the default nil recorder is a no-op.
+func (e *Engine) SetRecorder(recorder observ.Recorder) {
+	e.recorder = recorder
+}
+
+func (e *Engine) record(ctx context.Context, projectID, executionID uuid.UUID, taskID string, taskRunID *uuid.UUID, eventType string, metadata any) {
+	if e.recorder == nil {
+		return
+	}
+	var raw json.RawMessage
+	if metadata == nil {
+		raw = json.RawMessage(`{}`)
+	} else if encoded, err := json.Marshal(metadata); err == nil {
+		raw = encoded
+	}
+	_ = e.recorder.Record(ctx, observ.Event{
+		ProjectID:   projectID,
+		ExecutionID: executionID,
+		TaskID:      taskID,
+		TaskRunID:   taskRunID,
+		EventType:   eventType,
+		CreatedAt:   time.Now().UTC(),
+		Metadata:    raw,
+	})
 }
 
 func NewEngine(repository Repository, runtime Runtime, queues ...queue.Repository) *Engine {
@@ -220,12 +250,14 @@ func (e *Engine) Run(ctx context.Context, ownerID, executionID uuid.UUID) error 
 }
 
 func (e *Engine) runQueued(ctx context.Context, ownerID, executionID uuid.UUID) error {
-	if _, _, _, err := e.repository.LoadRun(ctx, ownerID, executionID); err != nil {
+	initialExecution, _, _, err := e.repository.LoadRun(ctx, ownerID, executionID)
+	if err != nil {
 		return err
 	}
 	if err := e.repository.SetExecutionRunning(ctx, executionID, time.Now().UTC()); err != nil && !strings.Contains(err.Error(), "invalid state transition") {
 		return err
 	}
+	e.record(ctx, initialExecution.ProjectID, executionID, "", nil, "execution_started", nil)
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -255,6 +287,7 @@ func (e *Engine) runQueued(ctx context.Context, ownerID, executionID uuid.UUID) 
 			}
 		}
 		if allSucceeded {
+			e.record(ctx, execution.ProjectID, executionID, "", nil, "execution_completed", nil)
 			return e.repository.SetExecutionCompleted(ctx, executionID, time.Now().UTC())
 		}
 		if hasFailed {
@@ -265,6 +298,7 @@ func (e *Engine) runQueued(ctx context.Context, ownerID, executionID uuid.UUID) 
 					}
 				}
 			}
+			e.record(ctx, execution.ProjectID, executionID, "", nil, "execution_failed", map[string]any{"reason": "task failed"})
 			return e.repository.SetExecutionFailed(ctx, executionID, "task failed", time.Now().UTC())
 		}
 		eligible := make([]workflow.Task, 0)
@@ -288,8 +322,11 @@ func (e *Engine) runQueued(ctx context.Context, ownerID, executionID uuid.UUID) 
 			if err := e.queue.Enqueue(ctx, byTask[task.ID].ID, time.Now().UTC()); err != nil {
 				return err
 			}
+			taskRun := byTask[task.ID]
+			e.record(ctx, execution.ProjectID, executionID, task.ID, &taskRun.ID, "task_queued", nil)
 		}
 		if len(eligible) == 0 && !hasActive {
+			e.record(ctx, execution.ProjectID, executionID, "", nil, "execution_failed", map[string]any{"reason": "workflow cannot progress"})
 			return e.repository.SetExecutionFailed(ctx, executionID, "workflow cannot progress", time.Now().UTC())
 		}
 		select {

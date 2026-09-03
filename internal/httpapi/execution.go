@@ -64,8 +64,11 @@ func (s *Server) CreateExecution(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Manual/API trigger hardening: an Idempotency-Key header lets a client
-	// safely retry a trigger without creating a duplicate execution.
-	if idempotencyKey := r.Header.Get("Idempotency-Key"); idempotencyKey != "" {
+	// safely retry a trigger without creating a duplicate execution. The
+	// reservation is made atomically with execution creation so two concurrent
+	// requests with the same key cannot both succeed in creating an execution.
+	idempotencyKey := r.Header.Get("Idempotency-Key")
+	if idempotencyKey != "" {
 		if s.idempotency == nil {
 			writeError(w, http.StatusNotImplemented, "not_implemented", "idempotency not configured")
 			return
@@ -84,6 +87,18 @@ func (s *Server) CreateExecution(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "idempotency_check_failed", "unable to check idempotency")
 			return
 		}
+		created, err := s.executions.CreateOwnedWithIdempotency(r.Context(), ownerID, workflowID, request.VersionID, request.Input, time.Now().UTC(), projectID, idempotencyKey)
+		if errors.Is(err, execution.ErrVersionInvalid) {
+			writeError(w, http.StatusUnprocessableEntity, "invalid_version", "workflow version is not executable")
+			return
+		}
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "execution_create_failed", "execution could not be created")
+			return
+		}
+		s.engine.Start(context.Background(), ownerID, created.ID)
+		writeJSON(w, http.StatusAccepted, created)
+		return
 	}
 
 	created, err := s.executions.CreateOwned(r.Context(), ownerID, workflowID, request.VersionID, request.Input, time.Now().UTC())
@@ -94,12 +109,6 @@ func (s *Server) CreateExecution(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "execution_create_failed", "execution could not be created")
 		return
-	}
-
-	if idempotencyKey := r.Header.Get("Idempotency-Key"); idempotencyKey != "" {
-		if err := s.idempotency.RecordIdempotencyKey(r.Context(), projectID, created.ID, idempotencyKey, time.Now().UTC()); err != nil {
-			s.logger.Error("record execution idempotency", "execution_id", created.ID, "error", err)
-		}
 	}
 
 	s.engine.Start(context.Background(), ownerID, created.ID)

@@ -9,6 +9,7 @@ import (
 
 	"github.com/neyati/flowforge/internal/auth"
 	"github.com/neyati/flowforge/internal/execution"
+	"github.com/neyati/flowforge/internal/observ"
 	"github.com/neyati/flowforge/internal/project"
 	"github.com/neyati/flowforge/internal/schedule"
 	"github.com/neyati/flowforge/internal/user"
@@ -31,7 +32,14 @@ type Server struct {
 	schedules   schedule.Repository
 	webhooks    webhook.Repository
 	idempotency execution.IdempotencyRepository
+	observ      observ.Repository
 	logger      *slog.Logger
+}
+
+// SetObservatory wires the optional observability read/event repository. It
+// must be called before Router() so the observability endpoints are mounted.
+func (s *Server) SetObservatory(repository observ.Repository) {
+	s.observ = repository
 }
 
 func NewServer(database Database) *Server {

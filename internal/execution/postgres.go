@@ -63,6 +63,73 @@ func (r *PostgresRepository) CreateOwned(ctx context.Context, ownerID, workflowI
 	return execution, nil
 }
 
+// CreateOwnedWithIdempotency creates an execution and atomically reserves its
+// idempotency key in the same transaction. If another request already reserved
+// the key, this rolls back the execution it was about to create and returns the
+// previously created execution instead, preventing duplicate executions under
+// concurrent retries with the same Idempotency-Key.
+func (r *PostgresRepository) CreateOwnedWithIdempotency(ctx context.Context, ownerID, workflowID, versionID uuid.UUID, input json.RawMessage, now time.Time, projectID uuid.UUID, idempotencyKey string) (Execution, error) {
+	if idempotencyKey == "" {
+		return r.CreateOwned(ctx, ownerID, workflowID, versionID, input, now)
+	}
+	var execution Execution
+	var definition []byte
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return Execution{}, err
+	}
+	defer tx.Rollback(ctx)
+	err = tx.QueryRow(ctx, `SELECT wv.definition FROM workflow_versions wv JOIN workflows w ON w.id = wv.workflow_id JOIN projects p ON p.id = w.project_id WHERE wv.id = $1 AND wv.workflow_id = $2 AND p.owner_id = $3`, versionID, workflowID, ownerID).Scan(&definition)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Execution{}, ErrVersionInvalid
+	}
+	if err != nil {
+		return Execution{}, err
+	}
+	var graph workflow.Definition
+	if err := json.Unmarshal(definition, &graph); err != nil {
+		return Execution{}, ErrVersionInvalid
+	}
+	if len(workflow.ValidateDefinition(graph)) > 0 {
+		return Execution{}, ErrVersionInvalid
+	}
+	if len(input) == 0 {
+		input = json.RawMessage(`{}`)
+	}
+	execution = Execution{ID: uuid.New(), WorkflowID: workflowID, ProjectID: projectID, WorkflowVersionID: versionID, Status: "pending", Input: input, CreatedAt: now}
+	err = tx.QueryRow(ctx, `INSERT INTO executions (id, project_id, workflow_id, workflow_version_id, status, input, created_at) SELECT $1, w.project_id, w.id, $2, 'pending', $3, $4 FROM workflows w JOIN projects p ON p.id = w.project_id WHERE w.id = $5 AND p.owner_id = $6 RETURNING project_id`, execution.ID, versionID, input, now, workflowID, ownerID).Scan(&execution.ProjectID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Execution{}, ErrNotFound
+	}
+	if err != nil {
+		return Execution{}, err
+	}
+	for _, task := range graph.Tasks {
+		if _, err := tx.Exec(ctx, `INSERT INTO task_runs (id, execution_id, task_id, status, created_at) VALUES ($1, $2, $3, 'pending', $4)`, uuid.New(), execution.ID, task.ID, now); err != nil {
+			return Execution{}, err
+		}
+	}
+	tag, err := tx.Exec(ctx, `INSERT INTO execution_idempotency (idempotency_key, execution_id, project_id, created_at) VALUES ($1, $2, $3, $4) ON CONFLICT (idempotency_key, project_id) DO NOTHING`, idempotencyKey, execution.ID, projectID, now)
+	if err != nil {
+		return Execution{}, err
+	}
+	if tag.RowsAffected() == 0 {
+		// Another request already reserved this key. Roll back the execution
+		// we were creating and return the previously created execution so the
+		// client sees a single, stable result for the idempotency key.
+		_ = tx.Rollback(ctx)
+		var existingID uuid.UUID
+		if err := r.pool.QueryRow(ctx, `SELECT execution_id FROM execution_idempotency WHERE idempotency_key = $1 AND project_id = $2`, idempotencyKey, projectID).Scan(&existingID); err != nil {
+			return Execution{}, err
+		}
+		return r.GetOwned(ctx, ownerID, existingID)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Execution{}, err
+	}
+	return execution, nil
+}
+
 func (r *PostgresRepository) GetOwned(ctx context.Context, ownerID, executionID uuid.UUID) (Execution, error) {
 	var result Execution
 	err := r.pool.QueryRow(ctx, `SELECT e.id, e.project_id, e.workflow_id, e.workflow_version_id, e.status, e.input, e.failure_reason, e.created_at, e.started_at, e.completed_at FROM executions e JOIN projects p ON p.id = e.project_id WHERE e.id = $1 AND p.owner_id = $2`, executionID, ownerID).Scan(&result.ID, &result.ProjectID, &result.WorkflowID, &result.WorkflowVersionID, &result.Status, &result.Input, &result.FailureReason, &result.CreatedAt, &result.StartedAt, &result.CompletedAt)

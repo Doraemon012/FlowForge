@@ -238,7 +238,7 @@ func TestPhase8SchedulerSkipsInactiveWorkflow(t *testing.T) {
 	idempotencyRepo := execution.NewPostgresIdempotencyRepository(pool)
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 
-	schedSvc := scheduler.NewScheduler(scheduleRepo, executionRepo, idempotencyRepo, workflowRepo, projectRepo, logger)
+	schedSvc := scheduler.NewScheduler(scheduleRepo, executionRepo, idempotencyRepo, workflowRepo, projectRepo, nil, logger)
 
 	testUser := user.User{ID: uuid.New(), Email: fmt.Sprintf("phase8-inactive-%d@example.com", time.Now().UnixNano()), DisplayName: "Phase8 Inactive", PasswordHash: "hashed", CreatedAt: time.Now().UTC()}
 	if err := userRepo.Create(context.Background(), testUser); err != nil {
@@ -301,7 +301,7 @@ func TestPhase8ScheduleAdvancesNextOccurrence(t *testing.T) {
 	idempotencyRepo := execution.NewPostgresIdempotencyRepository(pool)
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 
-	schedSvc := scheduler.NewScheduler(scheduleRepo, executionRepo, idempotencyRepo, workflowRepo, projectRepo, logger)
+	schedSvc := scheduler.NewScheduler(scheduleRepo, executionRepo, idempotencyRepo, workflowRepo, projectRepo, nil, logger)
 
 	testUser := user.User{ID: uuid.New(), Email: fmt.Sprintf("phase8-advance-%d@example.com", time.Now().UnixNano()), DisplayName: "Phase8 Advance", PasswordHash: "hashed", CreatedAt: time.Now().UTC()}
 	if err := userRepo.Create(context.Background(), testUser); err != nil {

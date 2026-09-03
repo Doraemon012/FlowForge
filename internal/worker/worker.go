@@ -2,12 +2,14 @@ package worker
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/neyati/flowforge/internal/execution"
+	"github.com/neyati/flowforge/internal/observ"
 	"github.com/neyati/flowforge/internal/queue"
 )
 
@@ -29,6 +31,12 @@ type Worker struct {
 	Queue   queue.Repository
 	Runtime execution.Runtime
 	Logger  *slog.Logger
+	// Recorder appends domain lifecycle events. It is optional; when nil the
+	// worker still logs to its structured logger but does not persist events.
+	Recorder observ.Recorder
+	// Logs appends persisted structured log entries. It is optional; when nil
+	// the worker still logs to its structured logger but does not persist them.
+	Logs observ.LogRecorder
 	// HeartbeatInterval controls how often a claimed task's lease is renewed.
 	// It must stay comfortably below the queue's lease duration so a healthy
 	// worker never loses ownership.
@@ -82,6 +90,8 @@ func (w *Worker) execute(ctx context.Context, work queue.Work, logger *slog.Logg
 		"attempt", work.Attempt,
 	}
 	logger.Info("task claimed", logFields...)
+	w.recordEvent(work, "task_claimed", nil)
+	w.recordLog(work, "info", "worker", "task claimed")
 
 	taskCtx, cancelTask := context.WithCancel(ctx)
 	heartbeatDone := make(chan struct{})
@@ -114,6 +124,8 @@ func (w *Worker) reportFailure(ctx context.Context, work queue.Work, taskErr err
 	if execution.IsRetryable(taskErr) {
 		classification = "transient"
 	}
+	w.recordEvent(work, "task_failed", map[string]any{"error": taskErr.Error(), "classification": classification})
+	w.recordLog(work, "error", "worker", "task failed: "+taskErr.Error())
 	w.reportResult(ctx, work, func(now time.Time) error {
 		if cq, ok := w.Queue.(classifyingQueue); ok {
 			return cq.FailClassified(context.Background(), work.TaskRunID, work.WorkerID, work.LeaseToken, work.Attempt, taskErr.Error(), classification, now)
@@ -126,12 +138,18 @@ func (w *Worker) reportResult(ctx context.Context, work queue.Work, report func(
 	err := report(time.Now().UTC())
 	switch {
 	case err == nil:
+		if outcome == "succeeded" {
+			w.recordEvent(work, "task_succeeded", nil)
+			w.recordLog(work, "info", "worker", "task succeeded")
+		}
 		return
 	case errors.Is(err, queue.ErrLeaseNotOwned):
 		// Stale worker protection: another worker recovered and re-ran the
 		// task after our lease expired. Our late result must be dropped, and
 		// it must never overwrite the newer owner's state.
 		logger.Warn("stale result discarded; lease no longer owned", append(logFields, "outcome", outcome)...)
+		w.recordEvent(work, "stale_result_discarded", map[string]any{"outcome": outcome})
+		w.recordLog(work, "warn", "worker", "stale result discarded")
 	case ctx.Err() != nil:
 		logger.Warn("result report interrupted by shutdown", append(logFields, "outcome", outcome, "error", err)...)
 	default:
@@ -168,6 +186,8 @@ func (w *Worker) heartbeatLoop(taskCtx context.Context, work queue.Work, cancelT
 				// Lease renewed.
 			case errors.Is(err, queue.ErrLeaseNotOwned):
 				logger.Warn("lease lost; cancelling task execution", fields...)
+				w.recordEvent(work, "lease_lost", map[string]any{"reason": err.Error()})
+				w.recordLog(work, "warn", "worker", "lease lost; cancelling task execution")
 				cancelTask()
 				return
 			default:
@@ -207,6 +227,54 @@ func (w *Worker) recoverExpiredLeases(ctx context.Context, logger *slog.Logger) 
 			}
 		}
 	}
+}
+
+// recordEvent appends a lifecycle event if a recorder is configured.
+func (w *Worker) recordEvent(work queue.Work, eventType string, metadata any) {
+	if w.Recorder == nil {
+		return
+	}
+	var raw json.RawMessage
+	if metadata == nil {
+		raw = json.RawMessage(`{}`)
+	} else if encoded, err := json.Marshal(metadata); err == nil {
+		raw = encoded
+	}
+	taskRunID := work.TaskRunID
+	taskAttemptID := work.TaskAttemptID
+	_ = w.Recorder.Record(context.Background(), observ.Event{
+		ProjectID:     work.ProjectID,
+		ExecutionID:   work.ExecutionID,
+		TaskID:        work.Task.ID,
+		TaskRunID:     &taskRunID,
+		TaskAttemptID: &taskAttemptID,
+		WorkerID:      w.ID,
+		EventType:     eventType,
+		CreatedAt:     time.Now().UTC(),
+		Metadata:      raw,
+	})
+}
+
+// recordLog appends a persisted structured log entry if a log recorder is
+// configured. Callers must redact secrets before passing the message.
+func (w *Worker) recordLog(work queue.Work, severity, source, message string) {
+	if w.Logs == nil {
+		return
+	}
+	taskRunID := work.TaskRunID
+	taskAttemptID := work.TaskAttemptID
+	_ = w.Logs.RecordLog(context.Background(), observ.LogEntry{
+		ProjectID:     work.ProjectID,
+		ExecutionID:   work.ExecutionID,
+		TaskID:        work.Task.ID,
+		TaskRunID:     &taskRunID,
+		TaskAttemptID: &taskAttemptID,
+		WorkerID:      w.ID,
+		Severity:      severity,
+		Source:        source,
+		Message:       message,
+		CreatedAt:     time.Now().UTC(),
+	})
 }
 
 func (w *Worker) logger() *slog.Logger {

@@ -52,6 +52,14 @@ func (s *Server) Router() http.Handler {
 				router.Patch("/projects/{projectID}/workflows/{workflowID}/webhooks/{webhookID}", s.UpdateWebhook)
 				router.Delete("/projects/{projectID}/workflows/{workflowID}/webhooks/{webhookID}", s.DeleteWebhook)
 			}
+			if s.observ != nil {
+				router.Get("/executions/{executionID}/events", s.ListExecutionEvents)
+				router.Get("/executions/{executionID}/logs", s.ListExecutionLogs)
+				router.Get("/executions/{executionID}/attempts", s.ListExecutionAttempts)
+				router.Get("/workers", s.ListWorkers)
+				router.Get("/queue", s.QueueMetrics)
+				router.Get("/metrics", s.MetricsView)
+			}
 		})
 	})
 	return router

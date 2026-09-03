@@ -21,14 +21,16 @@ const defaultLeaseDuration = 10 * time.Second
 const defaultMaxAttempts = 3
 
 type Work struct {
-	QueueID     uuid.UUID
-	TaskRunID   uuid.UUID
-	ExecutionID uuid.UUID
-	Task        workflow.Task
-	Input       json.RawMessage
-	WorkerID    string
-	LeaseToken  string
-	Attempt     int
+	QueueID       uuid.UUID
+	ProjectID     uuid.UUID
+	TaskRunID     uuid.UUID
+	ExecutionID   uuid.UUID
+	TaskAttemptID uuid.UUID
+	Task          workflow.Task
+	Input         json.RawMessage
+	WorkerID      string
+	LeaseToken    string
+	Attempt       int
 }
 
 type Repository interface {
@@ -116,12 +118,12 @@ func (r *PostgresRepository) Claim(ctx context.Context, workerID string, now tim
 	var workTaskID string
 	var definition []byte
 	err = tx.QueryRow(ctx, `
-		SELECT q.id, tr.id, tr.execution_id, tr.task_id, e.input, wv.definition
+		SELECT q.id, e.project_id, tr.id, tr.execution_id, tr.task_id, e.input, wv.definition
 		FROM task_queue q
 		JOIN task_runs tr ON tr.id = q.task_run_id
 		JOIN executions e ON e.id = tr.execution_id
 		JOIN workflow_versions wv ON wv.id = e.workflow_version_id
-		WHERE q.id = $1 AND q.status = 'queued'`, queueID).Scan(&work.QueueID, &work.TaskRunID, &work.ExecutionID, &workTaskID, &work.Input, &definition)
+		WHERE q.id = $1 AND q.status = 'queued'`, queueID).Scan(&work.QueueID, &work.ProjectID, &work.TaskRunID, &work.ExecutionID, &workTaskID, &work.Input, &definition)
 	if err != nil {
 		return Work{}, err
 	}
@@ -131,9 +133,11 @@ func (r *PostgresRepository) Claim(ctx context.Context, workerID string, now tim
 	if _, err := tx.Exec(ctx, `UPDATE task_runs SET status = 'running', started_at = $1, failure_reason = '' WHERE id = $2 AND status = 'queued'`, now, taskRunID); err != nil {
 		return Work{}, err
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO task_attempts (id, task_run_id, attempt_number, worker_id, lease_token, status, started_at, heartbeat_at, lease_expires_at) VALUES ($1, $2, $3, $4, $5, 'running', $6, $6, $7)`, uuid.New(), taskRunID, attempt, workerID, leaseToken, now, leaseExpiresAt); err != nil {
+	attemptID := uuid.New()
+	if _, err := tx.Exec(ctx, `INSERT INTO task_attempts (id, task_run_id, attempt_number, worker_id, lease_token, status, started_at, heartbeat_at, lease_expires_at) VALUES ($1, $2, $3, $4, $5, 'running', $6, $6, $7)`, attemptID, taskRunID, attempt, workerID, leaseToken, now, leaseExpiresAt); err != nil {
 		return Work{}, err
 	}
+	work.TaskAttemptID = attemptID
 	if err := tx.Commit(ctx); err != nil {
 		return Work{}, err
 	}

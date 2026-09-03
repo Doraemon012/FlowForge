@@ -54,7 +54,7 @@ func TestPhase7ScheduleTriggersExecution(t *testing.T) {
 	idempotencyRepo := execution.NewPostgresIdempotencyRepository(pool)
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 
-	schedulerService := scheduler.NewScheduler(scheduleRepo, executionRepo, idempotencyRepo, workflowRepo, projectRepo, logger)
+	schedulerService := scheduler.NewScheduler(scheduleRepo, executionRepo, idempotencyRepo, workflowRepo, projectRepo, nil, logger)
 
 	// Create user
 	testUser := user.User{

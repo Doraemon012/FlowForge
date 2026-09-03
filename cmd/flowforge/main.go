@@ -16,6 +16,7 @@ import (
 	"github.com/neyati/flowforge/internal/db"
 	"github.com/neyati/flowforge/internal/execution"
 	"github.com/neyati/flowforge/internal/httpapi"
+	"github.com/neyati/flowforge/internal/observ"
 	"github.com/neyati/flowforge/internal/project"
 	"github.com/neyati/flowforge/internal/queue"
 	"github.com/neyati/flowforge/internal/schedule"
@@ -52,7 +53,9 @@ func main() {
 		execution.WithCredentialProvider(credential.EnvSecretProvider{}),
 		execution.WithMailer(execution.NewLogMailer(logger)),
 	)
+	observRepository := observ.NewPostgresRepository(pool)
 	executionEngine := execution.NewEngine(executionRepository, runtime, taskQueue)
+	executionEngine.SetRecorder(observRepository)
 	activeExecutions, err := executionRepository.ListActive(context.Background())
 	if err != nil {
 		logger.Error("reconcile active executions", "error", err)
@@ -63,23 +66,26 @@ func main() {
 	}
 
 	// Create scheduler service
-	schedulerService := scheduler.NewScheduler(scheduleRepository, executionRepository, idempotencyRepository, workflow.NewPostgresRepository(pool), project.NewPostgresRepository(pool), logger)
+	schedulerService := scheduler.NewScheduler(scheduleRepository, executionRepository, idempotencyRepository, workflow.NewPostgresRepository(pool), project.NewPostgresRepository(pool), executionEngine, logger)
+
+	apiServer := httpapi.NewExecutionServer(
+		pool,
+		user.NewPostgresRepository(pool),
+		project.NewPostgresRepository(pool),
+		workflow.NewPostgresRepository(pool),
+		executionRepository,
+		executionEngine,
+		auth.NewTokenService(cfg.TokenSecret),
+		scheduleRepository,
+		webhookRepository,
+		idempotencyRepository,
+		logger,
+	)
+	apiServer.SetObservatory(observRepository)
 
 	server := &http.Server{
-		Addr: cfg.HTTPAddr,
-		Handler: httpapi.NewExecutionServer(
-			pool,
-			user.NewPostgresRepository(pool),
-			project.NewPostgresRepository(pool),
-			workflow.NewPostgresRepository(pool),
-			executionRepository,
-			executionEngine,
-			auth.NewTokenService(cfg.TokenSecret),
-			scheduleRepository,
-			webhookRepository,
-			idempotencyRepository,
-			logger,
-		).Router(),
+		Addr:    cfg.HTTPAddr,
+		Handler: apiServer.Router(),
 	}
 
 	serverErrors := make(chan error, 1)

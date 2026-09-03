@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -109,7 +110,7 @@ func (s *Server) CreateWebhook(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) HandleWebhook(w http.ResponseWriter, r *http.Request) {
-	if s.webhooks == nil || s.executions == nil || s.idempotency == nil {
+	if s.webhooks == nil || s.executions == nil || s.idempotency == nil || s.engine == nil {
 		writeError(w, http.StatusNotImplemented, "not_implemented", "webhooks not configured")
 		return
 	}
@@ -233,6 +234,10 @@ func (s *Server) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 		// Log but don't fail - execution was created.
 		s.logger.Error("record webhook idempotency", "webhook_id", webhookID, "error", err)
 	}
+
+	// Webhook-triggered workflows must flow through the same orchestration path
+	// as manual/API triggers, otherwise the created execution is never processed.
+	s.engine.Start(context.Background(), ownerID, execRecord.ID)
 
 	writeJSON(w, http.StatusAccepted, map[string]string{
 		"execution_id": execRecord.ID.String(),
