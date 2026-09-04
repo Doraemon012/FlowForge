@@ -56,3 +56,109 @@ func TestLoadRejectsInvalidHTTPAddress(t *testing.T) {
 		t.Fatal("Load() expected an error for invalid HTTP_ADDR")
 	}
 }
+
+func TestLoadRateLimitDefaults(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://localhost/flowforge")
+	t.Setenv("HTTP_ADDR", ":8080")
+	t.Setenv("TOKEN_SECRET", "01234567890123456789012345678901")
+	// Deliberately unset the limit variables to exercise the defaults.
+	t.Setenv("MAX_BODY_BYTES", "")
+	t.Setenv("AUTH_RATE_LIMIT_RPS", "")
+	t.Setenv("AUTH_RATE_LIMIT_BURST", "")
+	t.Setenv("WEBHOOK_RATE_LIMIT_RPS", "")
+	t.Setenv("WEBHOOK_RATE_LIMIT_BURST", "")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.MaxBodyBytes != 1<<20 {
+		t.Fatalf("MaxBodyBytes = %d, want %d", cfg.MaxBodyBytes, 1<<20)
+	}
+	if cfg.AuthRateLimitRPS != 10 || cfg.AuthRateLimitBurst != 20 {
+		t.Fatalf("auth limits = (%d,%d), want (10,20)", cfg.AuthRateLimitRPS, cfg.AuthRateLimitBurst)
+	}
+	if cfg.WebhookRateLimitRPS != 20 || cfg.WebhookRateLimitBurst != 40 {
+		t.Fatalf("webhook limits = (%d,%d), want (20,40)", cfg.WebhookRateLimitRPS, cfg.WebhookRateLimitBurst)
+	}
+}
+
+func TestLoadCustomRateLimits(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://localhost/flowforge")
+	t.Setenv("HTTP_ADDR", ":8080")
+	t.Setenv("TOKEN_SECRET", "01234567890123456789012345678901")
+	t.Setenv("MAX_BODY_BYTES", "2048")
+	t.Setenv("AUTH_RATE_LIMIT_RPS", "5")
+	t.Setenv("AUTH_RATE_LIMIT_BURST", "7")
+	t.Setenv("WEBHOOK_RATE_LIMIT_RPS", "12")
+	t.Setenv("WEBHOOK_RATE_LIMIT_BURST", "24")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.MaxBodyBytes != 2048 {
+		t.Fatalf("MaxBodyBytes = %d, want 2048", cfg.MaxBodyBytes)
+	}
+	if cfg.AuthRateLimitRPS != 5 || cfg.AuthRateLimitBurst != 7 {
+		t.Fatalf("auth limits = (%d,%d), want (5,7)", cfg.AuthRateLimitRPS, cfg.AuthRateLimitBurst)
+	}
+	if cfg.WebhookRateLimitRPS != 12 || cfg.WebhookRateLimitBurst != 24 {
+		t.Fatalf("webhook limits = (%d,%d), want (12,24)", cfg.WebhookRateLimitRPS, cfg.WebhookRateLimitBurst)
+	}
+}
+
+func TestLoadRejectsInvalidMaxBodyBytes(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://localhost/flowforge")
+	t.Setenv("HTTP_ADDR", ":8080")
+	t.Setenv("TOKEN_SECRET", "01234567890123456789012345678901")
+	t.Setenv("MAX_BODY_BYTES", "0")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("Load() expected an error for MAX_BODY_BYTES=0")
+	}
+}
+
+func TestLoadRejectsInvalidAuthRateLimit(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://localhost/flowforge")
+	t.Setenv("HTTP_ADDR", ":8080")
+	t.Setenv("TOKEN_SECRET", "01234567890123456789012345678901")
+	t.Setenv("AUTH_RATE_LIMIT_RPS", "-1")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("Load() expected an error for negative AUTH_RATE_LIMIT_RPS")
+	}
+}
+
+func TestLoadRejectsInvalidAuthBurst(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://localhost/flowforge")
+	t.Setenv("HTTP_ADDR", ":8080")
+	t.Setenv("TOKEN_SECRET", "01234567890123456789012345678901")
+	t.Setenv("AUTH_RATE_LIMIT_BURST", "0")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("Load() expected an error for AUTH_RATE_LIMIT_BURST=0")
+	}
+}
+
+func TestLoadRejectsInvalidWebhookRateLimit(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://localhost/flowforge")
+	t.Setenv("HTTP_ADDR", ":8080")
+	t.Setenv("TOKEN_SECRET", "01234567890123456789012345678901")
+	t.Setenv("WEBHOOK_RATE_LIMIT_RPS", "-1")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("Load() expected an error for negative WEBHOOK_RATE_LIMIT_RPS")
+	}
+}
+
+func TestLoadRejectsInvalidWebhookBurst(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://localhost/flowforge")
+	t.Setenv("HTTP_ADDR", ":8080")
+	t.Setenv("TOKEN_SECRET", "01234567890123456789012345678901")
+	t.Setenv("WEBHOOK_RATE_LIMIT_BURST", "0")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("Load() expected an error for WEBHOOK_RATE_LIMIT_BURST=0")
+	}
+}

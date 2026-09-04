@@ -205,7 +205,10 @@ func (s *Server) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 		deliveryID = "manual-" + uuid.New().String()
 	}
 
-	// Check idempotency.
+	// Fast path: a delivery already processed returns the original acceptance.
+	// The concurrent-race safety net is the atomic reservation in
+	// CreateOwnedWithIdempotency below, which reserves the delivery key in the
+	// same transaction as execution creation.
 	_, err = s.idempotency.GetExecutionByIdempotencyKey(r.Context(), wh.ProjectID, deliveryID)
 	if err == nil {
 		// Already processed, return success.
@@ -223,16 +226,13 @@ func (s *Server) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 		input = json.RawMessage(`{}`)
 	}
 
-	execRecord, err := s.executions.CreateOwned(r.Context(), ownerID, wh.WorkflowID, activeVersionID, input, now)
+	// Atomically create the execution and reserve the delivery idempotency key
+	// in one transaction, so two concurrent deliveries with the same
+	// X-Delivery-ID cannot both create executions.
+	execRecord, err := s.executions.CreateOwnedWithIdempotency(r.Context(), ownerID, wh.WorkflowID, activeVersionID, input, now, wh.ProjectID, deliveryID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "execution_create_failed", "unable to create execution")
 		return
-	}
-
-	// Record idempotency key.
-	if err := s.idempotency.RecordIdempotencyKey(r.Context(), wh.ProjectID, execRecord.ID, deliveryID, now); err != nil {
-		// Log but don't fail - execution was created.
-		s.logger.Error("record webhook idempotency", "webhook_id", webhookID, "error", err)
 	}
 
 	// Webhook-triggered workflows must flow through the same orchestration path

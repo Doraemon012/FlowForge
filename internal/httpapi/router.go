@@ -13,10 +13,11 @@ func (s *Server) Router() http.Handler {
 		return router
 	}
 	router.Route("/api/v1", func(router chi.Router) {
-		router.Post("/auth/register", s.Register)
-		router.Post("/auth/login", s.Login)
+		router.Use(bodyLimitMiddleware(s.maxBodyBytes))
+		router.With(rateLimitMiddleware(s.authLimiter)).Post("/auth/register", s.Register)
+		router.With(rateLimitMiddleware(s.authLimiter)).Post("/auth/login", s.Login)
 		// Public webhook endpoint (no auth required)
-		router.Post("/webhooks/{webhookID}", s.HandleWebhook)
+		router.With(rateLimitMiddleware(s.webhookLimiter)).Post("/webhooks/{webhookID}", s.HandleWebhook)
 		router.Group(func(router chi.Router) {
 			router.Use(s.RequireAuth)
 			router.Post("/projects", s.CreateProject)

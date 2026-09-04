@@ -4,6 +4,7 @@
 # Build artifacts
 /bin/
 /dist/
+/retention
 
 # Editor and OS files
 .vscode/

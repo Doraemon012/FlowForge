@@ -339,15 +339,24 @@ func (r *PostgresRepository) ListAttempts(ctx context.Context, ownerID, executio
 	return attempts, rows.Err()
 }
 
-// ListWorkers derives a worker activity view from the durable queue.
+// ListWorkers derives a worker activity view from the durable queue. The
+// per-worker aggregates are computed in a derived table, then the execution
+// ID is resolved for the most recent task run. Referencing an aggregate
+// (ARRAY_AGG) directly inside a correlated subquery is not valid PostgreSQL,
+// so the aggregation must happen at the inner query level.
 func (r *PostgresRepository) ListWorkers(ctx context.Context) ([]WorkerView, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT worker_id, COUNT(*) AS active_attempts, MAX(last_heartbeat_at) AS last_heartbeat_at,
-		       (ARRAY_AGG(task_run_id ORDER BY last_heartbeat_at DESC NULLS LAST))[1] AS last_task_run_id,
-		       (SELECT tr.execution_id FROM task_runs tr WHERE tr.id = (ARRAY_AGG(q.task_run_id ORDER BY q.last_heartbeat_at DESC NULLS LAST))[1]) AS last_execution_id
-		FROM task_queue q
-		WHERE status = 'claimed' AND worker_id <> ''
-		GROUP BY worker_id
+		SELECT worker_id, active_attempts, last_heartbeat_at, last_task_run_id,
+		       (SELECT tr.execution_id FROM task_runs tr WHERE tr.id = last_task_run_id) AS last_execution_id
+		FROM (
+			SELECT worker_id,
+			       COUNT(*) AS active_attempts,
+			       MAX(last_heartbeat_at) AS last_heartbeat_at,
+			       (ARRAY_AGG(task_run_id ORDER BY last_heartbeat_at DESC NULLS LAST))[1] AS last_task_run_id
+			FROM task_queue
+			WHERE status = 'claimed' AND worker_id <> ''
+			GROUP BY worker_id
+		) q
 		ORDER BY worker_id
 	`)
 	if err != nil {

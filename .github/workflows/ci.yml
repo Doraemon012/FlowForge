@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build, lint, and unit test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache: true
+
+      - name: Format check
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "The following files are not gofmt-formatted:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Build
+        run: go build ./...
+
+      - name: Unit tests
+        run: go test ./... -count=1
+
+      - name: Dependency vulnerability scan
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+  integration:
+    name: Integration tests (PostgreSQL)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: flowforge
+          POSTGRES_PASSWORD: flowforge
+          POSTGRES_DB: flowforge
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U flowforge -d flowforge"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      INTEGRATION_DATABASE_URL: postgres://flowforge:flowforge@localhost:5432/flowforge?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache: true
+
+      - name: Migrate
+        run: go run ./cmd/migrate
+
+      - name: Integration tests
+        run: go test ./... -count=1

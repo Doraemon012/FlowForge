@@ -22,24 +22,36 @@ type Database interface {
 }
 
 type Server struct {
-	database    Database
-	users       user.Repository
-	projects    project.Repository
-	workflows   workflow.Repository
-	executions  execution.Repository
-	engine      *execution.Engine
-	tokens      *auth.TokenService
-	schedules   schedule.Repository
-	webhooks    webhook.Repository
-	idempotency execution.IdempotencyRepository
-	observ      observ.Repository
-	logger      *slog.Logger
+	database       Database
+	users          user.Repository
+	projects       project.Repository
+	workflows      workflow.Repository
+	executions     execution.Repository
+	engine         *execution.Engine
+	tokens         *auth.TokenService
+	schedules      schedule.Repository
+	webhooks       webhook.Repository
+	idempotency    execution.IdempotencyRepository
+	observ         observ.Repository
+	logger         *slog.Logger
+	maxBodyBytes   int64
+	authLimiter    *tokenBucket
+	webhookLimiter *tokenBucket
 }
 
 // SetObservatory wires the optional observability read/event repository. It
 // must be called before Router() so the observability endpoints are mounted.
 func (s *Server) SetObservatory(repository observ.Repository) {
 	s.observ = repository
+}
+
+// SetLimits configures request body size and per-client-IP rate limits for the
+// control plane. Zero/negative values disable the corresponding limit. It must
+// be called before Router() so the middleware is mounted.
+func (s *Server) SetLimits(maxBodyBytes int64, authRPS, authBurst, webhookRPS, webhookBurst int) {
+	s.maxBodyBytes = maxBodyBytes
+	s.authLimiter = newTokenBucket(float64(authRPS), float64(authBurst))
+	s.webhookLimiter = newTokenBucket(float64(webhookRPS), float64(webhookBurst))
 }
 
 func NewServer(database Database) *Server {

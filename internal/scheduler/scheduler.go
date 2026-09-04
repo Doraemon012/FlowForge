@@ -27,15 +27,14 @@ type ExecutionStarter interface {
 }
 
 type Scheduler struct {
-	scheduleRepo    schedule.Repository
-	executionRepo   execution.Repository
-	idempotencyRepo execution.IdempotencyRepository
-	workflowRepo    WorkflowRepository
-	projectRepo     ProjectRepository
-	starter         ExecutionStarter
-	logger          *slog.Logger
-	tickInterval    time.Duration
-	now             func() time.Time
+	scheduleRepo  schedule.Repository
+	executionRepo execution.Repository
+	workflowRepo  WorkflowRepository
+	projectRepo   ProjectRepository
+	starter       ExecutionStarter
+	logger        *slog.Logger
+	tickInterval  time.Duration
+	now           func() time.Time
 }
 
 // NewScheduler creates a new scheduler service. The starter is required so a
@@ -51,15 +50,14 @@ func NewScheduler(
 	logger *slog.Logger,
 ) *Scheduler {
 	return &Scheduler{
-		scheduleRepo:    scheduleRepo,
-		executionRepo:   executionRepo,
-		idempotencyRepo: idempotencyRepo,
-		workflowRepo:    workflowRepo,
-		projectRepo:     projectRepo,
-		starter:         starter,
-		logger:          logger,
-		tickInterval:    10 * time.Second,
-		now:             time.Now,
+		scheduleRepo:  scheduleRepo,
+		executionRepo: executionRepo,
+		workflowRepo:  workflowRepo,
+		projectRepo:   projectRepo,
+		starter:       starter,
+		logger:        logger,
+		tickInterval:  10 * time.Second,
+		now:           time.Now,
 	}
 }
 
@@ -102,7 +100,7 @@ func (s *Scheduler) processSchedule(ctx context.Context, sched schedule.Schedule
 	if err != nil {
 		s.logger.Warn("schedule skipped; workflow has no active version",
 			"schedule_id", sched.ID, "workflow_id", sched.WorkflowID, "error", err)
-		s.advanceSchedule(ctx, sched)
+		s.advanceSchedule(ctx, sched, *sched.NextOccurrence)
 		return
 	}
 
@@ -111,39 +109,27 @@ func (s *Scheduler) processSchedule(ctx context.Context, sched schedule.Schedule
 	if err != nil {
 		s.logger.Error("schedule skipped; project owner lookup failed",
 			"schedule_id", sched.ID, "project_id", sched.ProjectID, "error", err)
-		s.advanceSchedule(ctx, sched)
+		s.advanceSchedule(ctx, sched, *sched.NextOccurrence)
 		return
 	}
 
 	// Idempotency is anchored to the precise scheduled occurrence, not the
 	// tick time, so a retried/overlapping tick cannot double-fire one
-	// occurrence while still allowing the NEXT occurrence to fire later.
+	// occurrence while still allowing the NEXT occurrence to fire later. The
+	// occurrence key is reserved atomically with execution creation, closing
+	// the check-then-create race between concurrent scheduler instances.
 	occurrenceKey := scheduleOccurrenceKey(sched.ID, *sched.NextOccurrence)
-	_, err = s.idempotencyRepo.GetExecutionByIdempotencyKey(ctx, sched.ProjectID, occurrenceKey)
-	if err == nil {
-		// Occurrence already processed; just move next_occurrence forward.
-		s.advanceSchedule(ctx, sched)
-		return
-	} else if err != execution.ErrIdempotencyNotFound {
-		s.logger.Error("schedule idempotency check failed",
-			"schedule_id", sched.ID, "error", err)
-		s.advanceSchedule(ctx, sched)
-		return
-	}
-
 	input := json.RawMessage(`{}`)
-	execRecord, err := s.executionRepo.CreateOwned(ctx, ownerID, sched.WorkflowID, versionID, input, now)
+	execRecord, err := s.executionRepo.CreateOwnedWithIdempotency(ctx, ownerID, sched.WorkflowID, versionID, input, now, sched.ProjectID, occurrenceKey)
 	if err != nil {
 		s.logger.Error("create execution for schedule",
 			"schedule_id", sched.ID, "workflow_id", sched.WorkflowID, "error", err)
-		s.advanceSchedule(ctx, sched)
+		s.advanceSchedule(ctx, sched, *sched.NextOccurrence)
 		return
 	}
 
-	if err := s.idempotencyRepo.RecordIdempotencyKey(ctx, sched.ProjectID, execRecord.ID, occurrenceKey, now); err != nil {
-		s.logger.Error("record schedule idempotency", "schedule_id", sched.ID, "error", err)
-	}
-
+	// MarkTriggered only records the last-fired timestamp; the idempotency key
+	// is authoritative for duplicate suppression.
 	if err := s.scheduleRepo.MarkTriggered(ctx, sched.ID, now); err != nil {
 		s.logger.Error("mark schedule triggered", "schedule_id", sched.ID, "error", err)
 	}
@@ -154,23 +140,31 @@ func (s *Scheduler) processSchedule(ctx context.Context, sched schedule.Schedule
 		s.starter.Start(ctx, ownerID, execRecord.ID)
 	}
 
-	s.advanceSchedule(ctx, sched)
+	s.advanceSchedule(ctx, sched, *sched.NextOccurrence)
 	s.logger.Info("schedule triggered",
 		"schedule_id", sched.ID, "workflow_id", sched.WorkflowID, "execution_id", execRecord.ID)
 }
 
 // advanceSchedule moves next_occurrence to the next future occurrence after
-// now. This implements the V1 missed-occurrence policy: an overdue schedule
-// fires at most once on the tick that catches it, then resumes its regular
-// cadence from the next future slot (rather than replaying every missed run).
-func (s *Scheduler) advanceSchedule(ctx context.Context, sched schedule.Schedule) {
+// now, but only when the schedule still points at the occurrence that was just
+// processed. This implements the V1 missed-occurrence policy: an overdue
+// schedule fires at most once on the tick that catches it, then resumes its
+// regular cadence from the next future slot. The conditional update makes the
+// advance idempotent under overlapping concurrent ticks so a cadence is never
+// double-skipped.
+func (s *Scheduler) advanceSchedule(ctx context.Context, sched schedule.Schedule, processedOccurrence time.Time) {
 	next, err := schedule.ComputeNextOccurrence(sched.CronExpression, sched.Timezone, s.now())
 	if err != nil {
 		s.logger.Error("compute next occurrence", "schedule_id", sched.ID, "error", err)
 		return
 	}
-	if err := s.scheduleRepo.SetNextOccurrence(ctx, sched.ID, &next, s.now()); err != nil {
+	advanced, err := s.scheduleRepo.AdvanceOccurrence(ctx, sched.ID, processedOccurrence, next, s.now())
+	if err != nil {
 		s.logger.Error("advance schedule next occurrence", "schedule_id", sched.ID, "error", err)
+		return
+	}
+	if !advanced {
+		s.logger.Debug("schedule already advanced by a concurrent tick", "schedule_id", sched.ID)
 	}
 }
 

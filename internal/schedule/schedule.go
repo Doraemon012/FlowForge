@@ -40,6 +40,12 @@ type Repository interface {
 	FindDueSchedules(ctx context.Context, now time.Time) ([]Schedule, error)
 	MarkTriggered(ctx context.Context, scheduleID uuid.UUID, now time.Time) error
 	SetNextOccurrence(ctx context.Context, scheduleID uuid.UUID, nextOccurrence *time.Time, updatedAt time.Time) error
+	// AdvanceOccurrence moves next_occurrence to nextOccurrence only when the
+	// schedule still points at processedOccurrence. It returns true when the
+	// row was updated, and false when another concurrent tick already advanced
+	// the schedule, so overlapping scheduler instances cannot double-skip a
+	// cadence while processing the same due occurrence.
+	AdvanceOccurrence(ctx context.Context, scheduleID uuid.UUID, processedOccurrence, nextOccurrence time.Time, updatedAt time.Time) (bool, error)
 }
 
 type PostgresRepository struct {
@@ -221,6 +227,18 @@ func (r *PostgresRepository) SetNextOccurrence(ctx context.Context, scheduleID u
 		UPDATE schedules SET next_occurrence = $1, updated_at = $2 WHERE id = $3
 	`, nextOccurrence, updatedAt, scheduleID)
 	return err
+}
+
+func (r *PostgresRepository) AdvanceOccurrence(ctx context.Context, scheduleID uuid.UUID, processedOccurrence, nextOccurrence time.Time, updatedAt time.Time) (bool, error) {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE schedules
+		SET next_occurrence = $1, updated_at = $2
+		WHERE id = $3 AND next_occurrence = $4
+	`, nextOccurrence, updatedAt, scheduleID, processedOccurrence)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() > 0, nil
 }
 
 // ComputeNextOccurrence returns the next future occurrence of the cron

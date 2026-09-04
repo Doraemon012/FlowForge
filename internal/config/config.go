@@ -5,14 +5,20 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"strconv"
 	"time"
 )
 
 type Config struct {
-	DatabaseURL      string
-	HTTPAddr         string
-	DBConnectTimeout time.Duration
-	TokenSecret      string
+	DatabaseURL           string
+	HTTPAddr              string
+	DBConnectTimeout      time.Duration
+	TokenSecret           string
+	MaxBodyBytes          int64
+	AuthRateLimitRPS      int
+	AuthRateLimitBurst    int
+	WebhookRateLimitRPS   int
+	WebhookRateLimitBurst int
 }
 
 func Load() (Config, error) {
@@ -46,7 +52,60 @@ func Load() (Config, error) {
 		}
 	}
 
-	return Config{DatabaseURL: databaseURL, HTTPAddr: httpAddr, DBConnectTimeout: timeout, TokenSecret: tokenSecret}, nil
+	maxBodyBytes := int64(1 << 20)
+	if raw := os.Getenv("MAX_BODY_BYTES"); raw != "" {
+		parsed, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || parsed <= 0 {
+			return Config{}, fmt.Errorf("MAX_BODY_BYTES must be a positive integer: %q", raw)
+		}
+		maxBodyBytes = parsed
+	}
+
+	authRPS := 10
+	if raw := os.Getenv("AUTH_RATE_LIMIT_RPS"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 0 {
+			return Config{}, fmt.Errorf("AUTH_RATE_LIMIT_RPS must be a non-negative integer: %q", raw)
+		}
+		authRPS = parsed
+	}
+	authBurst := 20
+	if raw := os.Getenv("AUTH_RATE_LIMIT_BURST"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 1 {
+			return Config{}, fmt.Errorf("AUTH_RATE_LIMIT_BURST must be a positive integer: %q", raw)
+		}
+		authBurst = parsed
+	}
+
+	webhookRPS := 20
+	if raw := os.Getenv("WEBHOOK_RATE_LIMIT_RPS"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 0 {
+			return Config{}, fmt.Errorf("WEBHOOK_RATE_LIMIT_RPS must be a non-negative integer: %q", raw)
+		}
+		webhookRPS = parsed
+	}
+	webhookBurst := 40
+	if raw := os.Getenv("WEBHOOK_RATE_LIMIT_BURST"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 1 {
+			return Config{}, fmt.Errorf("WEBHOOK_RATE_LIMIT_BURST must be a positive integer: %q", raw)
+		}
+		webhookBurst = parsed
+	}
+
+	return Config{
+		DatabaseURL:           databaseURL,
+		HTTPAddr:              httpAddr,
+		DBConnectTimeout:      timeout,
+		TokenSecret:           tokenSecret,
+		MaxBodyBytes:          maxBodyBytes,
+		AuthRateLimitRPS:      authRPS,
+		AuthRateLimitBurst:    authBurst,
+		WebhookRateLimitRPS:   webhookRPS,
+		WebhookRateLimitBurst: webhookBurst,
+	}, nil
 }
 
 func validateDatabaseURL(raw string) error {

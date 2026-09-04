@@ -22,14 +22,16 @@ func (s *Server) CreateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var request projectRequest
-	if !decodeJSON(w, r, &request) || strings.TrimSpace(request.Name) == "" || len(strings.TrimSpace(request.Name)) > 100 {
-		if w.Header().Get("Content-Type") == "" {
-			writeError(w, http.StatusUnprocessableEntity, "invalid_request", "project name is required and must be at most 100 characters")
-		}
+	if !decodeJSON(w, r, &request) {
+		return
+	}
+	request.Name = strings.TrimSpace(request.Name)
+	if request.Name == "" || len(request.Name) > 100 {
+		writeError(w, http.StatusUnprocessableEntity, "invalid_request", "project name is required and must be at most 100 characters")
 		return
 	}
 	now := time.Now().UTC()
-	created := project.Project{ID: uuid.New(), OwnerID: ownerID, Name: strings.TrimSpace(request.Name), Status: "active", CreatedAt: now, UpdatedAt: now}
+	created := project.Project{ID: uuid.New(), OwnerID: ownerID, Name: request.Name, Status: "active", CreatedAt: now, UpdatedAt: now}
 	if err := s.projects.Create(r.Context(), created); err != nil {
 		writeError(w, http.StatusConflict, "project_name_unavailable", "project could not be created")
 		return
@@ -86,13 +88,15 @@ func (s *Server) UpdateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var request projectRequest
-	if !decodeJSON(w, r, &request) || strings.TrimSpace(request.Name) == "" || len(strings.TrimSpace(request.Name)) > 100 {
-		if w.Header().Get("Content-Type") == "" {
-			writeError(w, http.StatusUnprocessableEntity, "invalid_request", "project name is required and must be at most 100 characters")
-		}
+	if !decodeJSON(w, r, &request) {
 		return
 	}
-	result, err := s.projects.UpdateOwned(r.Context(), ownerID, projectID, strings.TrimSpace(request.Name), time.Now().UTC())
+	request.Name = strings.TrimSpace(request.Name)
+	if request.Name == "" || len(request.Name) > 100 {
+		writeError(w, http.StatusUnprocessableEntity, "invalid_request", "project name is required and must be at most 100 characters")
+		return
+	}
+	result, err := s.projects.UpdateOwned(r.Context(), ownerID, projectID, request.Name, time.Now().UTC())
 	if errors.Is(err, project.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "project_not_found", "project not found")
 		return

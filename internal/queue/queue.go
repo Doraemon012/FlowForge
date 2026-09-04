@@ -20,6 +20,27 @@ var ErrLeaseNotOwned = errors.New("lease is not owned by worker")
 const defaultLeaseDuration = 10 * time.Second
 const defaultMaxAttempts = 3
 
+const (
+	retryBaseDelay = 1 * time.Second
+	retryMaxDelay  = 30 * time.Second
+)
+
+// retryBackoff returns an exponential backoff with a cap and a small
+// deterministic jitter derived from the attempt number. Keeping the jitter
+// deterministic makes retry behavior reproducible in tests while still
+// spreading concurrent retries away from a synchronized thundering herd.
+func retryBackoff(attempt int) time.Duration {
+	if attempt < 1 {
+		attempt = 1
+	}
+	delay := retryBaseDelay * time.Duration(1<<(attempt-1))
+	if delay > retryMaxDelay {
+		delay = retryMaxDelay
+	}
+	jitter := time.Duration(attempt%5) * 100 * time.Millisecond
+	return delay + jitter
+}
+
 type Work struct {
 	QueueID       uuid.UUID
 	ProjectID     uuid.UUID
@@ -101,7 +122,7 @@ func (r *PostgresRepository) Claim(ctx context.Context, workerID string, now tim
 	}
 	defer tx.Rollback(ctx)
 	var queueID, taskRunID uuid.UUID
-	err = tx.QueryRow(ctx, `SELECT id, task_run_id FROM task_queue WHERE status = 'queued' ORDER BY created_at, id FOR UPDATE SKIP LOCKED LIMIT 1`).Scan(&queueID, &taskRunID)
+	err = tx.QueryRow(ctx, `SELECT id, task_run_id FROM task_queue WHERE status = 'queued' AND (not_before IS NULL OR not_before <= $1) ORDER BY created_at, id FOR UPDATE SKIP LOCKED LIMIT 1`, now).Scan(&queueID, &taskRunID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Work{}, ErrNoWork
 	}
@@ -252,7 +273,7 @@ func (r *PostgresRepository) RecoverExpired(ctx context.Context, now time.Time) 
 		}
 		if _, err := tx.Exec(ctx, `
 			UPDATE task_queue
-			SET status = 'queued', worker_id = '', claimed_at = NULL, completed_at = NULL, lease_token = NULL, lease_expires_at = NULL, last_heartbeat_at = NULL, created_at = $1
+			SET status = 'queued', worker_id = '', claimed_at = NULL, completed_at = NULL, lease_token = NULL, lease_expires_at = NULL, last_heartbeat_at = NULL, not_before = NULL, created_at = $1
 			WHERE id = $2 AND status = 'claimed' AND lease_token = $3`, now, item.queueID, item.leaseToken); err != nil {
 			return 0, err
 		}
@@ -292,17 +313,16 @@ func (r *PostgresRepository) finish(ctx context.Context, taskRunID uuid.UUID, wo
 	}
 	defer tx.Rollback(ctx)
 
-	if err := requireRowsAffected(ctx, tx, `
-		UPDATE task_queue
-		SET status = $1, completed_at = $2
-		WHERE task_run_id = $3 AND status = 'claimed' AND worker_id = $4 AND lease_token = $5`, queueStatus, now, taskRunID, workerID, leaseToken); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrLeaseNotOwned
-		}
-		return err
-	}
-
 	if queueStatus == "completed" {
+		if err := requireRowsAffected(ctx, tx, `
+			UPDATE task_queue
+			SET status = 'completed', completed_at = $1
+			WHERE task_run_id = $2 AND status = 'claimed' AND worker_id = $3 AND lease_token = $4`, now, taskRunID, workerID, leaseToken); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrLeaseNotOwned
+			}
+			return err
+		}
 		if err := requireRowsAffected(ctx, tx, `UPDATE task_runs SET status = 'succeeded', output = $2, completed_at = $3 WHERE id = $1 AND status = 'running'`, taskRunID, output, now); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrLeaseNotOwned
@@ -316,17 +336,54 @@ func (r *PostgresRepository) finish(ctx context.Context, taskRunID uuid.UUID, wo
 			return err
 		}
 	} else {
-		if err := requireRowsAffected(ctx, tx, `UPDATE task_runs SET status = 'failed', failure_reason = $2, failure_classification = $3, completed_at = $4 WHERE id = $1 AND status = 'running'`, taskRunID, reason, classification, now); err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				return ErrLeaseNotOwned
-			}
-			return err
-		}
+		// Always record the attempt outcome in append-only history so retries
+		// remain visible after a transient failure.
 		if err := requireRowsAffected(ctx, tx, `UPDATE task_attempts SET status = 'failed', completed_at = $1, failure_reason = $2, failure_classification = $3 WHERE task_run_id = $4 AND attempt_number = $5 AND worker_id = $6 AND lease_token = $7 AND status = 'running'`, now, reason, classification, taskRunID, attempt, workerID, leaseToken); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrLeaseNotOwned
 			}
 			return err
+		}
+		// A transient failure with attempts remaining is scheduled for retry:
+		// the queue row and task run return to 'queued' with a delayed backoff
+		// so another worker can claim and re-run the task. Terminal failures or
+		// exhausted retries mark the task failed.
+		if classification == "transient" && attempt < r.maxAttempts {
+			retryAt := now.Add(retryBackoff(attempt))
+			if err := requireRowsAffected(ctx, tx, `
+				UPDATE task_queue
+				SET status = 'queued', worker_id = '', claimed_at = NULL, completed_at = NULL,
+				    lease_token = NULL, lease_expires_at = NULL, last_heartbeat_at = NULL,
+				    not_before = $1, updated_at = $2, created_at = $2
+				WHERE task_run_id = $3 AND status = 'claimed' AND worker_id = $4 AND lease_token = $5`,
+				retryAt, now, taskRunID, workerID, leaseToken); err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					return ErrLeaseNotOwned
+				}
+				return err
+			}
+			if err := requireRowsAffected(ctx, tx, `UPDATE task_runs SET status = 'queued', failure_reason = $1, completed_at = NULL WHERE id = $2 AND status = 'running'`, reason, taskRunID); err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					return ErrLeaseNotOwned
+				}
+				return err
+			}
+		} else {
+			if err := requireRowsAffected(ctx, tx, `
+				UPDATE task_queue
+				SET status = 'failed', completed_at = $1
+				WHERE task_run_id = $2 AND status = 'claimed' AND worker_id = $3 AND lease_token = $4`, now, taskRunID, workerID, leaseToken); err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					return ErrLeaseNotOwned
+				}
+				return err
+			}
+			if err := requireRowsAffected(ctx, tx, `UPDATE task_runs SET status = 'failed', failure_reason = $2, failure_classification = $3, completed_at = $4 WHERE id = $1 AND status = 'running'`, taskRunID, reason, classification, now); err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					return ErrLeaseNotOwned
+				}
+				return err
+			}
 		}
 	}
 

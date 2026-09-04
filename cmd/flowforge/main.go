@@ -82,6 +82,7 @@ func main() {
 		logger,
 	)
 	apiServer.SetObservatory(observRepository)
+	apiServer.SetLimits(cfg.MaxBodyBytes, cfg.AuthRateLimitRPS, cfg.AuthRateLimitBurst, cfg.WebhookRateLimitRPS, cfg.WebhookRateLimitBurst)
 
 	server := &http.Server{
 		Addr:    cfg.HTTPAddr,
