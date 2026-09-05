@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { FolderKanban, Plus, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
@@ -197,6 +197,18 @@ function ProjectSkeleton() {
 
 export function ProjectsPage() {
   const { data: projects, isLoading, isError, refetch } = useProjects()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const createRequested = searchParams.get('create') === '1'
+
+  const handleCreateOpenChange = (open: boolean) => {
+    const nextParams = new URLSearchParams(searchParams)
+    if (open) {
+      nextParams.set('create', '1')
+    } else {
+      nextParams.delete('create')
+    }
+    setSearchParams(nextParams)
+  }
 
   return (
     <div className="space-y-6">
@@ -208,7 +220,10 @@ export function ProjectsPage() {
             {samples.map((spec) => (
               <SampleProjectButton key={spec.projectName} spec={spec} />
             ))}
-            <CreateProjectDialog />
+            <CreateProjectDialog
+              open={createRequested}
+              onOpenChange={handleCreateOpenChange}
+            />
           </>
         }
       />
@@ -232,6 +247,8 @@ export function ProjectsPage() {
           description="Create a project to start building workflows and turning tasks into repeatable executions."
           action={
             <CreateProjectDialog
+              open={createRequested}
+              onOpenChange={handleCreateOpenChange}
               trigger={
                 <Button>
                   <Plus className="mr-2 h-4 w-4" aria-hidden="true" />

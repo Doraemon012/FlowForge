@@ -1,5 +1,5 @@
 import { apiRequest } from './client'
-import type { Execution, TaskRun } from './types'
+import type { Execution, TaskAttempt, TaskRun } from './types'
 
 export interface CreateExecutionInput {
   version_id?: string
@@ -30,4 +30,10 @@ export function getExecution(executionId: string) {
 
 export function listTaskRuns(executionId: string) {
   return apiRequest<TaskRun[]>(`/api/v1/executions/${executionId}/tasks`)
+}
+
+export function listExecutionAttempts(executionId: string) {
+  return apiRequest<TaskAttempt[]>(
+    `/api/v1/executions/${executionId}/attempts`,
+  )
 }

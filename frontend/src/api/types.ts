@@ -85,6 +85,22 @@ export interface TaskRun {
   completed_at?: string
 }
 
+export interface TaskAttempt {
+  id: string
+  task_run_id: string
+  execution_id: string
+  task_id: string
+  attempt_number: number
+  worker_id: string
+  status: string
+  failure_reason?: string
+  failure_classification?: string
+  started_at: string
+  heartbeat_at: string
+  lease_expires_at: string
+  completed_at?: string
+}
+
 export interface ValidationResult {
   valid: boolean
   errors: string[]

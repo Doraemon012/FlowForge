@@ -142,24 +142,24 @@ export function ProjectOverviewPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Workflows</CardTitle>
+      <div>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Workflows</h2>
           <Button asChild size="sm" variant="outline">
             <Link to={`/app/projects/${project.id}/workflows`}>
               View all
               <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
             </Link>
           </Button>
-        </CardHeader>
-        <CardContent>
-          {workflowsLoading ? (
-            <div className="space-y-3">
-              {Array.from({ length: 3 }).map((_, index) => (
-                <WorkflowOverviewSkeleton key={index} />
-              ))}
-            </div>
-          ) : workflowsError ? (
+        </div>
+        {workflowsLoading ? (
+          <div className="mt-3 space-y-3">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <WorkflowOverviewSkeleton key={index} />
+            ))}
+          </div>
+        ) : workflowsError ? (
+          <div className="mt-3">
             <ErrorState
               title="Couldn't load workflows"
               message={
@@ -169,7 +169,9 @@ export function ProjectOverviewPage() {
               }
               onRetry={refetchWorkflows}
             />
-          ) : !workflows || workflows.length === 0 ? (
+          </div>
+        ) : !workflows || workflows.length === 0 ? (
+          <div className="mt-3">
             <EmptyState
               icon={WorkflowIcon}
               title="No workflows yet"
@@ -183,29 +185,29 @@ export function ProjectOverviewPage() {
                 </Button>
               }
             />
-          ) : (
-            <div className="space-y-3">
-              {workflows.slice(0, 5).map((workflow) => (
-                <WorkflowCard key={workflow.id} projectId={project.id} workflow={workflow} />
-              ))}
-              {workflows.length > 5 ? (
-                <Button asChild variant="ghost" size="sm" className="w-full">
-                  <Link to={`/app/projects/${project.id}/workflows`}>
-                    View all {workflows.length} workflows
-                    <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
-                  </Link>
-                </Button>
-              ) : null}
+          </div>
+        ) : (
+          <div className="mt-3 space-y-3">
+            {workflows.slice(0, 5).map((workflow) => (
+              <WorkflowCard key={workflow.id} projectId={project.id} workflow={workflow} />
+            ))}
+            {workflows.length > 5 ? (
               <Button asChild variant="ghost" size="sm" className="w-full">
-                <Link to={`/app/projects/${project.id}/workflows/new`}>
-                  <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                  Create workflow
+                <Link to={`/app/projects/${project.id}/workflows`}>
+                  View all {workflows.length} workflows
+                  <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
                 </Link>
               </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            ) : null}
+            <Button asChild variant="ghost" size="sm" className="w-full">
+              <Link to={`/app/projects/${project.id}/workflows/new`}>
+                <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                Create workflow
+              </Link>
+            </Button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

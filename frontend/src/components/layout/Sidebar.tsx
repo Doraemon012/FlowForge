@@ -1,5 +1,5 @@
-import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, FolderKanban, PlayCircle } from 'lucide-react'
+import { NavLink, useNavigate } from 'react-router-dom'
+import { LayoutDashboard, FolderKanban } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useSession } from '@/lib/auth-store'
 
@@ -10,10 +10,6 @@ const groups = [
       { to: '/app', label: 'Overview', icon: LayoutDashboard, end: true },
       { to: '/app/projects', label: 'Projects', icon: FolderKanban, end: false },
     ],
-  },
-  {
-    label: 'Observe',
-    items: [{ to: '/app/projects', label: 'Runs', icon: PlayCircle, end: false }],
   },
 ]
 
@@ -43,6 +39,12 @@ export function Sidebar({ className, onNavigate, collapsed = false }: SidebarPro
   const user = session?.user ?? null
   const initials = getInitials(user)
   const workspaceName = user?.displayName ?? 'FlowForge'
+  const navigate = useNavigate()
+
+  const handleWorkspaceActivate = () => {
+    navigate('/app')
+    onNavigate?.()
+  }
 
   return (
     <aside
@@ -50,7 +52,19 @@ export function Sidebar({ className, onNavigate, collapsed = false }: SidebarPro
       style={collapsed ? { width: 64 } : undefined}
       aria-label="Primary"
     >
-      <div className="sb-workspace" role="button" tabIndex={0} title={collapsed ? workspaceName : undefined}>
+      <div
+        className="sb-workspace"
+        role="button"
+        tabIndex={0}
+        title={collapsed ? workspaceName : undefined}
+        onClick={handleWorkspaceActivate}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            handleWorkspaceActivate()
+          }
+        }}
+      >
         <div className="sb-avatar">{initials}</div>
         {!collapsed ? (
           <div style={{ minWidth: 0, flex: 1 }}>

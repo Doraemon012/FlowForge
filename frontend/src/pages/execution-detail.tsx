@@ -1,9 +1,10 @@
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, ListTodo } from 'lucide-react'
+import { ArrowLeft, History, ListTodo } from 'lucide-react'
 import { ApiError } from '@/api/client'
 import { useProject } from '@/hooks/use-projects'
-import { useWorkflow } from '@/hooks/use-workflows'
-import { useExecution, useTaskRuns } from '@/hooks/use-executions'
+import { useWorkflow, useWorkflowVersion } from '@/hooks/use-workflows'
+import { useExecution, useExecutionAttempts, useTaskRuns } from '@/hooks/use-executions'
+import { AttemptHistory } from '@/components/executions/AttemptHistory'
 import { ExecutionStatusBadge } from '@/components/executions/ExecutionStatusBadge'
 import { TaskRunItem } from '@/components/executions/TaskRunItem'
 import { EmptyState } from '@/components/shared/EmptyState'
@@ -66,7 +67,19 @@ export function ExecutionDetailPage() {
     error: taskRunsErr,
     refetch: refetchTaskRuns,
   } = useTaskRuns(executionId ?? '')
+  const {
+    data: attempts,
+    isLoading: attemptsLoading,
+    isError: attemptsError,
+    error: attemptsErr,
+    refetch: refetchAttempts,
+  } = useExecutionAttempts(executionId ?? '')
   const { data: workflow } = useWorkflow(projectId ?? '', execution?.workflow_id ?? '')
+  const { data: workflowVersion } = useWorkflowVersion(
+    projectId ?? '',
+    execution?.workflow_id ?? '',
+    execution?.workflow_version_id ?? '',
+  )
 
   if (projectLoading) {
     return <ExecutionDetailSkeleton />
@@ -164,6 +177,14 @@ export function ExecutionDetailPage() {
               </span>
             </div>
             <div className="m">
+              <span className="lbl">Version</span>
+              <span className="val">
+                {workflowVersion
+                  ? `Version ${workflowVersion.version_number}`
+                  : `${execution.workflow_version_id.slice(0, 12)}…`}
+              </span>
+            </div>
+            <div className="m">
               <span className="lbl">Execution</span>
               <span className="val">{execution.id.slice(0, 12)}…</span>
             </div>
@@ -257,6 +278,45 @@ export function ExecutionDetailPage() {
                 <TaskRunItem key={taskRun.id} taskRun={taskRun} />
               ))}
             </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Attempts</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {attemptsLoading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 2 }).map((_, index) => (
+                <Skeleton key={index} className="h-20 w-full" />
+              ))}
+            </div>
+          ) : attemptsError ? (
+            attemptsErr instanceof ApiError && attemptsErr.status === 501 ? (
+              <p className="text-sm text-muted">
+                Attempt history is not available for this deployment.
+              </p>
+            ) : (
+              <ErrorState
+                title="Couldn't load attempt history"
+                message={
+                  attemptsErr instanceof ApiError && attemptsErr.status === 404
+                    ? 'This execution may have been removed.'
+                    : 'The server could not be reached. Please try again.'
+                }
+                onRetry={refetchAttempts}
+              />
+            )
+          ) : !attempts || attempts.length === 0 ? (
+            <EmptyState
+              icon={History}
+              title="No attempts yet"
+              description="Attempt history will appear once tasks begin executing."
+            />
+          ) : (
+            <AttemptHistory attempts={attempts} />
           )}
         </CardContent>
       </Card>

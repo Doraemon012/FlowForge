@@ -1,6 +1,8 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { LogOut, Menu, PanelLeftClose, PanelLeftOpen, Search } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
+import { useProject } from '@/hooks/use-projects'
+import { useWorkflow } from '@/hooks/use-workflows'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { commandPaletteStore } from '@/components/layout/command-palette-store'
@@ -42,13 +44,49 @@ function labelForSegment(segment: string): string {
   return map[segment] ?? segment
 }
 
-function buildCrumbs(pathname: string): { label: string; path: string }[] {
+function parseRouteIds(pathname: string): {
+  projectId?: string
+  workflowId?: string
+} {
+  const segments = pathname.split('/').filter(Boolean)
+  let projectId: string | undefined
+  let workflowId: string | undefined
+  for (let i = 0; i < segments.length; i++) {
+    if (segments[i] === 'projects' && segments[i + 1]) {
+      projectId = segments[i + 1]
+    }
+    if (segments[i] === 'workflows' && segments[i + 1] && segments[i + 1] !== 'new') {
+      workflowId = segments[i + 1]
+    }
+  }
+  return { projectId, workflowId }
+}
+
+function buildCrumbs(
+  pathname: string,
+  projectId: string | undefined,
+  workflowId: string | undefined,
+  projectName: string | undefined,
+  workflowName: string | undefined,
+): { label: string; path: string }[] {
   const segments = pathname.split('/').filter(Boolean)
   const crumbs: { label: string; path: string }[] = []
   let current = ''
-  for (const segment of segments) {
+  for (let i = 0; i < segments.length; i++) {
+    const segment = segments[i]
+    const prev = segments[i - 1]
     current += `/${segment}`
-    crumbs.push({ label: labelForSegment(segment), path: current })
+    let label: string
+    if (i > 0 && prev === 'projects' && segment === projectId) {
+      label = projectName ?? segment
+    } else if (i > 0 && prev === 'workflows' && segment === workflowId) {
+      label = workflowName ?? segment
+    } else if (i > 0 && prev === 'executions') {
+      label = 'Execution'
+    } else {
+      label = labelForSegment(segment)
+    }
+    crumbs.push({ label, path: current })
   }
   return crumbs
 }
@@ -63,7 +101,16 @@ export function TopBar({ onToggleSidebar, sidebarCollapsed, onToggleCollapse }: 
   const navigate = useNavigate()
   const location = useLocation()
   const { user, logout } = useAuth()
-  const crumbs = buildCrumbs(location.pathname)
+  const { projectId, workflowId } = parseRouteIds(location.pathname)
+  const { data: project } = useProject(projectId ?? '')
+  const { data: workflow } = useWorkflow(projectId ?? '', workflowId ?? '')
+  const crumbs = buildCrumbs(
+    location.pathname,
+    projectId,
+    workflowId,
+    project?.name,
+    workflow?.name,
+  )
 
   const handleLogout = () => {
     logout()

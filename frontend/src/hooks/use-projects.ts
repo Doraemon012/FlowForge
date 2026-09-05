@@ -27,6 +27,7 @@ export function useProject(id: string) {
   return useQuery({
     queryKey: projectKeys.detail(id),
     queryFn: () => getProject(id),
+    enabled: Boolean(id),
   })
 }
 

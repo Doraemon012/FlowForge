@@ -148,7 +148,13 @@ export function WorkflowEditor({ projectId, workflow }: WorkflowEditorProps) {
       })
       syncFromSaved(updated)
       const version = await publishMutation.mutateAsync()
-      toast.success(`Workflow version ${version.version_number} published`)
+      toast.success(`Workflow version ${version.version_number} published`, {
+        action: {
+          label: 'Manage versions',
+          onClick: () =>
+            navigate(`/app/projects/${projectId}/workflows/${workflow.id}/versions`),
+        },
+      })
     } catch (error) {
       if (error instanceof ApiError && error.errors) {
         setValidationErrors(error.errors)

@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
   FolderKanban,
   LayoutDashboard,
   Plus,
   Search,
-  Sparkles,
   Workflow,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -30,6 +29,7 @@ interface CommandSection {
 
 function CommandPalettePane() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -37,6 +37,15 @@ function CommandPalettePane() {
   const close = useCallback(() => {
     commandPaletteStore.close()
   }, [])
+
+  const projectId = useMemo(() => {
+    const segments = location.pathname.split('/').filter(Boolean)
+    const projectsIndex = segments.indexOf('projects')
+    if (projectsIndex >= 0 && segments[projectsIndex + 1]) {
+      return segments[projectsIndex + 1]
+    }
+    return undefined
+  }, [location.pathname])
 
   const sections = useMemo<CommandSection[]>(
     () => [
@@ -68,28 +77,28 @@ function CommandPalettePane() {
             sub: 'Start a new project',
             icon: Plus,
             kbd: 'C then P',
-            action: () => navigate('/app/projects'),
+            action: () => navigate('/app/projects?create=1'),
           },
           {
             id: 'new-workflow',
             label: 'Create workflow…',
-            sub: 'Open a project to add a workflow',
+            sub: projectId
+              ? 'New workflow in this project'
+              : 'Select a project to add a workflow',
             icon: Workflow,
             kbd: 'C then W',
-            action: () => navigate('/app/projects'),
-          },
-          {
-            id: 'ask-ai',
-            label: 'Ask FlowForge: "which tasks failed most this week?"',
-            sub: 'AI assistant',
-            icon: Sparkles,
-            kbd: 'AI',
-            action: () => navigate('/app'),
+            action: () => {
+              if (projectId) {
+                navigate(`/app/projects/${projectId}/workflows/new`)
+              } else {
+                navigate('/app/projects')
+              }
+            },
           },
         ],
       },
     ],
-    [navigate],
+    [navigate, projectId],
   )
 
   const filteredSections = useMemo(() => {
@@ -176,8 +185,11 @@ function CommandPalettePane() {
                 const flatIndex = filteredItems.indexOf(item)
                 const Icon = item.icon
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={item.id}
+                    role="option"
+                    aria-selected={flatIndex === safeIndex}
                     className={cn('cmdk-item', flatIndex === safeIndex && 'active')}
                     onClick={() => {
                       item.action()
@@ -191,7 +203,7 @@ function CommandPalettePane() {
                       {item.sub ? <div className="text-xs text-muted">{item.sub}</div> : null}
                     </div>
                     {item.kbd ? <span className="kk">{item.kbd}</span> : null}
-                  </div>
+                  </button>
                 )
               })}
             </div>

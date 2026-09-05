@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   createExecution,
   getExecution,
+  listExecutionAttempts,
   listExecutions,
   listTaskRuns,
   type CreateExecutionInput,
@@ -16,6 +17,8 @@ export const executionKeys = {
   detail: (executionId: string) => [...executionKeys.details(), executionId] as const,
   taskRuns: (executionId: string) =>
     [...executionKeys.detail(executionId), 'task-runs'] as const,
+  attempts: (executionId: string) =>
+    [...executionKeys.detail(executionId), 'attempts'] as const,
 }
 
 const ACTIVE_EXECUTION_STATUSES = new Set(['pending', 'running'])
@@ -47,6 +50,22 @@ export function useTaskRuns(executionId: string) {
   return useQuery({
     queryKey: executionKeys.taskRuns(executionId),
     queryFn: () => listTaskRuns(executionId),
+    enabled: Boolean(executionId),
+    refetchInterval: () => {
+      const execution = queryClient.getQueryData<Execution>(
+        executionKeys.detail(executionId),
+      )
+      return isExecutionActive(execution?.status) ? 2000 : false
+    },
+  })
+}
+
+export function useExecutionAttempts(executionId: string) {
+  const queryClient = useQueryClient()
+
+  return useQuery({
+    queryKey: executionKeys.attempts(executionId),
+    queryFn: () => listExecutionAttempts(executionId),
     enabled: Boolean(executionId),
     refetchInterval: () => {
       const execution = queryClient.getQueryData<Execution>(
