@@ -19,6 +19,7 @@ import { WorkflowVersionsPage } from '@/pages/workflow-versions'
 import { ExecutionsPage } from '@/pages/executions'
 import { ExecutionDetailPage } from '@/pages/execution-detail'
 import { NotFoundPage } from '@/pages/not-found'
+import { DocsIndexPage, DocsDocumentPage } from '@/pages/docs'
 
 function App() {
   return (
@@ -26,6 +27,9 @@ function App() {
       <TooltipProvider delayDuration={200}>
         <BrowserRouter>
           <Routes>
+            <Route path="/docs" element={<DocsIndexPage />} />
+            <Route path="/docs/:slug" element={<DocsDocumentPage />} />
+
             <Route element={<RequirePublic />}>
               <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<LoginPage />} />

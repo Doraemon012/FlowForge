@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowRight,
+  BookOpen,
   Check,
   CheckCircle2,
   ChevronRight,
@@ -226,12 +227,12 @@ export function LandingPage() {
             <span>FlowForge</span>
           </div>
           <span className="badge" style={{ padding: '2px 8px', fontSize: '10px' }}>
-            v2.0 · beta
+            v1 · beta
           </span>
         </div>
         <nav className="lnav-links">
           <a href="#product">Product</a>
-          <a href="#docs">Docs</a>
+          <Link to="/docs">Docs</Link>
           <a href="#features">Features</a>
         </nav>
         <div className="lnav-cta">
@@ -240,7 +241,7 @@ export function LandingPage() {
           </Button>
           <Button size="sm" asChild>
             <Link to="/signup">
-              Start free
+              Get started
               <ArrowRight className="ml-1 h-3.5 w-3.5" aria-hidden="true" />
             </Link>
           </Button>
@@ -258,7 +259,7 @@ export function LandingPage() {
             <span className="live-dot" aria-hidden="true" />
             <span>
               Now in public beta ·{' '}
-              <span style={{ color: 'var(--accent)' }}>14-day free trial</span>
+              <span style={{ color: 'var(--accent)' }}>open source</span>
             </span>
           </div>
 
@@ -275,19 +276,20 @@ export function LandingPage() {
           <div className="lhero-ctas">
             <Button size="lg" asChild>
               <Link to="/signup">
-                Start building free
+                Start building
                 <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
               </Link>
             </Button>
             <Button size="lg" variant="outline" asChild>
-              <Link to="/login">
-                <Play className="mr-2 h-4 w-4" aria-hidden="true" />
-                Watch 90-sec demo
+              <Link to="/docs">
+                <BookOpen className="mr-2 h-4 w-4" aria-hidden="true" />
+                Read the docs
               </Link>
             </Button>
           </div>
           <div className="lhero-meta">
-            No credit card · deploy in 2 minutes · <a>read the docs →</a>
+            Open source · self-hostable ·{' '}
+            <Link to="/docs">read the docs →</Link>
           </div>
 
           <div className="lhero-dag" style={{ position: 'relative' }}>
@@ -296,21 +298,22 @@ export function LandingPage() {
         </section>
 
         <section className="logos">
-          <div className="label">Trusted by teams shipping mission-critical workflows</div>
+          <div className="label">Built on a focused, durable stack</div>
           <div className="logos-row">
-            <div className="logo-slot">◆ Vertex</div>
-            <div className="logo-slot">● Orbit</div>
-            <div className="logo-slot">◆ Kepler</div>
-            <div className="logo-slot">■ Blockstream</div>
-            <div className="logo-slot">▲ Nexus</div>
-            <div className="logo-slot">■ Ridge</div>
-            <div className="logo-slot">◐ Halcyon</div>
+            <div className="logo-slot">◆ Go</div>
+            <div className="logo-slot">● PostgreSQL</div>
+            <div className="logo-slot">◆ React</div>
+            <div className="logo-slot">■ Vite</div>
+            <div className="logo-slot">▲ React Flow</div>
+            <div className="logo-slot">■ TanStack Query</div>
           </div>
           <div className="logos-metric">
-            <span className="text-accent">2.4B</span>+ workflow tasks executed · <b>99.99%</b>{' '}
-            uptime
+            <span className="text-accent">At-least-once</span> execution · <b>durable</b> by
+            design
           </div>
-          <div className="logos-metric-sub">across 40+ engineering teams in production</div>
+          <div className="logos-metric-sub">
+            every attempt recorded · immutable versions · postgres-backed queue
+          </div>
         </section>
 
         <section className="lsection" id="product">
@@ -528,17 +531,20 @@ export function LandingPage() {
             durable workflow tonight.
           </h2>
           <p>
-            Free for the first 10,000 runs / month. No credit card. Set up in under two minutes.
+            Open source and self-hostable. Define a DAG once, and every run is durable,
+            observable, and recoverable.
           </p>
           <div className="lcta-btns">
             <Button size="lg" asChild>
               <Link to="/signup">
-                Start free
+                Get started
                 <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
               </Link>
             </Button>
-            <Button size="lg" variant="outline">
-              Book a demo
+            <Button size="lg" variant="outline" asChild>
+              <Link to="/docs">
+                Read the docs
+              </Link>
             </Button>
           </div>
         </section>
@@ -556,7 +562,7 @@ export function LandingPage() {
           </p>
           <div className="status">
             <span className="live-dot" aria-hidden="true" />
-            All systems operational
+            Public beta
           </div>
         </div>
         <div>
@@ -572,11 +578,13 @@ export function LandingPage() {
         <div>
           <h5>Developers</h5>
           <ul>
-            <li>Documentation</li>
+            <li>
+              <Link to="/docs">Documentation</Link>
+            </li>
             <li>API reference</li>
             <li>SDKs</li>
             <li>Examples</li>
-            <li>Status</li>
+            <li>Open source</li>
           </ul>
         </div>
         <div>
@@ -584,8 +592,8 @@ export function LandingPage() {
           <ul>
             <li>About</li>
             <li>Blog</li>
-            <li>Careers</li>
-            <li>Customers</li>
+            <li>Contributing</li>
+            <li>Community</li>
             <li>Contact</li>
           </ul>
         </div>
@@ -595,7 +603,7 @@ export function LandingPage() {
             <li>Privacy</li>
             <li>Terms</li>
             <li>Security</li>
-            <li>DPA</li>
+            <li>License</li>
           </ul>
         </div>
       </footer>

@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { LogOut, Menu, PanelLeftClose, PanelLeftOpen, Search } from 'lucide-react'
+import { BookOpen, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Search } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import { useProject } from '@/hooks/use-projects'
 import { useWorkflow } from '@/hooks/use-workflows'
@@ -160,6 +160,16 @@ export function TopBar({ onToggleSidebar, sidebarCollapsed, onToggleCollapse }: 
       </nav>
 
       <div className="grow" />
+
+      <Link
+        to="/docs"
+        className="search"
+        aria-label="Open documentation"
+        style={{ minWidth: 0, width: 36, padding: 0, justifyContent: 'center' }}
+        title="Documentation"
+      >
+        <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
+      </Link>
 
       <button
         type="button"

@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, FolderKanban } from 'lucide-react'
+import { LayoutDashboard, FolderKanban, BookOpen } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useSession } from '@/lib/auth-store'
 
@@ -9,6 +9,12 @@ const groups = [
     items: [
       { to: '/app', label: 'Overview', icon: LayoutDashboard, end: true },
       { to: '/app/projects', label: 'Projects', icon: FolderKanban, end: false },
+    ],
+  },
+  {
+    label: 'Resources',
+    items: [
+      { to: '/docs', label: 'Documentation', icon: BookOpen, end: false },
     ],
   },
 ]
