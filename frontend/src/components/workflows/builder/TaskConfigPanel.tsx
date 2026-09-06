@@ -74,16 +74,28 @@ export function TaskConfigPanel({
           </p>
         </div>
 
-        {fields.map((field) => (
+        {fields.map((field) => {
+          const numericConditionalOperators = ['gt', 'lt', 'gte', 'lte']
+          const fieldForTask =
+            field.key === 'value' && numericConditionalOperators.includes(String(task.config?.operator))
+              ? { ...field, type: 'number' as const }
+              : field
+          return (
           <ConfigField
             key={field.key}
-            field={field}
+            field={fieldForTask}
             value={task.config?.[field.key]}
             onChange={(value) =>
-              onChange({ config: { ...(task.config ?? {}), [field.key]: value } })
+              onChange({
+                config: {
+                  ...(task.config ?? {}),
+                  [field.key]: normalizeFieldValue(task.type, field.key, value),
+                },
+              })
             }
           />
-        ))}
+          )
+        })}
       </div>
 
       <div className="border-t p-3">
@@ -100,6 +112,21 @@ interface ConfigFieldProps {
   field: ConfigFieldSpec
   value: unknown
   onChange: (value: unknown) => void
+}
+
+function normalizeFieldValue(taskType: string, key: string, value: unknown): unknown {
+  if (value === '') {
+    return undefined
+  }
+  if ((taskType === 'http' && key === 'headers') || (taskType === 'transform' && key === 'output')) {
+    if (typeof value !== 'string') return value
+    try {
+      return JSON.parse(value)
+    } catch {
+      return value
+    }
+  }
+  return value
 }
 
 function ConfigField({ field, value, onChange }: ConfigFieldProps) {

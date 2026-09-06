@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { ApiError } from '@/api/client'
 import type { Workflow, WorkflowTask } from '@/api/types'
 import {
+  useActivateWorkflowVersion,
   useDeactivateWorkflow,
   usePublishWorkflow,
   useUpdateWorkflow,
@@ -74,6 +75,7 @@ export function WorkflowEditor({ projectId, workflow }: WorkflowEditorProps) {
   const updateMutation = useUpdateWorkflow(projectId, workflow.id)
   const validateMutation = useValidateWorkflow(projectId, workflow.id)
   const publishMutation = usePublishWorkflow(projectId, workflow.id)
+  const activateMutation = useActivateWorkflowVersion(projectId, workflow.id)
   const deactivateMutation = useDeactivateWorkflow(projectId, workflow.id)
   const createExecutionMutation = useCreateExecution(projectId, workflow.id)
 
@@ -148,7 +150,8 @@ export function WorkflowEditor({ projectId, workflow }: WorkflowEditorProps) {
       })
       syncFromSaved(updated)
       const version = await publishMutation.mutateAsync()
-      toast.success(`Workflow version ${version.version_number} published`, {
+      await activateMutation.mutateAsync(version.id)
+      toast.success(`Workflow version ${version.version_number} published and activated`, {
         action: {
           label: 'Manage versions',
           onClick: () =>
@@ -198,7 +201,8 @@ export function WorkflowEditor({ projectId, workflow }: WorkflowEditorProps) {
 
   const saveIsPending = updateMutation.isPending
   const validateIsPending = validateMutation.isPending || updateMutation.isPending
-  const publishIsPending = publishMutation.isPending || updateMutation.isPending
+  const publishIsPending =
+    publishMutation.isPending || activateMutation.isPending || updateMutation.isPending
   const deactivateIsPending = deactivateMutation.isPending
 
   const headerLeft = (

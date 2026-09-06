@@ -65,7 +65,7 @@ export function ExamplesPage() {
           code={`{
   "tasks": [
     { "id": "normalize", "type": "transform", "config": {}, "depends_on": [] },
-    { "id": "route", "type": "conditional", "config": {}, "depends_on": ["normalize"] },
+    { "id": "route", "type": "conditional", "config": { "field": "amount", "operator": "gte", "value": 100 }, "depends_on": ["normalize"] },
     { "id": "notify", "type": "delay", "config": { "seconds": 30 }, "depends_on": ["route"] }
   ]
 }`}
@@ -116,14 +116,15 @@ export function ExamplesPage() {
           code={`{
   "tasks": [
     { "id": "classify", "type": "transform", "config": {}, "depends_on": [] },
-    { "id": "escalate", "type": "conditional", "config": {}, "depends_on": ["classify"] },
+    { "id": "escalate", "type": "conditional", "config": { "field": "priority", "operator": "equals", "equals": "high" }, "depends_on": ["classify"] },
     { "id": "hold", "type": "delay", "config": { "seconds": 15 }, "depends_on": ["escalate"] }
   ]
 }`}
         />
         <DocsCallout variant="info" title="Reproduce either example">
           Both examples can be built in the V1 UI: create a project, create a workflow, add
-          the three tasks, connect them, validate, save, publish, activate, and run. See the{' '}
+          the three tasks, configure the conditional field and comparison, connect them, validate,
+          save, publish, and run. Publish activates the version for the run. See the{' '}
           <Link to="/docs/tutorials" className="inline-link">
             step-by-step tutorial
           </Link>{' '}

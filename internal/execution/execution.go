@@ -368,7 +368,7 @@ func (r *BuiltinRuntime) Execute(ctx context.Context, task workflow.Task, input 
 	var err error
 	switch task.Type {
 	case "transform":
-		output, err = r.executeTransform(config, task)
+		output, err = r.executeTransform(config, task, input)
 	case "delay":
 		output, err = r.executeDelay(ctx, config, input)
 	case "conditional":

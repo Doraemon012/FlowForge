@@ -1,6 +1,6 @@
 # FlowForge
 
-FlowForge is a Go service for distributed workflow orchestration. It executes versioned directed acyclic graphs (DAGs) of tasks asynchronously through a durable PostgreSQL-backed queue and independently running workers, with bounded leases, heartbeats, retries, and recovery. The repository is a complete **V1** implementation of the plan in `docs/IMPLEMENTATION_PLAN.md`.
+FlowForge is a Go service and React dashboard for distributed workflow orchestration. It executes versioned directed acyclic graphs (DAGs) of tasks asynchronously through a durable PostgreSQL-backed queue and independently running workers, with bounded leases, heartbeats, retries, and recovery. The current build is a runnable V1 implementation in active hardening, not a frozen release.
 
 ## What is implemented
 
@@ -13,7 +13,29 @@ FlowForge is a Go service for distributed workflow orchestration. It executes ve
 - **V1 task set (Phase 9):** built-in `http`, `transform`, `delay`, `conditional`, and `email` task types behind a stable task contract, credential references with redaction, object-storage artifact references, and safe input/output limits.
 - **Observability (Phase 10):** structured JSON logs, append-only lifecycle events, persisted log entries, attempt history, worker/queue/metrics views, and project-isolated observability endpoints.
 
-The result is an at-least-once distributed execution system: a task may run more than once when completion is ambiguous, so side-effecting tasks use a deterministic idempotency key where the external system supports it.
+The result is an at-least-once distributed execution system: a task may run more than once when completion is ambiguous, so side-effecting tasks use a deterministic idempotency key where the external system supports it. The frontend currently focuses on the core build, run, and inspect journey; scheduling/webhook administration and broader operational dashboards remain follow-up work.
+
+## Product workflow
+
+The normal user journey is:
+
+1. Open the frontend, register or log in, and create a project.
+2. Create a workflow, add tasks from the palette, connect dependencies, and configure each selected task in the inspector.
+3. Save the draft, then use **Validate** to check the DAG and task configuration. **Publish** creates an immutable version and activates it for new runs.
+4. Press **Run**. FlowForge returns an execution immediately; the control plane queues eligible tasks and a worker claims them.
+5. Follow the execution detail page. It polls the persisted workflow status, task status, outputs, failures, attempt history, worker assignments, lifecycle events, and worker logs. Refreshing the page reads the same durable records.
+
+The API and worker are separate processes. A run can remain queued until at least one worker is running.
+
+### Built-in task types
+
+- **Transform:** emits the configured JSON output, or passes its input through when no output is configured.
+- **Delay:** waits for the configured number of seconds and passes its input through.
+- **Conditional:** evaluates a field in its input using `equals`, `not_equals`, numeric comparisons, `contains`, `exists`, or `truthy`, and returns a boolean result.
+- **HTTP Request:** calls the configured URL and stores status, response headers, and response body in the task output. Optional credentials are resolved from `FLOWFORGE_SECRET_<NAME>` environment variables.
+- **Email:** validates recipients and subject and returns a safe send summary. The local process uses the log mailer; external delivery requires wiring a real `Mailer` implementation and provider configuration.
+
+Downstream tasks receive the succeeded output of their dependency. A task with multiple dependencies receives an object keyed by dependency task ID. Root tasks receive the execution input.
 
 ## Architecture
 

@@ -206,22 +206,34 @@ export function validationErrorsByTaskId(errors: string[]): Map<string, string[]
 export function summarizeTaskConfig(task: WorkflowTask): string {
   const config = task.config ?? {}
   switch (task.type) {
-    case 'http':
-      return config.url ? `${config.method ?? 'GET'} ${config.url}` : 'Not configured'
-    case 'transform':
-      if (config.output != null) {
+    case 'http': {
+      if (!config.url) return 'Not configured'
+      const method = String(config.method ?? 'GET').toUpperCase()
+      const base = `${method} ${config.url}`
+      return config.credential ? `${base} · ${config.credential}` : base
+    }
+    case 'transform': {
+      if (config.output != null && config.output !== '') {
         return `Output: ${JSON.stringify(config.output)}`
       }
-      return config.expression ? String(config.expression) : 'Not configured'
+      return 'Passthrough'
+    }
     case 'delay':
       return config.seconds != null ? `Wait ${config.seconds}s` : 'Not configured'
-    case 'conditional':
-      if (config.field && config.equals) {
-        return `${config.field} = ${config.equals}`
+    case 'conditional': {
+      const field = config.field ? String(config.field) : ''
+      const operator = config.operator ? String(config.operator) : 'equals'
+      if (!field) return 'Not configured'
+      if (operator === 'exists' || operator === 'truthy') {
+        return `${field} ${operator}`
       }
-      return config.condition ? String(config.condition) : 'Not configured'
-    case 'email':
-      return config.to ? `To ${config.to}` : 'Not configured'
+      const comparison = operator === 'equals' || operator === 'not_equals' ? config.equals : config.value
+      return `${field} ${operator} ${comparison ?? ''}`.trim()
+    }
+    case 'email': {
+      if (!config.to) return 'Not configured'
+      return `To ${String(config.to)}`
+    }
     default:
       return 'Not configured'
   }

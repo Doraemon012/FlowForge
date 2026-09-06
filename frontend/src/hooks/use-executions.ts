@@ -2,7 +2,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   createExecution,
   getExecution,
+  listExecutionEvents,
   listExecutionAttempts,
+  listExecutionLogs,
   listExecutions,
   listTaskRuns,
   type CreateExecutionInput,
@@ -19,6 +21,10 @@ export const executionKeys = {
     [...executionKeys.detail(executionId), 'task-runs'] as const,
   attempts: (executionId: string) =>
     [...executionKeys.detail(executionId), 'attempts'] as const,
+  events: (executionId: string) =>
+    [...executionKeys.detail(executionId), 'events'] as const,
+  logs: (executionId: string) =>
+    [...executionKeys.detail(executionId), 'logs'] as const,
 }
 
 const ACTIVE_EXECUTION_STATUSES = new Set(['pending', 'running'])
@@ -66,6 +72,38 @@ export function useExecutionAttempts(executionId: string) {
   return useQuery({
     queryKey: executionKeys.attempts(executionId),
     queryFn: () => listExecutionAttempts(executionId),
+    enabled: Boolean(executionId),
+    refetchInterval: () => {
+      const execution = queryClient.getQueryData<Execution>(
+        executionKeys.detail(executionId),
+      )
+      return isExecutionActive(execution?.status) ? 2000 : false
+    },
+  })
+}
+
+export function useExecutionEvents(executionId: string) {
+  const queryClient = useQueryClient()
+
+  return useQuery({
+    queryKey: executionKeys.events(executionId),
+    queryFn: () => listExecutionEvents(executionId),
+    enabled: Boolean(executionId),
+    refetchInterval: () => {
+      const execution = queryClient.getQueryData<Execution>(
+        executionKeys.detail(executionId),
+      )
+      return isExecutionActive(execution?.status) ? 2000 : false
+    },
+  })
+}
+
+export function useExecutionLogs(executionId: string) {
+  const queryClient = useQueryClient()
+
+  return useQuery({
+    queryKey: executionKeys.logs(executionId),
+    queryFn: () => listExecutionLogs(executionId),
     enabled: Boolean(executionId),
     refetchInterval: () => {
       const execution = queryClient.getQueryData<Execution>(

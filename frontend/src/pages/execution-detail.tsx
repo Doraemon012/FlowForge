@@ -1,9 +1,15 @@
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, History, ListTodo } from 'lucide-react'
+import { ArrowLeft, History, ListTodo, ScrollText, Waypoints } from 'lucide-react'
 import { ApiError } from '@/api/client'
 import { useProject } from '@/hooks/use-projects'
 import { useWorkflow, useWorkflowVersion } from '@/hooks/use-workflows'
-import { useExecution, useExecutionAttempts, useTaskRuns } from '@/hooks/use-executions'
+import {
+  useExecution,
+  useExecutionAttempts,
+  useExecutionEvents,
+  useExecutionLogs,
+  useTaskRuns,
+} from '@/hooks/use-executions'
 import { AttemptHistory } from '@/components/executions/AttemptHistory'
 import { ExecutionStatusBadge } from '@/components/executions/ExecutionStatusBadge'
 import { TaskRunItem } from '@/components/executions/TaskRunItem'
@@ -74,6 +80,8 @@ export function ExecutionDetailPage() {
     error: attemptsErr,
     refetch: refetchAttempts,
   } = useExecutionAttempts(executionId ?? '')
+  const { data: events, isLoading: eventsLoading } = useExecutionEvents(executionId ?? '')
+  const { data: logs, isLoading: logsLoading } = useExecutionLogs(executionId ?? '')
   const { data: workflow } = useWorkflow(projectId ?? '', execution?.workflow_id ?? '')
   const { data: workflowVersion } = useWorkflowVersion(
     projectId ?? '',
@@ -245,6 +253,79 @@ export function ExecutionDetailPage() {
         </CardContent>
       </Card>
 
+      <div className="grid gap-6 xl:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Waypoints className="h-4 w-4" aria-hidden="true" />
+              Events
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {eventsLoading ? (
+              <Skeleton className="h-24 w-full" />
+            ) : !events || events.length === 0 ? (
+              <EmptyState
+                icon={Waypoints}
+                title="No events yet"
+                description="Lifecycle events will appear as the execution is queued, claimed, and completed."
+              />
+            ) : (
+              <div className="max-h-80 space-y-3 overflow-y-auto">
+                {events.map((event) => (
+                  <div key={event.id} className="border-b border-border pb-3 last:border-0 last:pb-0">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-mono text-xs font-medium">{event.event_type}</span>
+                      <span className="text-xs text-muted">{formatDateTime(event.created_at)}</span>
+                    </div>
+                    <p className="mt-1 text-xs text-muted">
+                      {event.task_id ? `Task ${event.task_id}` : 'Execution'}
+                      {event.worker_id ? ` · Worker ${event.worker_id}` : ''}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ScrollText className="h-4 w-4" aria-hidden="true" />
+              Worker logs
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {logsLoading ? (
+              <Skeleton className="h-24 w-full" />
+            ) : !logs || logs.length === 0 ? (
+              <EmptyState
+                icon={ScrollText}
+                title="No logs yet"
+                description="Worker activity will appear here when a worker claims this execution."
+              />
+            ) : (
+              <div className="max-h-80 space-y-3 overflow-y-auto">
+                {logs.map((log) => (
+                  <div key={log.id} className="border-b border-border pb-3 last:border-0 last:pb-0">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-xs font-medium uppercase">{log.severity} · {log.source}</span>
+                      <span className="text-xs text-muted">{formatDateTime(log.created_at)}</span>
+                    </div>
+                    <p className="mt-1 text-sm">{log.message}</p>
+                    <p className="mt-1 text-xs text-muted">
+                      {log.task_id ? `Task ${log.task_id}` : 'Execution'}
+                      {log.worker_id ? ` · Worker ${log.worker_id}` : ''}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle>Tasks</CardTitle>
@@ -275,7 +356,11 @@ export function ExecutionDetailPage() {
           ) : (
             <div className="space-y-3">
               {taskRuns.map((taskRun) => (
-                <TaskRunItem key={taskRun.id} taskRun={taskRun} />
+                <TaskRunItem
+                  key={taskRun.id}
+                  taskRun={taskRun}
+                  attempts={attempts?.filter((attempt) => attempt.task_run_id === taskRun.id)}
+                />
               ))}
             </div>
           )}

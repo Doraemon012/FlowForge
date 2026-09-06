@@ -116,11 +116,11 @@ func ClassifyError(err error) FailureClass {
 	return FailureClassTerminal
 }
 
-func (r *BuiltinRuntime) executeTransform(config map[string]json.RawMessage, task workflow.Task) (json.RawMessage, error) {
+func (r *BuiltinRuntime) executeTransform(config map[string]json.RawMessage, task workflow.Task, input json.RawMessage) (json.RawMessage, error) {
 	if output, ok := config["output"]; ok {
 		return output, nil
 	}
-	return task.Config, nil
+	return input, nil
 }
 
 func (r *BuiltinRuntime) executeDelay(ctx context.Context, config map[string]json.RawMessage, input json.RawMessage) (json.RawMessage, error) {

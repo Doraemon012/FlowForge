@@ -138,13 +138,14 @@ func (r *PostgresRepository) Claim(ctx context.Context, workerID string, now tim
 	var work Work
 	var workTaskID string
 	var definition []byte
+	var executionInput json.RawMessage
 	err = tx.QueryRow(ctx, `
 		SELECT q.id, e.project_id, tr.id, tr.execution_id, tr.task_id, e.input, wv.definition
 		FROM task_queue q
 		JOIN task_runs tr ON tr.id = q.task_run_id
 		JOIN executions e ON e.id = tr.execution_id
 		JOIN workflow_versions wv ON wv.id = e.workflow_version_id
-		WHERE q.id = $1 AND q.status = 'queued'`, queueID).Scan(&work.QueueID, &work.ProjectID, &work.TaskRunID, &work.ExecutionID, &workTaskID, &work.Input, &definition)
+		WHERE q.id = $1 AND q.status = 'queued'`, queueID).Scan(&work.QueueID, &work.ProjectID, &work.TaskRunID, &work.ExecutionID, &workTaskID, &executionInput, &definition)
 	if err != nil {
 		return Work{}, err
 	}
@@ -174,6 +175,30 @@ func (r *PostgresRepository) Claim(ctx context.Context, workerID string, now tim
 	}
 	if work.Task.ID == "" {
 		return Work{}, errors.New("task definition not found")
+	}
+	work.Input = executionInput
+	if len(work.Task.Dependencies) > 0 {
+		dependencyOutputs := make(map[string]json.RawMessage, len(work.Task.Dependencies))
+		for _, dependencyID := range work.Task.Dependencies {
+			var output json.RawMessage
+			if err := r.pool.QueryRow(ctx, `
+				SELECT output
+				FROM task_runs
+				WHERE execution_id = $1 AND task_id = $2 AND status = 'succeeded'
+			`, work.ExecutionID, dependencyID).Scan(&output); err != nil {
+				return Work{}, fmt.Errorf("load dependency output for %s: %w", dependencyID, err)
+			}
+			dependencyOutputs[dependencyID] = output
+		}
+		if len(dependencyOutputs) == 1 {
+			for _, output := range dependencyOutputs {
+				work.Input = output
+			}
+		} else if encoded, err := json.Marshal(dependencyOutputs); err != nil {
+			return Work{}, fmt.Errorf("encode dependency outputs: %w", err)
+		} else {
+			work.Input = encoded
+		}
 	}
 	work.WorkerID = workerID
 	work.LeaseToken = leaseToken

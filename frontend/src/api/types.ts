@@ -101,6 +101,33 @@ export interface TaskAttempt {
   completed_at?: string
 }
 
+export interface ExecutionEvent {
+  id: string
+  project_id: string
+  execution_id: string
+  task_id?: string
+  task_run_id?: string
+  task_attempt_id?: string
+  worker_id?: string
+  event_type: string
+  created_at: string
+  metadata?: Record<string, unknown>
+}
+
+export interface ExecutionLog {
+  id: string
+  project_id: string
+  execution_id: string
+  task_id?: string
+  task_run_id?: string
+  task_attempt_id?: string
+  worker_id?: string
+  severity: string
+  source: string
+  message: string
+  created_at: string
+}
+
 export interface ValidationResult {
   valid: boolean
   errors: string[]

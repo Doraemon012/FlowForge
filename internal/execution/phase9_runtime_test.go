@@ -60,6 +60,15 @@ func TestPhase9TransformAndDelayTaskContract(t *testing.T) {
 	if string(output) != `{"v":1}` {
 		t.Fatalf("delay output = %s", output)
 	}
+
+	passthrough := workflow.Task{ID: "c", Type: "transform", Config: rawConfig(t, map[string]any{})}
+	output, err = runTask(t, runtime, passthrough, json.RawMessage(`{"from":"dependency"}`))
+	if err != nil {
+		t.Fatalf("passthrough transform error: %v", err)
+	}
+	if string(output) != `{"from":"dependency"}` {
+		t.Fatalf("passthrough transform output = %s", output)
+	}
 }
 
 func TestPhase9ConditionalOperators(t *testing.T) {
