@@ -38,7 +38,7 @@ export const TASK_TYPE_META: Record<SupportedTaskType, TaskTypeMeta> = {
   conditional: {
     type: 'conditional',
     label: 'Conditional',
-    description: 'Branch on a field in the input',
+    description: 'Evaluate a condition on the input and output a boolean',
     icon: GitBranch,
     accent: 'oklch(0.70 0.16 160)',
   },
@@ -141,7 +141,7 @@ export const TASK_CONFIG_FIELDS: Record<SupportedTaskType, ConfigFieldSpec[]> = 
       type: 'text',
       placeholder: 'e.g. priority',
       required: true,
-      help: 'The input field to read, e.g. "priority". The task resolves against the execution input.',
+      help: 'The input field to read, e.g. "priority". This task reads the execution input (or its dependency\u2019s output) and compares that field. Note: this task only produces a boolean result \u2014 it does not gate downstream tasks, which always run once this task succeeds.',
     },
     {
       key: 'operator',

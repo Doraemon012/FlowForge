@@ -101,9 +101,11 @@ func ValidateDefinition(definition Definition) []string {
 			var config map[string]json.RawMessage
 			if err := json.Unmarshal(task.Config, &config); err != nil || config == nil {
 				errorsFound = append(errorsFound, fmt.Sprintf("task config must be a JSON object: %s", task.ID))
-			}
-			if len(task.Config) > artifact.MaxTaskConfigBytes {
-				errorsFound = append(errorsFound, fmt.Sprintf("task config exceeds maximum size: %s", task.ID))
+			} else {
+				if len(task.Config) > artifact.MaxTaskConfigBytes {
+					errorsFound = append(errorsFound, fmt.Sprintf("task config exceeds maximum size: %s", task.ID))
+				}
+				errorsFound = append(errorsFound, validateTaskConfig(task, config)...)
 			}
 		}
 	}

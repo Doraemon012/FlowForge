@@ -62,11 +62,21 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowGraphNode>) {
         </p>
       </div>
       {hasErrors ? (
-        <div className="mt-2 flex items-center gap-1.5 text-destructive">
-          <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          <span className="text-xs font-medium">
-            {validationErrors.length} error{validationErrors.length === 1 ? '' : 's'}
-          </span>
+        <div className="mt-2 space-y-1 border-t border-destructive/20 pt-2">
+          {validationErrors.slice(0, 2).map((error, index) => (
+            <div key={index} className="flex items-start gap-1.5 text-destructive">
+              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span className="min-w-0 break-words text-[11px] leading-4" title={error}>
+                {error}
+              </span>
+            </div>
+          ))}
+          {validationErrors.length > 2 ? (
+            <p className="pl-5 text-[11px] font-medium text-destructive/80">
+              +{validationErrors.length - 2} more error
+              {validationErrors.length - 2 === 1 ? '' : 's'}
+            </p>
+          ) : null}
         </div>
       ) : null}
       <Handle

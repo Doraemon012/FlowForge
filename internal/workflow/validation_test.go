@@ -10,14 +10,40 @@ func task(id, taskType string, dependencies ...string) Task {
 	return Task{ID: id, Type: taskType, Config: json.RawMessage(`{}`), Dependencies: dependencies}
 }
 
+func taskWithConfig(id, taskType, config string, dependencies ...string) Task {
+	return Task{ID: id, Type: taskType, Config: json.RawMessage(config), Dependencies: dependencies}
+}
+
 func TestValidateDefinitionAcceptsLinearBranchingAndConvergingGraphs(t *testing.T) {
 	tests := []struct {
 		name       string
 		definition Definition
 	}{
-		{name: "linear", definition: Definition{Tasks: []Task{task("a", "transform"), task("b", "delay", "a"), task("c", "http", "b")}}},
-		{name: "branching", definition: Definition{Tasks: []Task{task("a", "transform"), task("b", "delay", "a"), task("c", "http", "a")}}},
-		{name: "converging", definition: Definition{Tasks: []Task{task("a", "transform"), task("b", "delay", "a"), task("c", "http", "a"), task("d", "email", "b", "c")}}},
+		{
+			name: "linear",
+			definition: Definition{Tasks: []Task{
+				taskWithConfig("a", "transform", `{}`),
+				taskWithConfig("b", "delay", `{"seconds":1}`, "a"),
+				taskWithConfig("c", "http", `{"url":"https://example.com"}`, "b"),
+			}},
+		},
+		{
+			name: "branching",
+			definition: Definition{Tasks: []Task{
+				taskWithConfig("a", "transform", `{}`),
+				taskWithConfig("b", "delay", `{"seconds":1}`, "a"),
+				taskWithConfig("c", "http", `{"url":"https://example.com"}`, "a"),
+			}},
+		},
+		{
+			name: "converging",
+			definition: Definition{Tasks: []Task{
+				taskWithConfig("a", "transform", `{}`),
+				taskWithConfig("b", "delay", `{"seconds":1}`, "a"),
+				taskWithConfig("c", "http", `{"url":"https://example.com"}`, "a"),
+				taskWithConfig("d", "email", `{"to":"you@example.com","subject":"done"}`, "b", "c"),
+			}},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

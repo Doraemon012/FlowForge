@@ -132,6 +132,12 @@ function normalizeFieldValue(taskType: string, key: string, value: unknown): unk
 function ConfigField({ field, value, onChange }: ConfigFieldProps) {
   const id = `task-config-${field.key}`
   const current = value ?? ''
+  // JSON fields (transform output, http headers) store a parsed object/array in
+  // config; render those back as readable JSON rather than "[object Object]".
+  const displayValue =
+    current !== null && typeof current === 'object'
+      ? JSON.stringify(current, null, 2)
+      : String(current)
 
   const help = field.help ? (
     <p className="text-xs text-muted-foreground">{field.help}</p>
@@ -171,7 +177,7 @@ function ConfigField({ field, value, onChange }: ConfigFieldProps) {
         </Label>
         <textarea
           id={id}
-          value={String(current)}
+          value={displayValue}
           onChange={(event) => onChange(event.target.value)}
           placeholder={field.placeholder}
           rows={3}
@@ -212,7 +218,7 @@ function ConfigField({ field, value, onChange }: ConfigFieldProps) {
       <Input
         id={id}
         type="text"
-        value={String(current)}
+        value={displayValue}
         onChange={(event) => onChange(event.target.value)}
         placeholder={field.placeholder}
         aria-label={field.label}
