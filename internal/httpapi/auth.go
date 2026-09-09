@@ -30,6 +30,15 @@ type authResponse struct {
 	ExpiresIn   int64     `json:"expires_in"`
 }
 
+type meResponse struct {
+	ID          uuid.UUID `json:"id"`
+	Email       string    `json:"email"`
+	DisplayName string    `json:"display_name"`
+	Status      string    `json:"status"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
 func (s *Server) Register(w http.ResponseWriter, r *http.Request) {
 	var request authRequest
 	if !decodeJSON(w, r, &request) {
@@ -79,6 +88,27 @@ func (s *Server) issueToken(w http.ResponseWriter, userID uuid.UUID) {
 		return
 	}
 	writeJSON(w, http.StatusOK, authResponse{UserID: userID, AccessToken: token, TokenType: "Bearer", ExpiresIn: int64(lifetime.Seconds())})
+}
+
+func (s *Server) Me(w http.ResponseWriter, r *http.Request) {
+	userID, ok := authenticatedUserID(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "authentication required")
+		return
+	}
+	stored, err := s.users.GetByID(r.Context(), userID)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "not_found", "user not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, meResponse{
+		ID:          stored.ID,
+		Email:       stored.Email,
+		DisplayName: stored.DisplayName,
+		Status:      stored.Status,
+		CreatedAt:   stored.CreatedAt,
+		UpdatedAt:   stored.UpdatedAt,
+	})
 }
 
 func (s *Server) RequireAuth(next http.Handler) http.Handler {

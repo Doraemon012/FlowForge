@@ -209,7 +209,17 @@ func (r *BuiltinRuntime) executeHTTP(ctx context.Context, config map[string]json
 
 	var body io.Reader
 	if raw, ok := config["body"]; ok && len(raw) > 0 && method != "GET" {
-		body = strings.NewReader(string(raw))
+		// A JSON string value is sent verbatim as the request body (so a body
+		// configured as "{\"key\":\"value\"}" is delivered as the JSON text the
+		// user typed, not as a double-encoded string with surrounding quotes).
+		// Any non-string JSON value (object/array) is sent as its compact JSON
+		// encoding.
+		var bodyStr string
+		if err := json.Unmarshal(raw, &bodyStr); err == nil {
+			body = strings.NewReader(bodyStr)
+		} else {
+			body = strings.NewReader(string(raw))
+		}
 	}
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {

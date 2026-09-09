@@ -66,7 +66,7 @@ export function LoginForm() {
         <Input
           id="password"
           type="password"
-          placeholder="••••••••"
+          placeholder="Enter your password"
           autoComplete="current-password"
           aria-invalid={errors.password ? true : undefined}
           {...register('password')}

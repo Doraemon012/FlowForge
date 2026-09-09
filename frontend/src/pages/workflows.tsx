@@ -1,4 +1,4 @@
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Plus, Workflow as WorkflowIcon } from 'lucide-react'
 import { ApiError } from '@/api/client'
 import { useProject } from '@/hooks/use-projects'
@@ -25,6 +25,7 @@ function WorkflowSkeleton() {
 
 export function WorkflowsPage() {
   const { projectId } = useParams<{ projectId: string }>()
+  const navigate = useNavigate()
   const { data: project, isLoading: projectLoading, isError: projectError, error: projectErr, refetch: refetchProject } = useProject(projectId ?? '')
   const { data: workflows, isLoading, isError, error, refetch } = useWorkflows(projectId ?? '')
 
@@ -71,7 +72,14 @@ export function WorkflowsPage() {
       <PageHeader
         title={`${project?.name ?? 'Project'} workflows`}
         description="Workflows turn a sequence of tasks into a repeatable execution."
-        actions={<CreateWorkflowDialog projectId={projectId ?? ''} />}
+        actions={
+          <CreateWorkflowDialog
+            projectId={projectId ?? ''}
+            onCreated={(workflow) =>
+              navigate(`/app/projects/${projectId}/workflows/${workflow.id}`)
+            }
+          />
+        }
       />
 
       {isLoading ? (
@@ -98,6 +106,9 @@ export function WorkflowsPage() {
           action={
             <CreateWorkflowDialog
               projectId={projectId ?? ''}
+              onCreated={(workflow) =>
+                navigate(`/app/projects/${projectId}/workflows/${workflow.id}`)
+              }
               trigger={
                 <Button>
                   <Plus className="mr-2 h-4 w-4" aria-hidden="true" />

@@ -1,7 +1,7 @@
 import { authStore } from '@/lib/auth-store'
 import { queryClient } from '@/lib/query-client'
 import { apiRequest } from './client'
-import type { AuthResponse } from './types'
+import type { AuthResponse, User } from './types'
 
 export interface RegisterInput {
   email: string
@@ -48,7 +48,28 @@ export async function login(input: LoginInput): Promise<AuthResponse> {
     },
   })
 
+  // Fetch the user's profile so the UI can greet them by their real display
+  // name instead of falling back to a generic placeholder.
+  try {
+    const me = await getMe()
+    authStore.setSession({
+      token: response.access_token,
+      user: {
+        id: me.id,
+        email: me.email,
+        displayName: me.display_name,
+      },
+    })
+  } catch {
+    // Profile fetch failed; keep the token-only session. The greeting will
+    // gracefully fall back to a generic placeholder until a later refresh.
+  }
+
   return response
+}
+
+export async function getMe(): Promise<User> {
+  return apiRequest<User>('/api/v1/me')
 }
 
 export function logout() {

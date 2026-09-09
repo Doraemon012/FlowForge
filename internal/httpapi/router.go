@@ -20,6 +20,7 @@ func (s *Server) Router() http.Handler {
 		router.With(rateLimitMiddleware(s.webhookLimiter)).Post("/webhooks/{webhookID}", s.HandleWebhook)
 		router.Group(func(router chi.Router) {
 			router.Use(s.RequireAuth)
+			router.Get("/me", s.Me)
 			router.Post("/projects", s.CreateProject)
 			router.Get("/projects", s.ListProjects)
 			router.Get("/projects/{projectID}", s.GetProject)
