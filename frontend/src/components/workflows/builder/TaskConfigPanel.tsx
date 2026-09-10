@@ -1,4 +1,4 @@
-import { Settings2, Trash2, X } from 'lucide-react'
+import { Link2, Settings2, Trash2, X } from 'lucide-react'
 import type { WorkflowTask } from '@/api/types'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -11,6 +11,9 @@ interface TaskConfigPanelProps {
   onChange: (patch: Partial<WorkflowTask>) => void
   onDelete: () => void
   onClose: () => void
+  incoming?: string[]
+  outgoing?: string[]
+  onRemoveDependency?: (dependencyId: string) => void
   className?: string
 }
 
@@ -19,6 +22,9 @@ export function TaskConfigPanel({
   onChange,
   onDelete,
   onClose,
+  incoming = [],
+  outgoing = [],
+  onRemoveDependency,
   className,
 }: TaskConfigPanelProps) {
   if (!task) {
@@ -96,6 +102,12 @@ export function TaskConfigPanel({
           />
           )
         })}
+
+        <ConnectionsSection
+          incoming={incoming}
+          outgoing={outgoing}
+          onRemoveDependency={onRemoveDependency}
+        />
       </div>
 
       <div className="border-t p-3">
@@ -103,6 +115,97 @@ export function TaskConfigPanel({
           <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
           Delete task
         </Button>
+      </div>
+    </div>
+  )
+}
+
+interface ConnectionsSectionProps {
+  incoming: string[]
+  outgoing: string[]
+  onRemoveDependency?: (dependencyId: string) => void
+}
+
+function ConnectionsSection({
+  incoming,
+  outgoing,
+  onRemoveDependency,
+}: ConnectionsSectionProps) {
+  return (
+    <div className="space-y-2.5 rounded-lg border border-border/70 bg-muted/30 p-3">
+      <div className="flex items-center gap-2">
+        <Link2 className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Connections
+        </h3>
+      </div>
+
+      <div className="space-y-1.5">
+        <p className="text-xs font-medium">Waits for ({incoming.length})</p>
+        {incoming.length === 0 ? (
+          <p className="text-xs text-muted-foreground">
+            Runs first, with the workflow&rsquo;s execution input.
+          </p>
+        ) : (
+          <ul className="space-y-1">
+            {incoming.map((dependencyId) => (
+              <li
+                key={dependencyId}
+                className="flex items-center gap-2 rounded-md border border-border/70 bg-card px-2 py-1"
+              >
+                <span className="min-w-0 flex-1 truncate font-mono text-xs">{dependencyId}</span>
+                {onRemoveDependency ? (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 shrink-0"
+                    aria-label={`Remove connection from ${dependencyId}`}
+                    title="Remove connection"
+                    onClick={() => onRemoveDependency(dependencyId)}
+                  >
+                    <X className="h-3.5 w-3.5" aria-hidden="true" />
+                  </Button>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+        {incoming.length > 0 ? (
+          <p className="text-xs text-muted-foreground">
+            This task runs only after every upstream task above has succeeded. Connect any number
+            of upstream tasks.
+          </p>
+        ) : null}
+      </div>
+
+      <div className="space-y-1.5">
+        <p className="text-xs font-medium">Feeds into ({outgoing.length})</p>
+        {outgoing.length === 0 ? (
+          <p className="text-xs text-muted-foreground">No downstream tasks yet.</p>
+        ) : (
+          <ul className="flex flex-wrap gap-1">
+            {outgoing.map((taskId) => (
+              <li
+                key={taskId}
+                className="rounded-md border border-border/70 bg-card px-2 py-0.5 font-mono text-xs"
+              >
+                {taskId}
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="text-xs text-muted-foreground">
+          This task can feed any number of downstream tasks. Each of them waits for it to succeed.
+        </p>
+      </div>
+
+      <div className="space-y-1 border-t border-border/70 pt-2">
+        <p className="text-xs font-medium">How this task gets its input</p>
+        <ul className="space-y-0.5 text-xs text-muted-foreground">
+          <li>No upstream tasks: the workflow&rsquo;s execution input.</li>
+          <li>One upstream task: that task&rsquo;s output.</li>
+          <li>Two or more: an object keyed by each upstream task&rsquo;s ID.</li>
+        </ul>
       </div>
     </div>
   )

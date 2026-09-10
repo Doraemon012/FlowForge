@@ -2802,18 +2802,12 @@ tr.is-running td:first-child {
   .auth-l {
     display: none;
   }
-  .sidebar {
-    position: fixed;
-    left: -224px;
-    top: 0;
-    bottom: 0;
-    z-index: 50;
-    transition: 0.2s;
-    box-shadow: 12px 0 40px rgba(0, 0, 0, 0.6);
-  }
-  .sidebar.on {
-    left: 0;
-  }
+  /* The desktop sidebar is shown/hidden with Tailwind's `md:` breakpoint
+     (768px). The old off-canvas rules here fired up to 960px, which pushed the
+     desktop sidebar off-screen between 768px and 960px while the mobile
+     hamburger was already hidden — leaving navigation unreachable. The mobile
+     drawer uses its own `.sidebar-drawer` positioning, so these rules are not
+     needed. */
   .search {
     min-width: 0;
     flex: 1;

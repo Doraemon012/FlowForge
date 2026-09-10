@@ -1,4 +1,5 @@
-import { Box, GripVertical } from 'lucide-react'
+import { Box, GripVertical, X } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import {
   SUPPORTED_TASK_TYPES,
@@ -8,10 +9,11 @@ import {
 
 interface TaskPaletteProps {
   onAddTask: (type: SupportedTaskType, position?: { x: number; y: number }) => void
+  onClose?: () => void
   className?: string
 }
 
-export function TaskPalette({ onAddTask, className }: TaskPaletteProps) {
+export function TaskPalette({ onAddTask, onClose, className }: TaskPaletteProps) {
   const handleDragStart = (event: React.DragEvent<HTMLButtonElement>, type: SupportedTaskType) => {
     event.dataTransfer.setData('application/flowforge-task', type)
     event.dataTransfer.effectAllowed = 'move'
@@ -25,6 +27,17 @@ export function TaskPalette({ onAddTask, className }: TaskPaletteProps) {
       <div className="flex items-center gap-2 border-b px-4 py-3">
         <Box className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
         <h2 className="font-display text-sm font-semibold tracking-tight">Tasks</h2>
+        {onClose ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="ml-auto h-7 w-7"
+            aria-label="Hide task palette"
+            onClick={onClose}
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        ) : null}
       </div>
       <div className="flex-1 space-y-1 overflow-y-auto p-2">
         {SUPPORTED_TASK_TYPES.map((type) => {
@@ -65,7 +78,8 @@ export function TaskPalette({ onAddTask, className }: TaskPaletteProps) {
       </div>
       <div className="border-t px-4 py-3">
         <p className="text-xs leading-relaxed text-muted-foreground">
-          Drag a task onto the canvas, or click to add it.
+          Drag a task onto the canvas, or click to add it. Connect tasks by dragging from a
+          node&rsquo;s right handle to another node&rsquo;s left handle.
         </p>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { WorkflowDefinition } from '@/api/types'
 import {
   activateWorkflowVersion,
   createWorkflow,
@@ -68,13 +69,12 @@ export function useUpdateWorkflow(projectId: string, workflowId: string) {
 }
 
 export function useValidateWorkflow(projectId: string, workflowId: string) {
-  const queryClient = useQueryClient()
-
+  // Validation never persists: it checks the definition it is given (or the
+  // stored draft when no definition is passed) so the builder can validate
+  // unsaved changes without clearing its unsaved state.
   return useMutation({
-    mutationFn: () => validateWorkflow(projectId, workflowId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: workflowKeys.detail(projectId, workflowId) })
-    },
+    mutationFn: (definition?: WorkflowDefinition) =>
+      validateWorkflow(projectId, workflowId, definition),
   })
 }
 

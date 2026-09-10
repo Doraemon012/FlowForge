@@ -2,6 +2,7 @@ import { MarkerType } from '@xyflow/react'
 import type { WorkflowTask } from '@/api/types'
 import {
   getTaskTypeMeta,
+  WORKFLOW_EDGE_TYPE,
   WORKFLOW_NODE_TYPE,
   type WorkflowGraphEdge,
   type WorkflowGraphNode,
@@ -81,6 +82,7 @@ export function tasksToEdges(tasks: WorkflowTask[]): WorkflowGraphEdge[] {
         id,
         source: dep,
         target: task.id,
+        type: WORKFLOW_EDGE_TYPE,
         markerEnd: { type: MarkerType.ArrowClosed },
       })
     }

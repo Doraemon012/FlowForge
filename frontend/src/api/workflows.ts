@@ -35,11 +35,20 @@ export function updateWorkflow(projectId: string, workflowId: string, input: Upd
   })
 }
 
-export function validateWorkflow(projectId: string, workflowId: string) {
+/**
+ * Validate a workflow. When `definition` is provided the server validates that
+ * definition without persisting it, so the builder can check unsaved changes.
+ */
+export function validateWorkflow(
+  projectId: string,
+  workflowId: string,
+  definition?: WorkflowDefinition,
+) {
   return apiRequest<ValidationResult>(
     `/api/v1/projects/${projectId}/workflows/${workflowId}/validate`,
     {
       method: 'POST',
+      body: definition ? { definition } : undefined,
     },
   )
 }

@@ -15,6 +15,7 @@ import type { WorkflowTask } from '@/api/types'
 import { useProjects, projectKeys } from '@/hooks/use-projects'
 import { executionKeys } from '@/hooks/use-executions'
 import { workflowKeys } from '@/hooks/use-workflows'
+import { WorkflowGuide, type GuideStep } from '@/components/workflows/WorkflowGuide'
 import { ProjectCard } from '@/components/projects/ProjectCard'
 import { CreateProjectDialog } from '@/components/projects/CreateProjectDialog'
 import { EmptyState } from '@/components/shared/EmptyState'
@@ -369,10 +370,71 @@ function ProjectSkeleton() {
   )
 }
 
+const PROJECTS_GUIDE_STEPS: GuideStep[] = [
+  {
+    id: 'project',
+    label: 'Create a project',
+    hint: 'Group related workflows under a project.',
+    done: false,
+  },
+  {
+    id: 'workflow',
+    label: 'Create a workflow',
+    hint: 'Open a project and create a workflow to start building.',
+    done: false,
+  },
+  {
+    id: 'tasks',
+    label: 'Add and configure tasks',
+    hint: 'Drag tasks from the palette onto the canvas and configure them.',
+    done: false,
+  },
+  {
+    id: 'connect',
+    label: 'Connect tasks',
+    hint: 'Drag between task handles to set the execution order.',
+    done: false,
+  },
+  {
+    id: 'save',
+    label: 'Save your changes',
+    hint: 'Run stays disabled until the latest edits are saved.',
+    done: false,
+  },
+  {
+    id: 'validate',
+    label: 'Validate the workflow',
+    hint: 'Check the definition before publishing.',
+    done: false,
+  },
+  {
+    id: 'publish',
+    label: 'Publish and activate',
+    hint: 'Publishing snapshots a version; activating makes it runnable.',
+    done: false,
+  },
+  {
+    id: 'run',
+    label: 'Run the workflow',
+    hint: 'Start a manual run of the active version.',
+    done: false,
+  },
+  {
+    id: 'inspect',
+    label: 'Inspect results and logs',
+    hint: 'Open a run to see per-task output and failures.',
+    done: false,
+  },
+]
+
 export function ProjectsPage() {
   const { data: projects, isLoading, isError, refetch } = useProjects()
   const [searchParams, setSearchParams] = useSearchParams()
   const createRequested = searchParams.get('create') === '1'
+
+  const guideSteps: GuideStep[] = PROJECTS_GUIDE_STEPS.map((step) =>
+    step.id === 'project' ? { ...step, done: (projects?.length ?? 0) > 0 } : step,
+  )
 
   const handleCreateOpenChange = (open: boolean) => {
     const nextParams = new URLSearchParams(searchParams)
@@ -391,6 +453,7 @@ export function ProjectsPage() {
         description="All projects belonging to your account."
         actions={
           <>
+            <WorkflowGuide steps={guideSteps} />
             {samples.map((spec) => (
               <SampleProjectButton key={spec.projectName} spec={spec} />
             ))}

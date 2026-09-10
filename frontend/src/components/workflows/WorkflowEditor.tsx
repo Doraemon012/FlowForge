@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ArrowLeft, CheckCircle, Play, PlayCircle, Save, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
@@ -13,6 +13,7 @@ import {
 } from '@/hooks/use-workflows'
 import { useCreateExecution } from '@/hooks/use-executions'
 import { WorkflowBuilderLayout } from '@/components/workflows/builder/WorkflowBuilderLayout'
+import { WorkflowGuide, type GuideStep } from '@/components/workflows/WorkflowGuide'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -70,6 +71,7 @@ export function WorkflowEditor({ projectId, workflow }: WorkflowEditorProps) {
   }))
   const [validationErrors, setValidationErrors] = useState<string[]>([])
   const [validationMessage, setValidationMessage] = useState<string | null>(null)
+  const [hasRun, setHasRun] = useState(false)
 
   const navigate = useNavigate()
   const updateMutation = useUpdateWorkflow(projectId, workflow.id)
@@ -86,6 +88,23 @@ export function WorkflowEditor({ projectId, workflow }: WorkflowEditorProps) {
     name !== savedState.name ||
     description !== savedState.description ||
     !tasksEqual(tasks, savedState.tasks)
+
+  // Run is gated on a clean, saved, active definition: running must never
+  // execute a stale server-side version while the builder holds newer edits.
+  const runBlockedReason = hasChanges
+    ? 'Save your changes before running'
+    : !workflow.active_version_id
+      ? 'Publish and activate a version to run'
+      : null
+
+  // A successful validation only describes the definition that was checked.
+  // As soon as it changes, drop the stale "valid" marker so the validated
+  // state never overstates what is true.
+  useEffect(() => {
+    if (hasChanges) {
+      setValidationMessage(null)
+    }
+  }, [hasChanges])
 
   const syncFromSaved = (updated: Workflow) => {
     const savedTasks = updated.draft_definition?.tasks ?? []
@@ -119,13 +138,10 @@ export function WorkflowEditor({ projectId, workflow }: WorkflowEditorProps) {
 
   const handleValidate = async () => {
     try {
-      const updated = await updateMutation.mutateAsync({
-        name,
-        description,
-        definition: { tasks },
-      })
-      syncFromSaved(updated)
-      const result = await validateMutation.mutateAsync()
+      // Validate the definition currently in the builder — including unsaved
+      // changes — without persisting it. Saving happens only through Save/
+      // Publish, so the unsaved/saved distinction stays truthful.
+      const result = await validateMutation.mutateAsync({ tasks })
       setValidationErrors(result.errors)
       setValidationMessage(result.valid ? 'Workflow is valid.' : null)
     } catch (error) {
@@ -188,6 +204,7 @@ export function WorkflowEditor({ projectId, workflow }: WorkflowEditorProps) {
     if (!workflow.active_version_id) return
     try {
       const execution = await createExecutionMutation.mutateAsync({})
+      setHasRun(true)
       toast.success('Execution started')
       navigate(`/app/projects/${projectId}/executions/${execution.id}`)
     } catch (error) {
@@ -200,7 +217,7 @@ export function WorkflowEditor({ projectId, workflow }: WorkflowEditorProps) {
   }
 
   const saveIsPending = updateMutation.isPending
-  const validateIsPending = validateMutation.isPending || updateMutation.isPending
+  const validateIsPending = validateMutation.isPending
   const publishIsPending =
     publishMutation.isPending || activateMutation.isPending || updateMutation.isPending
   const deactivateIsPending = deactivateMutation.isPending
@@ -236,8 +253,70 @@ export function WorkflowEditor({ projectId, workflow }: WorkflowEditorProps) {
     </>
   )
 
+  // Contextual, in-product guidance. Steps 1–2 (project, workflow) are already
+  // complete by the time a user is in the builder, so they are shown as done
+  // and the rest are derived from the builder's own state. This keeps the guide
+  // truthful without adding another configuration surface.
+  const guideSteps: GuideStep[] = [
+    {
+      id: 'project',
+      label: 'Create a project',
+      hint: 'Group related workflows under a project.',
+      done: true,
+    },
+    {
+      id: 'workflow',
+      label: 'Create a workflow',
+      hint: 'Each workflow is versioned and can be activated independently.',
+      done: true,
+    },
+    {
+      id: 'tasks',
+      label: 'Add and configure tasks',
+      hint: 'Add tasks from the palette, then set their configuration.',
+      done: tasks.length > 0,
+    },
+    {
+      id: 'connect',
+      label: 'Connect tasks',
+      hint: 'Drag from a task\u2019s right handle to another\u2019s left handle to set the order.',
+      done: tasks.some((task) => (task.depends_on ?? []).length > 0),
+    },
+    {
+      id: 'save',
+      label: 'Save your changes',
+      hint: 'Run stays disabled until the latest edits are saved.',
+      done: !hasChanges,
+    },
+    {
+      id: 'validate',
+      label: 'Validate the workflow',
+      hint: 'Validation checks the definition without saving it.',
+      done: Boolean(validationMessage) && validationErrors.length === 0,
+    },
+    {
+      id: 'publish',
+      label: 'Publish and activate',
+      hint: 'Publishing snapshots a version; activating makes it runnable.',
+      done: Boolean(workflow.active_version_id),
+    },
+    {
+      id: 'run',
+      label: 'Run the workflow',
+      hint: 'Start a manual run of the active version.',
+      done: hasRun,
+    },
+    {
+      id: 'inspect',
+      label: 'Inspect results and logs',
+      hint: 'Open a run to see per-task output and failures.',
+      done: hasRun,
+    },
+  ]
+
   const headerActions = (
     <>
+      <WorkflowGuide steps={guideSteps} />
       <Button onClick={handleSave} loading={saveIsPending} disabled={!hasChanges} size="sm">
         <Save className="mr-2 h-4 w-4" aria-hidden="true" />
         Save
@@ -253,13 +332,9 @@ export function WorkflowEditor({ projectId, workflow }: WorkflowEditorProps) {
       <Button
         onClick={handleRun}
         loading={createExecutionMutation.isPending}
-        disabled={!workflow.active_version_id}
+        disabled={Boolean(runBlockedReason)}
         size="sm"
-        title={
-          workflow.active_version_id
-            ? 'Run the active version'
-            : 'Publish and activate a version to run'
-        }
+        title={runBlockedReason ?? 'Run the active version'}
       >
         <Play className="mr-2 h-4 w-4" aria-hidden="true" />
         Run

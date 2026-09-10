@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Box, X } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -15,6 +15,7 @@ import {
 import type { WorkflowTask } from '@/api/types'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { EdgeActionsContext } from './edge-actions'
 import { TaskConfigPanel } from './TaskConfigPanel'
 import { TaskPalette } from './TaskPalette'
 import { WorkflowCanvas } from './WorkflowCanvas'
@@ -30,6 +31,7 @@ import {
 } from './graph-utils'
 import {
   DEFAULT_CONFIG_BY_TYPE,
+  WORKFLOW_EDGE_TYPE,
   type SupportedTaskType,
   type WorkflowGraphEdge,
   type WorkflowGraphNode,
@@ -131,6 +133,7 @@ export function WorkflowBuilderLayout({
           id: `${connection.source}->${connection.target}`,
           source: connection.source,
           target: connection.target,
+          type: WORKFLOW_EDGE_TYPE,
           markerEnd: { type: MarkerType.ArrowClosed },
         },
         edges,
@@ -139,6 +142,60 @@ export function WorkflowBuilderLayout({
     },
     [nodes, edges, syncTasks],
   )
+
+  // Reconnect an existing edge by dragging one of its endpoints. The old edge
+  // is retargeted in place so a connection can be changed without having to
+  // delete and recreate it.
+  const handleReconnect = useCallback(
+    (oldEdge: WorkflowGraphEdge, connection: Connection) => {
+      if (!connection.source || !connection.target) return
+      const remainingEdges = edges.filter((edge) => edge.id !== oldEdge.id)
+      if (connection.source === connection.target) {
+        toast.error('A task cannot connect to itself.')
+        return
+      }
+      if (edgeExists(connection.source, connection.target, remainingEdges)) {
+        toast.error('Those tasks are already connected.')
+        return
+      }
+      if (doesConnectionCreateCycle(connection, nodes, remainingEdges)) {
+        toast.error('This connection would create a cycle.')
+        return
+      }
+      const source = connection.source
+      const target = connection.target
+      const nextEdges = edges.map((edge) =>
+        edge.id === oldEdge.id
+          ? {
+              ...edge,
+              id: `${source}->${target}`,
+              source,
+              target,
+              type: WORKFLOW_EDGE_TYPE,
+              markerEnd: { type: MarkerType.ArrowClosed },
+            }
+          : edge,
+      )
+      syncTasks(nodes, nextEdges)
+      setSelectedEdgeIds(new Set())
+    },
+    [nodes, edges, syncTasks],
+  )
+
+  // Remove a single connection. Used by the delete control rendered on each
+  // edge in the canvas.
+  const handleDeleteEdge = useCallback(
+    (edgeId: string) => {
+      syncTasks(
+        nodes,
+        edges.filter((edge) => edge.id !== edgeId),
+      )
+      setSelectedEdgeIds(new Set())
+    },
+    [nodes, edges, syncTasks],
+  )
+
+  const edgeActions = useMemo(() => ({ onDeleteEdge: handleDeleteEdge }), [handleDeleteEdge])
 
   const isValidConnection = useCallback(
     (connection: Connection | WorkflowGraphEdge) => {
@@ -253,9 +310,26 @@ export function WorkflowBuilderLayout({
   }, [])
 
   const selectedTask = nodes.find((node) => selectedNodeIds.has(node.id))?.data.task ?? null
+  const incomingTaskIds = selectedTask
+    ? edges.filter((edge) => edge.target === selectedTask.id).map((edge) => edge.source)
+    : []
+  const outgoingTaskIds = selectedTask
+    ? edges.filter((edge) => edge.source === selectedTask.id).map((edge) => edge.target)
+    : []
+
+  // Removing a dependency from the inspector deletes the matching edge, which
+  // in turn updates the task's depends_on via graphToTasks.
+  const handleRemoveDependency = useCallback(
+    (dependencyId: string) => {
+      if (!selectedTask) return
+      handleDeleteEdge(`${dependencyId}->${selectedTask.id}`)
+    },
+    [handleDeleteEdge, selectedTask],
+  )
 
   return (
     <ReactFlowProvider>
+      <EdgeActionsContext.Provider value={edgeActions}>
       <div className={cn('flex h-full min-h-0 flex-col overflow-hidden', className)}>
         <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b px-3">
           <div className="flex min-w-0 items-center gap-2">{headerLeft}</div>
@@ -291,6 +365,7 @@ export function WorkflowBuilderLayout({
               onNodesChange={onNodesChange as (changes: NodeChange<WorkflowGraphNode>[]) => void}
               onEdgesChange={onEdgesChange as (changes: EdgeChange<WorkflowGraphEdge>[]) => void}
               onConnect={handleConnect}
+              onReconnect={handleReconnect}
               onSelectionChange={handleSelectionChange}
               isValidConnection={isValidConnection}
               onDropTask={addTask}
@@ -327,6 +402,9 @@ export function WorkflowBuilderLayout({
             <aside className="absolute inset-y-0 right-0 hidden w-80 shrink-0 border-l bg-surface md:block">
               <TaskConfigPanel
                 task={selectedTask}
+                incoming={incomingTaskIds}
+                outgoing={outgoingTaskIds}
+                onRemoveDependency={handleRemoveDependency}
                 onChange={(patch) => {
                   if (selectedTask) {
                     handleTaskChange(selectedTask.id, patch)
@@ -351,6 +429,9 @@ export function WorkflowBuilderLayout({
                 <div className="relative ml-auto flex h-full w-full max-w-sm shadow-xl">
                   <TaskConfigPanel
                     task={selectedTask}
+                    incoming={incomingTaskIds}
+                    outgoing={outgoingTaskIds}
+                    onRemoveDependency={handleRemoveDependency}
                     onChange={(patch) => handleTaskChange(selectedTask.id, patch)}
                     onDelete={() => {
                       handleDeleteTask()
@@ -368,6 +449,7 @@ export function WorkflowBuilderLayout({
           </div>
         </div>
       </div>
+      </EdgeActionsContext.Provider>
     </ReactFlowProvider>
   )
 }

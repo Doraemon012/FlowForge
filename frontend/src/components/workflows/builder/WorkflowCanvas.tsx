@@ -13,9 +13,11 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import type { SupportedTaskType, WorkflowGraphEdge, WorkflowGraphNode } from './types'
+import { WorkflowEdge } from './WorkflowEdge'
 import { WorkflowNode } from './WorkflowNode'
 
 const nodeTypes = { workflowTask: WorkflowNode }
+const edgeTypes = { workflowEdge: WorkflowEdge }
 
 interface WorkflowCanvasProps {
   nodes: WorkflowGraphNode[]
@@ -23,6 +25,7 @@ interface WorkflowCanvasProps {
   onNodesChange: (changes: NodeChange<WorkflowGraphNode>[]) => void
   onEdgesChange: (changes: EdgeChange<WorkflowGraphEdge>[]) => void
   onConnect: (connection: Connection) => void
+  onReconnect: (oldEdge: WorkflowGraphEdge, connection: Connection) => void
   onSelectionChange: (params: OnSelectionChangeParams) => void
   isValidConnection: (connection: Connection | WorkflowGraphEdge) => boolean
   onDropTask: (type: SupportedTaskType, position: { x: number; y: number }) => void
@@ -34,6 +37,7 @@ export function WorkflowCanvas({
   onNodesChange,
   onEdgesChange,
   onConnect,
+  onReconnect,
   onSelectionChange,
   isValidConnection,
   onDropTask,
@@ -64,9 +68,13 @@ export function WorkflowCanvas({
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onReconnect={onReconnect}
         onSelectionChange={onSelectionChange}
         isValidConnection={isValidConnection}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
+        edgesReconnectable
+        reconnectRadius={12}
         fitView
         fitViewOptions={{ padding: 0.2 }}
         minZoom={0.3}

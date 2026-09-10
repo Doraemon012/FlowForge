@@ -1,7 +1,10 @@
 package httpapi
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -12,10 +15,18 @@ import (
 	"github.com/neyati/flowforge/internal/workflow"
 )
 
+const maxWorkflowRequestBytes = 1 << 20
+
 type workflowRequest struct {
 	Name        string              `json:"name"`
 	Description string              `json:"description"`
 	Definition  workflow.Definition `json:"definition"`
+}
+
+// validateWorkflowRequest lets a client validate a definition it has not saved
+// yet. When Definition is omitted the stored draft is validated instead.
+type validateWorkflowRequest struct {
+	Definition *workflow.Definition `json:"definition"`
 }
 
 func workflowIDs(r *http.Request) (uuid.UUID, uuid.UUID, bool) {
@@ -176,7 +187,28 @@ func (s *Server) ValidateWorkflow(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "workflow_lookup_failed", "unable to retrieve workflow")
 		return
 	}
-	validationErrors := workflow.ValidateDefinition(item.DraftDefinition)
+	// Validate the stored draft by default. When a client sends a definition in
+	// the body, validate that instead so unsaved builder changes can be checked
+	// without persisting them.
+	definition := item.DraftDefinition
+	body, readErr := io.ReadAll(http.MaxBytesReader(w, r.Body, maxWorkflowRequestBytes))
+	if readErr != nil {
+		writeError(w, http.StatusUnprocessableEntity, "invalid_request", "invalid request body")
+		return
+	}
+	if len(bytes.TrimSpace(body)) > 0 {
+		var request validateWorkflowRequest
+		decoder := json.NewDecoder(bytes.NewReader(body))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&request); err != nil {
+			writeError(w, http.StatusUnprocessableEntity, "invalid_request", "invalid request body")
+			return
+		}
+		if request.Definition != nil {
+			definition = *request.Definition
+		}
+	}
+	validationErrors := workflow.ValidateDefinition(definition)
 	if len(validationErrors) > 0 {
 		writeWorkflowValidationError(w, validationErrors)
 		return
