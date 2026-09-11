@@ -1,7 +1,15 @@
 import { useEffect, useState } from 'react'
-import { AlertCircle, ArrowRight, RotateCcw, Sparkles, Wand2 } from 'lucide-react'
+import {
+  AlertCircle,
+  AlertTriangle,
+  ArrowRight,
+  RotateCcw,
+  ShieldAlert,
+  Sparkles,
+  Wand2,
+} from 'lucide-react'
 import { ApiError } from '@/api/client'
-import type { WorkflowTask } from '@/api/types'
+import type { WorkflowReviewWarning, WorkflowTask } from '@/api/types'
 import { useAiStatus, useEditWorkflow, useGenerateWorkflow } from '@/hooks/use-workflows'
 import { Button } from '@/components/ui/button'
 import {
@@ -63,8 +71,13 @@ export function AiWorkflowDialog({
   const [prompt, setPrompt] = useState('')
   const [instruction, setInstruction] = useState('')
   const [preview, setPreview] = useState<WorkflowTask[] | null>(null)
+  const [warnings, setWarnings] = useState<WorkflowReviewWarning[]>([])
   const [error, setError] = useState<string | null>(null)
   const [errorList, setErrorList] = useState<string[]>([])
+  // Create mode replaces whatever is already in the graph. Require an explicit
+  // acknowledgement so a generated definition can never silently destroy the
+  // tasks the user already has.
+  const [replaceAcknowledged, setReplaceAcknowledged] = useState(false)
 
   const statusQuery = useAiStatus()
   const generateMutation = useGenerateWorkflow(projectId, workflowId)
@@ -73,6 +86,10 @@ export function AiWorkflowDialog({
   const unavailable = statusQuery.data?.enabled === false
   const isPending = generateMutation.isPending || editMutation.isPending
   const hasTasks = tasks.length > 0
+  // Create mode produces a whole new definition, so applying it over an
+  // existing graph destroys the current tasks. Refine mode edits in place and
+  // needs no confirmation.
+  const replacingExisting = mode === 'create' && hasTasks
 
   // Default to refining when there is already something to refine; a fresh
   // workflow naturally starts in create mode. Re-evaluated each time the dialog
@@ -93,8 +110,10 @@ export function AiWorkflowDialog({
 
   const reset = () => {
     setPreview(null)
+    setWarnings([])
     setError(null)
     setErrorList([])
+    setReplaceAcknowledged(false)
   }
 
   const switchMode = (next: AiMode) => {
@@ -118,6 +137,8 @@ export function AiWorkflowDialog({
     setError(null)
     setErrorList([])
     setPreview(null)
+    setWarnings([])
+    setReplaceAcknowledged(false)
     try {
       const result =
         mode === 'create'
@@ -127,9 +148,14 @@ export function AiWorkflowDialog({
               definition: { tasks },
             })
       setPreview(result.definition.tasks ?? [])
+      setWarnings(result.warnings ?? [])
     } catch (err) {
       if (err instanceof ApiError) {
-        setError(err.message)
+        setError(
+          err.code === 'ai_invalid_workflow'
+            ? 'The assistant could not produce a valid workflow. Nothing in your graph was changed.'
+            : err.message,
+        )
         if (err.errors && err.errors.length > 0) {
           setErrorList(err.errors)
         }
@@ -145,6 +171,7 @@ export function AiWorkflowDialog({
 
   const handleApply = () => {
     if (!preview) return
+    if (replacingExisting && !replaceAcknowledged) return
     onGenerated(preview)
     handleClose(false)
     setPrompt('')
@@ -313,6 +340,49 @@ export function AiWorkflowDialog({
                 ? 'Applying replaces the current graph. Nothing is saved until you press Save.'
                 : 'Applying updates the current graph. Nothing is saved until you press Save.'}
             </p>
+
+            {warnings.length > 0 ? (
+              <div className="mt-3 rounded-md border border-warning/40 bg-warning/10 p-2.5">
+                <p className="flex items-center gap-1.5 text-xs font-semibold text-warning">
+                  <ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" />
+                  Review before running ({warnings.length})
+                </p>
+                <ul className="mt-1.5 space-y-1">
+                  {warnings.map((warning, index) => (
+                    <li
+                      key={`${warning.code}-${index}`}
+                      className="flex items-start gap-1.5 text-xs leading-relaxed"
+                    >
+                      <AlertTriangle
+                        className={cn(
+                          'mt-0.5 h-3.5 w-3.5 shrink-0',
+                          warning.severity === 'warning'
+                            ? 'text-warning'
+                            : 'text-muted-foreground',
+                        )}
+                        aria-hidden="true"
+                      />
+                      <span className="min-w-0 text-muted-foreground">{warning.message}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {replacingExisting ? (
+              <label className="mt-3 flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-2.5 text-xs text-destructive">
+                <input
+                  type="checkbox"
+                  checked={replaceAcknowledged}
+                  onChange={(event) => setReplaceAcknowledged(event.target.checked)}
+                  className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-destructive"
+                />
+                <span>
+                  I understand this replaces the {tasks.length} task
+                  {tasks.length === 1 ? '' : 's'} currently in the graph.
+                </span>
+              </label>
+            ) : null}
           </div>
         ) : null}
 
@@ -323,8 +393,13 @@ export function AiWorkflowDialog({
                 <RotateCcw className="mr-2 h-4 w-4" aria-hidden="true" />
                 Start over
               </Button>
-              <Button size="sm" onClick={handleApply}>
-                Apply to graph
+              <Button
+                size="sm"
+                onClick={handleApply}
+                disabled={replacingExisting && !replaceAcknowledged}
+                variant={replacingExisting ? 'destructive' : 'default'}
+              >
+                {replacingExisting ? 'Replace graph' : 'Apply to graph'}
                 <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
               </Button>
             </>

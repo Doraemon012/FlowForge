@@ -5,10 +5,23 @@ export interface AuthResponse {
   expires_in: number
 }
 
+/**
+ * An advisory review note about a workflow definition. Warnings never block
+ * saving, publishing, or running — they highlight patterns that pass validation
+ * but usually need a human look (placeholder values, inline secrets, retries).
+ */
+export interface WorkflowReviewWarning {
+  task_id?: string
+  code: string
+  severity: 'warning' | 'info'
+  message: string
+}
+
 export interface ApiErrorBody {
   code?: string
   message?: string
   errors?: string[]
+  warnings?: WorkflowReviewWarning[]
 }
 
 export interface User {
@@ -131,6 +144,7 @@ export interface ExecutionLog {
 export interface ValidationResult {
   valid: boolean
   errors: string[]
+  warnings: WorkflowReviewWarning[]
 }
 
 export interface Schedule {

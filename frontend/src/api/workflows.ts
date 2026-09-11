@@ -1,5 +1,22 @@
 import { apiRequest } from './client'
-import type { ValidationResult, Workflow, WorkflowDefinition, WorkflowVersion } from './types'
+import type {
+  ValidationResult,
+  Workflow,
+  WorkflowDefinition,
+  WorkflowReviewWarning,
+  WorkflowVersion,
+} from './types'
+
+/**
+ * A definition produced by AI assistance, together with the advisory review
+ * warnings for it. The server always validates the definition before returning
+ * it, so `definition` is safe to apply; `warnings` are patterns that passed
+ * validation but still deserve a human look before running.
+ */
+export interface AiDefinitionResult {
+  definition: WorkflowDefinition
+  warnings: WorkflowReviewWarning[]
+}
 
 export interface CreateWorkflowInput {
   name: string
@@ -110,7 +127,7 @@ export function getAiStatus() {
  * a successful response is always a definition that passes validation.
  */
 export function generateWorkflow(projectId: string, workflowId: string, prompt: string) {
-  return apiRequest<{ definition: WorkflowDefinition }>(
+  return apiRequest<AiDefinitionResult>(
     `/api/v1/projects/${projectId}/workflows/${workflowId}/generate`,
     {
       method: 'POST',
@@ -131,7 +148,7 @@ export function editWorkflow(
   instruction: string,
   definition: WorkflowDefinition,
 ) {
-  return apiRequest<{ definition: WorkflowDefinition }>(
+  return apiRequest<AiDefinitionResult>(
     `/api/v1/projects/${projectId}/workflows/${workflowId}/edit`,
     {
       method: 'POST',

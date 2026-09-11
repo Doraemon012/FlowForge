@@ -115,6 +115,7 @@ const whyGood = [
   'Durable state — every step, every attempt',
   'Visual timeline for every run, always',
   'Immutable versions + one-click rollback',
+  'AI authoring that flags risky configs before you run',
 ]
 
 const whyBad = [

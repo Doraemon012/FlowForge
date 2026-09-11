@@ -39,8 +39,8 @@ func workflowProjectMatches(item workflow.Workflow, projectID uuid.UUID) bool {
 	return item.ProjectID == projectID
 }
 
-func writeWorkflowValidationError(w http.ResponseWriter, validationErrors []string) {
-	writeJSON(w, http.StatusUnprocessableEntity, map[string]any{"code": "invalid_workflow", "message": "workflow definition is invalid", "errors": validationErrors})
+func writeWorkflowValidationError(w http.ResponseWriter, validationErrors []string, warnings []workflow.ReviewWarning) {
+	writeJSON(w, http.StatusUnprocessableEntity, map[string]any{"code": "invalid_workflow", "message": "workflow definition is invalid", "errors": validationErrors, "warnings": warnings})
 }
 
 func (s *Server) CreateWorkflow(w http.ResponseWriter, r *http.Request) {
@@ -209,11 +209,12 @@ func (s *Server) ValidateWorkflow(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	validationErrors := workflow.ValidateDefinition(definition)
+	warnings := workflow.ReviewDefinition(definition)
 	if len(validationErrors) > 0 {
-		writeWorkflowValidationError(w, validationErrors)
+		writeWorkflowValidationError(w, validationErrors, warnings)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"valid": true, "errors": []string{}})
+	writeJSON(w, http.StatusOK, map[string]any{"valid": true, "errors": []string{}, "warnings": warnings})
 }
 
 func (s *Server) PublishWorkflow(w http.ResponseWriter, r *http.Request) {
@@ -241,7 +242,7 @@ func (s *Server) PublishWorkflow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if validationErrors := workflow.ValidateDefinition(item.DraftDefinition); len(validationErrors) > 0 {
-		writeWorkflowValidationError(w, validationErrors)
+		writeWorkflowValidationError(w, validationErrors, workflow.ReviewDefinition(item.DraftDefinition))
 		return
 	}
 	version, err := s.workflows.PublishOwned(r.Context(), ownerID, workflowID, item.DraftDefinition, time.Now().UTC())

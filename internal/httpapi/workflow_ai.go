@@ -15,6 +15,10 @@ type generateWorkflowRequest struct {
 
 type generateWorkflowResponse struct {
 	Definition workflow.Definition `json:"definition"`
+	// Warnings are advisory review notes for the generated definition (for
+	// example placeholder values or non-idempotent retries). They never block
+	// use; they tell the caller what still needs a human look before running.
+	Warnings []workflow.ReviewWarning `json:"warnings"`
 }
 
 type editWorkflowRequest struct {
@@ -98,7 +102,10 @@ func (s *Server) GenerateWorkflow(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	writeJSON(w, http.StatusOK, generateWorkflowResponse{Definition: definition})
+	writeJSON(w, http.StatusOK, generateWorkflowResponse{
+		Definition: definition,
+		Warnings:   workflow.ReviewDefinition(definition),
+	})
 }
 
 // requireOwnedWorkflow resolves the project/workflow pair from the route and
@@ -190,5 +197,8 @@ func (s *Server) EditWorkflow(w http.ResponseWriter, r *http.Request) {
 		s.writeAIError(w, err, "the AI provider could not edit the workflow")
 		return
 	}
-	writeJSON(w, http.StatusOK, generateWorkflowResponse{Definition: definition})
+	writeJSON(w, http.StatusOK, generateWorkflowResponse{
+		Definition: definition,
+		Warnings:   workflow.ReviewDefinition(definition),
+	})
 }

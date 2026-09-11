@@ -1,6 +1,6 @@
 import { authStore } from '@/lib/auth-store'
 import { queryClient } from '@/lib/query-client'
-import type { ApiErrorBody } from './types'
+import type { ApiErrorBody, WorkflowReviewWarning } from './types'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? ''
 
@@ -9,6 +9,7 @@ export interface ApiErrorOptions {
   code?: string
   message: string
   errors?: string[]
+  warnings?: WorkflowReviewWarning[]
   isNetworkError?: boolean
 }
 
@@ -16,6 +17,7 @@ export class ApiError extends Error {
   status: number
   code?: string
   errors?: string[]
+  warnings?: WorkflowReviewWarning[]
   isNetworkError: boolean
 
   constructor(options: ApiErrorOptions) {
@@ -24,6 +26,7 @@ export class ApiError extends Error {
     this.status = options.status
     this.code = options.code
     this.errors = options.errors
+    this.warnings = options.warnings
     this.isNetworkError = options.isNetworkError ?? false
   }
 }
@@ -82,6 +85,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
       code: errorBody.code,
       message: errorBody.message || 'An unexpected error occurred.',
       errors: errorBody.errors,
+      warnings: errorBody.warnings,
     })
   }
 

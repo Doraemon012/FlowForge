@@ -21,9 +21,34 @@ V1 provides email/password account creation and login, stores only a slow passwo
 
 ## Workflows and versions
 
-`POST /projects/{projectID}/workflows` creates a draft. `GET/PATCH /projects/{projectID}/workflows/{workflowID}` reads or edits draft metadata and definition. `POST .../validate` returns graph and task validation errors without publishing. `POST .../versions` validates and creates an immutable version. `POST .../versions/{versionID}/activate` and `/deactivate` change which version receives new triggers. `GET .../versions` lists versions.
+`POST /projects/{projectID}/workflows` creates a draft. `GET/PATCH /projects/{projectID}/workflows/{workflowID}` reads or edits draft metadata and definition. `POST .../validate` returns graph and task validation errors without publishing, plus the advisory review warnings described under "Workflow review warnings" below. `POST .../versions` validates and creates an immutable version. `POST .../versions/{versionID}/activate` and `/deactivate` change which version receives new triggers. `GET .../versions` lists versions.
 
 A draft definition is `{ "tasks": [...] }`. Each task is `{ "id": string, "type": string, "config": object, "depends_on": [string] }`. Phase 3 accepts only the fixed built-in types `http`, `transform`, `delay`, `conditional`, and `email`; it stores configuration but does not execute tasks. A version must contain a valid acyclic task graph, supported task types, configuration objects, and dependency references. Empty definitions, duplicate or blank IDs, unknown dependencies, self-dependencies, cycles, and unsupported types are rejected with deterministic `422` validation errors. Published versions cannot be edited or deleted.
+
+## Workflow review warnings
+
+Validation answers "is this definition structurally correct?" Review answers the different question "is this definition probably what you meant?" Review returns non-blocking `warnings` for patterns that are valid but usually wrong, so a workflow (especially an AI-generated one) can be checked like a senior engineer would check it, without being blocked.
+
+`warnings` appear on the `POST .../validate` response, on the `422` invalid-workflow response, and on both AI endpoints. Each warning is:
+
+```json
+{ "task_id": "send-email", "code": "inline_secret", "severity": "warning", "message": "..." }
+```
+
+- `task_id` — the task the warning is about, when it applies to one.
+- `code` — a stable identifier for the rule.
+- `severity` — `"warning"` (likely a mistake) or `"info"` (worth a second look).
+- `message` — a human-readable explanation.
+
+Rules that never block saving, publishing, or running:
+
+- `placeholder_value` — the task configuration still contains a stand-in such as `example.com`, `changeme`, `TODO`, or an angle-bracketed value.
+- `inline_secret` — an HTTP task pastes a credential into a header or body instead of referencing it with the `credential` field. FlowForge redacts credential references but cannot redact a literal the user typed.
+- `unsafe_retry` — an HTTP task uses a non-idempotent method (`POST`/`PATCH`). Execution is at-least-once, so such a request may be sent more than once.
+- `conditional_result_unused` — a conditional task's true/false result is not connected to any other task.
+- `isolated_task` — a task in a multi-task graph is not connected to any other task.
+
+Warnings are advisory only: ignoring them never fails a request.
 
 ## Executions and tasks
 
@@ -43,11 +68,11 @@ Execution creation fails with `409` for an inactive/deleted workflow, `422` for 
 
 `GET /ai/status` reports whether AI assistance is configured (`{"enabled": bool}`).
 
-`POST /projects/{projectID}/workflows/{workflowID}/generate` accepts a natural-language `{ "prompt": string }` and returns a validated definition (`{ "definition": { "tasks": [...] } }`).
+`POST /projects/{projectID}/workflows/{workflowID}/generate` accepts a natural-language `{ "prompt": string }` and returns a validated definition together with its review warnings (`{ "definition": { "tasks": [...] }, "warnings": [...] }`).
 
-`POST /projects/{projectID}/workflows/{workflowID}/edit` revises an existing definition in place. It accepts `{ "instruction": string, "definition"?: { "tasks": [...] } }`; when `definition` is omitted the workflow's stored draft is edited, otherwise the supplied definition is — so the builder can refine unsaved edits. It returns a validated definition in the same shape as generation.
+`POST /projects/{projectID}/workflows/{workflowID}/edit` revises an existing definition in place. It accepts `{ "instruction": string, "definition"?: { "tasks": [...] } }`; when `definition` is omitted the workflow's stored draft is edited, otherwise the supplied definition is — so the builder can refine unsaved edits. It returns a validated definition and warnings in the same shape as generation.
 
-Both endpoints constrain the model to the supported task types and pass the result through the same definition validator before returning, with one repair retry, so a successful response is always valid. When no provider is configured they return `503`; a definition that remains invalid returns `422` with the validator errors.
+Both endpoints constrain the model to the supported task types and pass the result through the same definition validator before returning, with one repair retry, so a successful response is always valid. Generated definitions are also run through the review rules above, so the caller can warn that the output is valid but still needs a human look. When no provider is configured they return `503`; a definition that remains invalid returns `422` with the validator errors and code `ai_invalid_workflow`.
 
 The provider is interchangeable and chosen entirely by configuration — application code and the UI are provider-agnostic:
 

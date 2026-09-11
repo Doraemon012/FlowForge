@@ -12,6 +12,7 @@ FlowForge is a Go service and React dashboard for distributed workflow orchestra
 - **Triggers (Phase 7–8):** manual/API triggers, signed webhooks with replay/timestamp protection, and a scheduler with timezone handling, missed-occurrence policy, and duplicate-suppression via atomic idempotency keys.
 - **V1 task set (Phase 9):** built-in `http`, `transform`, `delay`, `conditional`, and `email` task types behind a stable task contract, credential references with redaction, object-storage artifact references, and safe input/output limits.
 - **Observability (Phase 10):** structured JSON logs, append-only lifecycle events, persisted log entries, attempt history, worker/queue/metrics views, and project-isolated observability endpoints.
+- **Workflow review (advisory):** the `validate`, AI generate, and AI edit endpoints return non-blocking review warnings for definitions that are valid but probably wrong — placeholder values, credentials pasted inline instead of referenced, non-idempotent HTTP retries, and unconnected tasks. The builder shows them before a run. Review never blocks saving, publishing, or running.
 
 The result is an at-least-once distributed execution system: a task may run more than once when completion is ambiguous, so side-effecting tasks use a deterministic idempotency key where the external system supports it. The frontend currently focuses on the core build, run, and inspect journey; scheduling/webhook administration and broader operational dashboards remain follow-up work.
 

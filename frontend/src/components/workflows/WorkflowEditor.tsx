@@ -8,13 +8,14 @@ import {
   Play,
   PlayCircle,
   Save,
+  ShieldAlert,
   ShieldCheck,
   Sparkles,
   Workflow as WorkflowIcon,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { ApiError } from '@/api/client'
-import type { Workflow, WorkflowTask } from '@/api/types'
+import type { Workflow, WorkflowReviewWarning, WorkflowTask } from '@/api/types'
 import {
   useActivateWorkflowVersion,
   useDeactivateWorkflow,
@@ -90,6 +91,9 @@ export function WorkflowEditor({ projectId, workflow }: WorkflowEditorProps) {
   }))
   const [validationErrors, setValidationErrors] = useState<string[]>([])
   const [validationMessage, setValidationMessage] = useState<string | null>(null)
+  // Advisory review warnings from the last validate/AI pass. They never block
+  // anything — they flag definitions that are valid but probably need a look.
+  const [reviewWarnings, setReviewWarnings] = useState<WorkflowReviewWarning[]>([])
   const [hasRun, setHasRun] = useState(false)
   const [view, setView] = useState<BuilderView>('graph')
   const [syncRequest, setSyncRequest] = useState<GraphSyncRequest | null>(null)
@@ -121,14 +125,22 @@ export function WorkflowEditor({ projectId, workflow }: WorkflowEditorProps) {
       ? 'Publish and activate a version to run'
       : null
 
-  // A successful validation only describes the definition that was checked.
-  // As soon as it changes, drop the stale "valid" marker so the validated
-  // state never overstates what is true.
+  // A successful validation only describes the exact definition that was
+  // checked. Track that definition's signature so that as soon as the tasks
+  // change, both the stale "valid" marker and the review warnings are dropped —
+  // the validated/reviewed state never describes a different definition than
+  // the one on screen.
+  const definitionSignature = stableStringify(tasks)
+  const validatedSignature = useRef<string | null>(null)
   useEffect(() => {
-    if (hasChanges) {
+    if (
+      validatedSignature.current !== null &&
+      validatedSignature.current !== definitionSignature
+    ) {
       setValidationMessage(null)
+      setReviewWarnings([])
     }
-  }, [hasChanges])
+  }, [definitionSignature])
 
   const syncFromSaved = (updated: Workflow) => {
     const savedTasks = updated.draft_definition?.tasks ?? []
@@ -146,9 +158,30 @@ export function WorkflowEditor({ projectId, workflow }: WorkflowEditorProps) {
   // AI assistant) back into the graph. Bumping the revision guarantees the
   // builder applies it even if the tasks look identical to a previous request.
   const applyExternalTasks = (nextTasks: WorkflowTask[]) => {
+    const previousTasks = tasks
+    // Applying a new definition invalidates whatever validation/review state
+    // described the previous one, so clear it instead of leaving a stale
+    // "valid"/"failed" marker beside a definition it never described.
     setTasks(nextTasks)
     syncRevision.current += 1
     setSyncRequest({ revision: syncRevision.current, tasks: nextTasks })
+    setValidationErrors([])
+    setValidationMessage(null)
+    setReviewWarnings([])
+    validatedSignature.current = null
+    // Replacing the graph is destructive to unsaved work: offer a one-click Undo
+    // so an applied AI/JSON definition is never an irreversible surprise.
+    toast('Definition applied to the graph', {
+      description: 'Review the changes, then Save to persist them.',
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          setTasks(previousTasks)
+          syncRevision.current += 1
+          setSyncRequest({ revision: syncRevision.current, tasks: previousTasks })
+        },
+      },
+    })
   }
 
   const handleSave = async () => {
@@ -177,13 +210,18 @@ export function WorkflowEditor({ projectId, workflow }: WorkflowEditorProps) {
       const result = await validateMutation.mutateAsync({ tasks })
       setValidationErrors(result.errors)
       setValidationMessage(result.valid ? 'Workflow is valid.' : null)
+      setReviewWarnings(result.warnings ?? [])
+      validatedSignature.current = definitionSignature
     } catch (error) {
       if (error instanceof ApiError && error.errors) {
         setValidationErrors(error.errors)
         setValidationMessage(null)
+        setReviewWarnings(error.warnings ?? [])
+        validatedSignature.current = definitionSignature
       } else if (error instanceof ApiError) {
         setValidationErrors([error.message])
         setValidationMessage(null)
+        setReviewWarnings([])
       } else {
         setValidationErrors(['Could not validate the workflow. Please try again.'])
       }
@@ -492,6 +530,32 @@ export function WorkflowEditor({ projectId, workflow }: WorkflowEditorProps) {
             ({validationErrors.length} error{validationErrors.length === 1 ? '' : 's'})
           </span>
         </span>
+      ) : null}
+      {reviewWarnings.length > 0 && validationErrors.length === 0 ? (
+        <details className="w-full">
+          <summary className="inline-flex cursor-pointer items-center gap-1.5 text-sm font-medium text-warning">
+            <ShieldAlert className="h-4 w-4" aria-hidden="true" />
+            {reviewWarnings.length} review note{reviewWarnings.length === 1 ? '' : 's'} &mdash;
+            valid, but check before running
+          </summary>
+          <ul className="mt-1 space-y-1">
+            {reviewWarnings.map((warning, index) => (
+              <li
+                key={`${warning.code}-${index}`}
+                className="flex items-start gap-1.5 text-xs leading-relaxed text-muted-foreground"
+              >
+                <span
+                  className={cn(
+                    'mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full',
+                    warning.severity === 'warning' ? 'bg-warning' : 'bg-muted-foreground',
+                  )}
+                  aria-hidden="true"
+                />
+                <span className="min-w-0">{warning.message}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
       ) : null}
     </div>
   )

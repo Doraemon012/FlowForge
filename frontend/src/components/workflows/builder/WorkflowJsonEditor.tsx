@@ -68,8 +68,9 @@ export function WorkflowJsonEditor({
       return
     }
     if (!isDirty) return
+    // The parent shows the confirmation (with Undo) for every applied
+    // definition, so this view does not raise its own duplicate toast.
     onApply(parsed.tasks)
-    toast.success('Definition applied to the graph')
   }
 
   return (
