@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect } from 'react'
 import {
   Background,
   BackgroundVariant,
@@ -12,7 +12,12 @@ import {
   type OnSelectionChangeParams,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import type { SupportedTaskType, WorkflowGraphEdge, WorkflowGraphNode } from './types'
+import type {
+  CanvasFocusRequest,
+  SupportedTaskType,
+  WorkflowGraphEdge,
+  WorkflowGraphNode,
+} from './types'
 import { WorkflowEdge } from './WorkflowEdge'
 import { WorkflowNode } from './WorkflowNode'
 
@@ -29,6 +34,11 @@ interface WorkflowCanvasProps {
   onSelectionChange: (params: OnSelectionChangeParams) => void
   isValidConnection: (connection: Connection | WorkflowGraphEdge) => boolean
   onDropTask: (type: SupportedTaskType, position: { x: number; y: number }) => void
+  /**
+   * Reveal a specific task: center the viewport on it. Set when a failed
+   * execution deep-links back into the builder with `?task=<id>`.
+   */
+  focusRequest?: CanvasFocusRequest | null
 }
 
 export function WorkflowCanvas({
@@ -41,8 +51,25 @@ export function WorkflowCanvas({
   onSelectionChange,
   isValidConnection,
   onDropTask,
+  focusRequest,
 }: WorkflowCanvasProps) {
-  const { screenToFlowPosition } = useReactFlow()
+  const { screenToFlowPosition, fitView } = useReactFlow()
+
+  // Center the viewport on a task requested from outside the canvas. The node
+  // is measured on the next frame, so the fit is deferred a tick; maxZoom stops
+  // a single small node from being blown up to fill the screen.
+  useEffect(() => {
+    if (!focusRequest) return
+    const handle = window.setTimeout(() => {
+      void fitView({
+        nodes: [{ id: focusRequest.taskId }],
+        duration: 400,
+        padding: 0.5,
+        maxZoom: 1.1,
+      })
+    }, 60)
+    return () => window.clearTimeout(handle)
+  }, [focusRequest, fitView])
 
   const handleDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault()

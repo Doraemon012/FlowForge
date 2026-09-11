@@ -11,6 +11,8 @@ import {
 import { ApiError } from '@/api/client'
 import type { WorkflowReviewWarning, WorkflowTask } from '@/api/types'
 import { useAiStatus, useEditWorkflow, useGenerateWorkflow } from '@/hooks/use-workflows'
+import { diffDefinitions } from '@/lib/definition-diff'
+import { DefinitionDiffView } from '@/components/workflows/DefinitionDiffView'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -90,6 +92,10 @@ export function AiWorkflowDialog({
   // existing graph destroys the current tasks. Refine mode edits in place and
   // needs no confirmation.
   const replacingExisting = mode === 'create' && hasTasks
+  // Show the AI's changes at the field level - especially for Refine, where the
+  // assistant edits the existing graph in place and the user needs to see
+  // exactly which tasks moved, not just the resulting task list.
+  const previewDiff = diffDefinitions({ tasks }, { tasks: preview ?? [] })
 
   // Default to refining when there is already something to refine; a fresh
   // workflow naturally starts in create mode. Re-evaluated each time the dialog
@@ -321,19 +327,13 @@ export function AiWorkflowDialog({
                 The assistant returned no tasks. Try rephrasing the request.
               </p>
             ) : (
-              <ul className="mt-2 space-y-1">
-                {preview.map((task) => (
-                  <li key={task.id} className="flex items-center gap-2 text-sm">
-                    <code className="font-mono text-xs text-foreground/80">{task.id}</code>
-                    <span className="text-muted-foreground">{task.type}</span>
-                    {(task.depends_on ?? []).length > 0 ? (
-                      <span className="ml-auto text-xs text-muted-foreground">
-                        after {(task.depends_on ?? []).join(', ')}
-                      </span>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
+              <div className="mt-3">
+                <DefinitionDiffView
+                  diff={previewDiff}
+                  beforeLabel="Current graph"
+                  afterLabel={mode === 'create' ? 'Generated' : 'Revised'}
+                />
+              </div>
             )}
             <p className="mt-2 text-xs text-muted-foreground">
               {mode === 'create'

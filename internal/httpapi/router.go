@@ -44,6 +44,7 @@ func (s *Server) Router() http.Handler {
 				router.Get("/projects/{projectID}/executions", s.ListExecutions)
 				router.Get("/executions/{executionID}", s.GetExecution)
 				router.Get("/executions/{executionID}/tasks", s.ListTaskRuns)
+				router.Post("/executions/{executionID}/cancel", s.CancelExecution)
 			}
 			if s.schedules != nil {
 				router.Post("/projects/{projectID}/workflows/{workflowID}/schedules", s.CreateSchedule)

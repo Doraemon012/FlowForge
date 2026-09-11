@@ -28,6 +28,17 @@ export function getExecution(executionId: string) {
   return apiRequest<Execution>(`/api/v1/executions/${executionId}`)
 }
 
+/**
+ * Stop a pending or running execution. The server cancels any task runs that
+ * have not started yet and returns the execution in its resulting state;
+ * cancelling an already-finished execution is a no-op, so a retry is safe.
+ */
+export function cancelExecution(executionId: string) {
+  return apiRequest<Execution>(`/api/v1/executions/${executionId}/cancel`, {
+    method: 'POST',
+  })
+}
+
 export function listTaskRuns(executionId: string) {
   return apiRequest<TaskRun[]>(`/api/v1/executions/${executionId}/tasks`)
 }

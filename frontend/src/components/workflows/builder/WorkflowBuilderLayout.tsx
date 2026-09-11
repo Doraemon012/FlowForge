@@ -32,6 +32,7 @@ import {
 import {
   DEFAULT_CONFIG_BY_TYPE,
   WORKFLOW_EDGE_TYPE,
+  type CanvasFocusRequest,
   type SupportedTaskType,
   type WorkflowGraphEdge,
   type WorkflowGraphNode,
@@ -62,6 +63,13 @@ interface WorkflowBuilderLayoutProps {
    * Applying a new revision replaces the graph with exactly these tasks.
    */
   syncRequest?: GraphSyncRequest | null
+  /**
+   * A task to reveal on load - select it, open its inspector, and center the
+   * canvas on it. Set from a `?task=` deep link, e.g. "fix this task" from a
+   * failed execution. A task missing from the current draft is reported rather
+   * than silently ignored.
+   */
+  focusTaskId?: string | null
 }
 
 export function WorkflowBuilderLayout({
@@ -75,6 +83,7 @@ export function WorkflowBuilderLayout({
   view = 'graph',
   jsonEditor,
   syncRequest,
+  focusTaskId,
 }: WorkflowBuilderLayoutProps) {
   const isGraphView = view === 'graph'
   const [nodes, setNodes, onNodesChange] = useNodesState<WorkflowGraphNode>(
@@ -87,6 +96,10 @@ export function WorkflowBuilderLayout({
   const [selectedEdgeIds, setSelectedEdgeIds] = useState<Set<string>>(new Set())
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [configOpenMobile, setConfigOpenMobile] = useState(false)
+  const [focusRequest, setFocusRequest] = useState<CanvasFocusRequest | null>(null)
+  // The last `focusTaskId` handled, so a focus only fires once per target even
+  // though the effect also re-runs as the graph changes.
+  const handledFocusTaskId = useRef<string | null>(null)
 
   const syncTasks = useCallback(
     (nextNodes: WorkflowGraphNode[], nextEdges: WorkflowGraphEdge[]) => {
@@ -114,8 +127,7 @@ export function WorkflowBuilderLayout({
       }),
     )
   }, [validationErrors, setNodes])
-
-  // Load a definition produced outside the graph (the structured editor or the
+// Load a definition produced outside the graph (the structured editor or the
   // AI assistant). Each revision is applied exactly once, and the graph is
   // rebuilt from the tasks so the two views cannot drift apart.
   const appliedSyncRevision = useRef<number | null>(null)
@@ -127,6 +139,45 @@ export function WorkflowBuilderLayout({
     setSelectedNodeIds(new Set())
     setSelectedEdgeIds(new Set())
   }, [syncRequest, setNodes, setEdges])
+
+  // Reveal a task requested from outside the builder - a failed-execution deep
+  // link landing here with `?task=<id>`. Selecting it opens the inspector and
+  // the canvas centers on it, closing the loop from "what failed" to "where to
+  // fix it". The focus fires once per target so later graph edits do not
+  // re-trigger it, and a task that is not in this draft is reported rather than
+  // silently ignored (it may belong to a different version than this draft).
+  useEffect(() => {
+    if (!focusTaskId) {
+      handledFocusTaskId.current = null
+      return
+    }
+    if (focusTaskId === handledFocusTaskId.current) return
+    const target = nodes.find((node) => node.id === focusTaskId)
+    if (!target) {
+      // Only report once per target; the effect re-runs as the graph changes.
+      handledFocusTaskId.current = focusTaskId
+      toast.info(`Task "${focusTaskId}" is not in this draft`, {
+        description:
+          'It may belong to a different version, or the workflow was edited after this run. Check the version that ran.',
+      })
+      return
+    }
+    handledFocusTaskId.current = focusTaskId
+    setSelectedNodeIds(new Set([focusTaskId]))
+    setSelectedEdgeIds(new Set())
+    setConfigOpenMobile(true)
+    setPaletteOpen(false)
+    // Mirror the selection onto the node so the graph highlights it too, not
+    // just the inspector.
+    setNodes((currentNodes) =>
+      currentNodes.map((node) =>
+        node.selected === (node.id === focusTaskId)
+          ? node
+          : { ...node, selected: node.id === focusTaskId },
+      ),
+    )
+    setFocusRequest({ taskId: focusTaskId, nonce: Date.now() })
+  }, [focusTaskId, nodes, setNodes])
 
   const addTask = useCallback(
     (type: SupportedTaskType, position?: { x: number; y: number }) => {
@@ -176,8 +227,7 @@ export function WorkflowBuilderLayout({
     },
     [nodes, edges, syncTasks],
   )
-
-  // Reconnect an existing edge by dragging one of its endpoints. The old edge
+// Reconnect an existing edge by dragging one of its endpoints. The old edge
   // is retargeted in place so a connection can be changed without having to
   // delete and recreate it.
   const handleReconnect = useCallback(
@@ -302,8 +352,7 @@ export function WorkflowBuilderLayout({
     },
     [nodes, edges, syncTasks],
   )
-
-  const handleDeleteTask = useCallback(() => {
+const handleDeleteTask = useCallback(() => {
     deleteSelected()
   }, [deleteSelected])
 
@@ -413,6 +462,7 @@ export function WorkflowBuilderLayout({
               onSelectionChange={handleSelectionChange}
               isValidConnection={isValidConnection}
               onDropTask={addTask}
+              focusRequest={focusRequest}
             />
 
             {paletteOpen ? (

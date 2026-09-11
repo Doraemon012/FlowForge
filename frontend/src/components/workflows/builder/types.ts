@@ -221,3 +221,13 @@ export type WorkflowGraphEdge = Edge
 
 export const WORKFLOW_NODE_TYPE = 'workflowTask' as const
 export const WORKFLOW_EDGE_TYPE = 'workflowEdge' as const
+/**
+ * A request to reveal a task in the canvas: select it, open its inspector, and
+ * center the viewport on it. Used by deep links (e.g. "fix this task" from a
+ * failed execution) so the user lands exactly on the problem.
+ */
+export interface CanvasFocusRequest {
+  taskId: string
+  /** Bumped to force a re-focus even when the target task is unchanged. */
+  nonce: number
+}

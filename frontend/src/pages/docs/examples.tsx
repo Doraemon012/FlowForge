@@ -21,6 +21,32 @@ export function ExamplesPage() {
         </div>
       </div>
 
+      <DocsSection title="Start from a template (in the app)">
+        <DocsParagraph>
+          You do not have to build a graph from a blank canvas. The workflow empty states,
+          the project overview, and the new-workflow page all offer ready-made{' '}
+          <strong>starter templates</strong>. Choosing one creates an ordinary workflow with
+          that definition already loaded — the exact same request you could make by hand —
+          after which you can edit every task, publish, and run it. Each template below is
+          validated against the server's rules, so it runs end-to-end without editing.
+        </DocsParagraph>
+        <DocsTable
+          headers={['Template', 'Pipeline', 'Tasks']}
+          rows={[
+            ['Fetch an API and email a summary', 'http → transform → email', 'fetch, summarize, notify'],
+            ['Check an API status and branch on it', 'http → conditional → email', 'check, evaluate, report'],
+            ['Scheduled digest', 'transform → delay → email', 'assemble, pause, send'],
+            ['Webhook relay', 'transform → http → transform', 'normalize, forward, confirm'],
+          ]}
+        />
+        <DocsCallout variant="info" title="Templates are ordinary workflows">
+          Creating from a template is not a special mode: it issues the same create-workflow
+          request as building by hand, so the resulting workflow is a normal draft you own,
+          version, and run like any other. The two worked examples below show the same
+          patterns spelled out task by task.
+        </DocsCallout>
+      </DocsSection>
+
       <DocsSection title="Example A — Order notification pipeline">
         <DocsParagraph>
           A pipeline that normalizes an incoming order, routes it based on amount, and then

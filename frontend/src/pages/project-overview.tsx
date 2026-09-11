@@ -1,9 +1,10 @@
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Plus, Workflow as WorkflowIcon } from 'lucide-react'
 import { ApiError } from '@/api/client'
 import { useProject } from '@/hooks/use-projects'
 import { useWorkflows } from '@/hooks/use-workflows'
 import { WorkflowCard } from '@/components/workflows/WorkflowCard'
+import { WorkflowTemplateGallery } from '@/components/workflows/WorkflowTemplateGallery'
 import { EditProjectDialog } from '@/components/projects/EditProjectDialog'
 import { DeleteProjectDialog } from '@/components/projects/DeleteProjectDialog'
 import { EmptyState } from '@/components/shared/EmptyState'
@@ -62,6 +63,7 @@ function getStatusVariant(status: string): 'success' | 'secondary' {
 
 export function ProjectOverviewPage() {
   const { projectId } = useParams<{ projectId: string }>()
+  const navigate = useNavigate()
   const { data: project, isLoading, isError, error, refetch } = useProject(projectId ?? '')
   const {
     data: workflows,
@@ -171,11 +173,11 @@ export function ProjectOverviewPage() {
             />
           </div>
         ) : !workflows || workflows.length === 0 ? (
-          <div className="mt-3">
+          <div className="mt-3 space-y-4">
             <EmptyState
               icon={WorkflowIcon}
               title="No workflows yet"
-              description="Create a workflow to turn a sequence of tasks into a repeatable execution."
+              description="Create a workflow to turn a sequence of tasks into a repeatable execution, or start from a runnable template."
               action={
                 <Button asChild variant="outline" size="sm">
                   <Link to={`/app/projects/${project.id}/workflows/new`}>
@@ -183,6 +185,13 @@ export function ProjectOverviewPage() {
                     Create workflow
                   </Link>
                 </Button>
+              }
+            />
+            <WorkflowTemplateGallery
+              projectId={project.id}
+              compact
+              onCreated={(workflow) =>
+                navigate(`/app/projects/${project.id}/workflows/${workflow.id}`)
               }
             />
           </div>

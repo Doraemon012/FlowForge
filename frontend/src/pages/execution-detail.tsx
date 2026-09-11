@@ -1,9 +1,14 @@
-import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, History, ListTodo, ScrollText, Waypoints } from 'lucide-react'
+import { useMemo } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { ArrowLeft, History, ListTodo, RotateCcw, ScrollText, Square, Waypoints } from 'lucide-react'
+import { toast } from 'sonner'
 import { ApiError } from '@/api/client'
 import { useProject } from '@/hooks/use-projects'
 import { useWorkflow, useWorkflowVersion } from '@/hooks/use-workflows'
 import {
+  isExecutionActive,
+  useCancelExecution,
+  useCreateExecution,
   useExecution,
   useExecutionAttempts,
   useExecutionEvents,
@@ -12,11 +17,14 @@ import {
 } from '@/hooks/use-executions'
 import { AttemptHistory } from '@/components/executions/AttemptHistory'
 import { ExecutionStatusBadge } from '@/components/executions/ExecutionStatusBadge'
+import { RunDiagnosis as RunDiagnosisPanel } from '@/components/executions/RunDiagnosis'
 import { TaskRunItem } from '@/components/executions/TaskRunItem'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ErrorState } from '@/components/shared/ErrorState'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { diagnoseRun } from '@/lib/run-diagnosis'
 import { formatDateTime } from '@/lib/utils'
 
 function ExecutionDetailSkeleton() {
@@ -88,6 +96,58 @@ export function ExecutionDetailPage() {
     execution?.workflow_id ?? '',
     execution?.workflow_version_id ?? '',
   )
+
+  const navigate = useNavigate()
+  const createExecutionMutation = useCreateExecution(
+    projectId ?? '',
+    execution?.workflow_id ?? '',
+  )
+  const cancelExecutionMutation = useCancelExecution(executionId ?? '', projectId ?? '')
+
+  // Explain the failure by correlating the task runs with the dependency graph
+  // of the exact version that ran. Everything is derived from data already on
+  // the page, so the diagnosis never needs an extra request.
+  const diagnosis = useMemo(
+    () => diagnoseRun(workflowVersion?.definition, taskRuns ?? []),
+    [workflowVersion?.definition, taskRuns],
+  )
+
+  const handleCancel = async () => {
+    if (!execution) return
+    try {
+      await cancelExecutionMutation.mutateAsync()
+      toast.success('Run cancelled')
+    } catch (error) {
+      if (error instanceof ApiError) {
+        toast.error(error.message)
+      } else {
+        toast.error('Could not cancel the run.')
+      }
+    }
+  }
+
+  const handleRunAgain = async () => {
+    if (!execution) return
+    try {
+      // Re-run the exact version that failed with the exact same input, so
+      // "run again" reproduces the run instead of using whatever happens to be
+      // active now with empty input. Replaying the input is what makes a
+      // fix-and-re-run meaningful: the failure can actually be reproduced and
+      // the fix verified against the same data.
+      const created = await createExecutionMutation.mutateAsync({
+        version_id: execution.workflow_version_id,
+        input: execution.input ?? {},
+      })
+      toast.success('New run started')
+      navigate(`/app/projects/${projectId}/executions/${created.id}`)
+    } catch (error) {
+      if (error instanceof ApiError) {
+        toast.error(error.message)
+      } else {
+        toast.error('Could not start a new run.')
+      }
+    }
+  }
 
   if (projectLoading) {
     return <ExecutionDetailSkeleton />
@@ -208,50 +268,60 @@ export function ExecutionDetailPage() {
         ) : null}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Status</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <p className="text-xs uppercase tracking-wide text-muted">Status</p>
-            <div className="mt-1">
-              <ExecutionStatusBadge status={execution.status} />
-            </div>
-          </div>
-          <div>
-            <p className="text-xs uppercase tracking-wide text-muted">Created</p>
-            <p className="mt-1 font-mono text-sm">{formatDateTime(execution.created_at)}</p>
-          </div>
-          <div>
-            <p className="text-xs uppercase tracking-wide text-muted">Started</p>
-            <p className="mt-1 font-mono text-sm">{formatDateTime(execution.started_at)}</p>
-          </div>
-          <div>
-            <p className="text-xs uppercase tracking-wide text-muted">Completed</p>
-            <p className="mt-1 font-mono text-sm">{formatDateTime(execution.completed_at)}</p>
-          </div>
-          <div>
-            <p className="text-xs uppercase tracking-wide text-muted">Workflow</p>
-            <p className="mt-1 text-sm font-medium">
-              {workflow ? (
-                <Link
-                  to={`/app/projects/${projectId}/workflows/${workflow.id}`}
-                  className="text-accent underline-offset-4 hover:underline"
-                >
-                  {workflow.name}
-                </Link>
-              ) : (
-                execution.workflow_id
-              )}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs uppercase tracking-wide text-muted">Execution ID</p>
-            <p className="mt-1 break-all font-mono text-sm">{execution.id}</p>
-          </div>
-        </CardContent>
-      </Card>
+      {workflow ? (
+        <div className="flex flex-wrap items-center gap-2">
+          {/*
+            Stop the run while it is still active. Cancelling is the one action
+            that is only available in-flight: it marks the execution cancelled
+            and cancels any task that has not started yet. The button
+            disappears as soon as the run settles (the page polls status) and
+            "Run again" takes its place as the recovery action.
+          */}
+          {isExecutionActive(execution.status) ? (
+            <Button
+              onClick={handleCancel}
+              loading={cancelExecutionMutation.isPending}
+              disabled={cancelExecutionMutation.isPending}
+              size="sm"
+              variant="outline"
+            >
+              <Square className="mr-2 h-4 w-4" aria-hidden="true" />
+              Cancel run
+            </Button>
+          ) : null}
+          {/*
+            Only offer "Run again" once the run has reached a terminal state.
+            While it is still pending/running, re-running would start a second
+            execution of the same version concurrently, which is not a recovery
+            action - the user should wait for the current run (the button
+            reappears as soon as it settles, since the page polls status).
+          */}
+          {!isExecutionActive(execution.status) ? (
+            <Button
+              onClick={handleRunAgain}
+              loading={createExecutionMutation.isPending}
+              disabled={createExecutionMutation.isPending}
+              size="sm"
+            >
+              <RotateCcw className="mr-2 h-4 w-4" aria-hidden="true" />
+              Run again
+            </Button>
+          ) : null}
+          <Button asChild variant="outline" size="sm">
+            <Link to={`/app/projects/${projectId}/workflows/${workflow.id}`}>
+              Open in builder
+            </Link>
+          </Button>
+        </div>
+      ) : null}
+
+      {workflow && diagnosis.hasFindings ? (
+        <RunDiagnosisPanel
+          projectId={projectId ?? ''}
+          workflowId={workflow.id}
+          diagnosis={diagnosis}
+        />
+      ) : null}
 
       <div className="grid gap-6 xl:grid-cols-2">
         <Card>

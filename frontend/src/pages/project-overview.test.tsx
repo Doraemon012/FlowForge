@@ -17,7 +17,14 @@ vi.mock('@/hooks/use-projects', async (importOriginal) => {
 })
 vi.mock('@/hooks/use-workflows', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/hooks/use-workflows')>()
-  return { ...actual, useWorkflows: vi.fn() }
+  return {
+    ...actual,
+    useWorkflows: vi.fn(),
+    useCreateWorkflow: vi.fn(() => ({
+      mutateAsync: vi.fn().mockResolvedValue({}),
+      isPending: false,
+    })),
+  }
 })
 
 const project: Project = {

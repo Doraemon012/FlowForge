@@ -26,6 +26,18 @@ export function CreatingAWorkflowPage() {
         </DocsParagraph>
       </DocsSection>
 
+      <DocsSection title="Or start from a template">
+        <DocsParagraph>
+          A blank canvas is not the only way in. The workflow empty states, the project
+          overview, and the new-workflow page each offer ready-made{' '}
+          <strong>starter templates</strong> — for example an http → transform → email
+          pipeline, a status-guard branch, a scheduled digest, or a webhook relay. Choosing
+          one creates an ordinary workflow with that definition already loaded, so you can
+          run a real pipeline immediately and edit it from there. No template-specific state
+          is created; it is the same create-workflow request as building by hand.
+        </DocsParagraph>
+      </DocsSection>
+
       <DocsSection title="Via the API">
         <DocsParagraph>
           A new workflow always starts as a <strong>draft</strong> with an empty task list.

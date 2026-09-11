@@ -81,6 +81,10 @@ export interface Execution {
   status: string
   input: Record<string, unknown>
   failure_reason?: string
+  /** The task that actually failed, when one did. Absent for non-task failures
+   * (e.g. "workflow cannot progress") and non-failed executions. Lets the
+   * executions list link straight to the offending task in the builder. */
+  failed_task_id?: string
   created_at: string
   started_at?: string
   completed_at?: string

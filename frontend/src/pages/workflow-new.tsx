@@ -2,6 +2,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import type { Workflow } from '@/api/types'
 import { WorkflowForm } from '@/components/workflows/WorkflowForm'
+import { WorkflowTemplateGallery } from '@/components/workflows/WorkflowTemplateGallery'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Card, CardContent } from '@/components/ui/card'
 
@@ -25,7 +26,7 @@ export function WorkflowNewPage() {
 
       <PageHeader
         title="Create workflow"
-        description="Create a new workflow and open it in the builder."
+        description="Start from a ready-made example, or name a new blank workflow and open it in the builder."
       />
 
       <Card>
@@ -33,6 +34,14 @@ export function WorkflowNewPage() {
           <WorkflowForm projectId={projectId ?? ''} onSuccess={handleSuccess} />
         </CardContent>
       </Card>
+
+      <div>
+        <h2 className="text-lg font-semibold">Start from a template</h2>
+        <p className="mb-3 text-sm text-muted-foreground">
+          Runnable examples you can open in the builder, run, and modify.
+        </p>
+        <WorkflowTemplateGallery projectId={projectId ?? ''} onCreated={handleSuccess} />
+      </div>
     </div>
   )
 }

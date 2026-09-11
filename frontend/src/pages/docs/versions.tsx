@@ -69,6 +69,33 @@ export function VersionsPage() {
         />
       </DocsSection>
 
+      <DocsSection title="Compare a version to the previous one">
+        <DocsParagraph>
+          Every published version is immutable, so the useful question after a change is
+          "what did this version change?". On the Versions page each version row has a{' '}
+          <strong>Compare</strong> action that opens a task-level diff against the previous
+          version: which tasks were <strong>added</strong>, which were{' '}
+          <strong>removed</strong>, and which <strong>changed</strong> — with the before and
+          after value of every changed field (type, config, and dependencies). Version 1 is
+          compared against an empty definition, so it reads as "the initial published
+          version". This is the fastest way to review the effect of an AI edit or an
+          incremental fix before you activate it.
+        </DocsParagraph>
+        <DocsTable
+          headers={['Diff group', 'Meaning']}
+          rows={[
+            ['Added', 'Tasks present in this version but not the previous one.'],
+            ['Removed', 'Tasks present in the previous version but not this one.'],
+            ['Changed', 'Tasks in both, with at least one field (type, config, dependencies) differing — each field shown before → after.'],
+          ]}
+        />
+        <DocsCallout variant="info" title="Also shown before you apply an AI change">
+          The same field-level diff is shown inside the AI assistant before you apply a
+          generated or refined definition, so an AI edit is reviewed the same way a
+          published version is.
+        </DocsCallout>
+      </DocsSection>
+
       <DocsSection title="Via the API">
         <DocsParagraph>
           Publish a version, then activate it explicitly.

@@ -1,4 +1,4 @@
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Toaster } from '@/components/ui/sonner'
@@ -21,39 +21,59 @@ import { ExecutionDetailPage } from '@/pages/execution-detail'
 import { NotFoundPage } from '@/pages/not-found'
 import { DocsIndexPage, DocsDocumentPage } from '@/pages/docs'
 
+// A data router (rather than `<BrowserRouter><Routes>`) so route changes are
+// observable: `useBlocker` needs a data router to intercept navigations the
+// click interceptor cannot see, most importantly the browser Back button. The
+// route tree below is identical to the previous JSX `<Routes>` nesting.
+const router = createBrowserRouter([
+  { path: '/docs', element: <DocsIndexPage /> },
+  { path: '/docs/:slug', element: <DocsDocumentPage /> },
+  {
+    element: <RequirePublic />,
+    children: [
+      { path: '/', element: <LandingPage /> },
+      { path: '/login', element: <LoginPage /> },
+      { path: '/signup', element: <SignupPage /> },
+    ],
+  },
+  {
+    element: <RequireAuth />,
+    children: [
+      {
+        path: '/app',
+        element: <AppShell />,
+        children: [
+          { index: true, element: <DashboardPage /> },
+          { path: 'projects', element: <ProjectsPage /> },
+          { path: 'projects/:projectId', element: <ProjectOverviewPage /> },
+          { path: 'projects/:projectId/workflows', element: <WorkflowsPage /> },
+          { path: 'projects/:projectId/workflows/new', element: <WorkflowNewPage /> },
+          {
+            path: 'projects/:projectId/workflows/:workflowId',
+            element: <WorkflowDetailPage />,
+          },
+          {
+            path: 'projects/:projectId/workflows/:workflowId/versions',
+            element: <WorkflowVersionsPage />,
+          },
+          { path: 'projects/:projectId/executions', element: <ExecutionsPage /> },
+          {
+            path: 'projects/:projectId/executions/:executionId',
+            element: <ExecutionDetailPage />,
+          },
+          { path: '*', element: <NotFoundPage /> },
+        ],
+      },
+    ],
+  },
+  { path: '*', element: <NotFoundPage /> },
+])
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider delayDuration={200}>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/docs" element={<DocsIndexPage />} />
-            <Route path="/docs/:slug" element={<DocsDocumentPage />} />
-
-            <Route element={<RequirePublic />}>
-              <Route path="/" element={<LandingPage />} />
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/signup" element={<SignupPage />} />
-            </Route>
-
-            <Route element={<RequireAuth />}>
-              <Route path="/app" element={<AppShell />}>
-                <Route index element={<DashboardPage />} />
-                <Route path="projects" element={<ProjectsPage />} />
-                <Route path="projects/:projectId" element={<ProjectOverviewPage />} />
-                <Route path="projects/:projectId/workflows" element={<WorkflowsPage />} />
-                <Route path="projects/:projectId/workflows/new" element={<WorkflowNewPage />} />
-                <Route path="projects/:projectId/workflows/:workflowId" element={<WorkflowDetailPage />} />
-                <Route path="projects/:projectId/workflows/:workflowId/versions" element={<WorkflowVersionsPage />} />
-                <Route path="projects/:projectId/executions" element={<ExecutionsPage />} />
-                <Route path="projects/:projectId/executions/:executionId" element={<ExecutionDetailPage />} />
-                <Route path="*" element={<NotFoundPage />} />
-              </Route>
-            </Route>
-
-            <Route path="*" element={<NotFoundPage />} />
-          </Routes>
-        </BrowserRouter>
+        <RouterProvider router={router} />
         <Toaster richColors position="top-right" />
       </TooltipProvider>
     </QueryClientProvider>

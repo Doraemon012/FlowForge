@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
   Braces,
@@ -24,6 +24,7 @@ import {
   useValidateWorkflow,
 } from '@/hooks/use-workflows'
 import { useCreateExecution } from '@/hooks/use-executions'
+import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes-guard'
 import {
   WorkflowBuilderLayout,
   type BuilderView,
@@ -102,6 +103,10 @@ export function WorkflowEditor({ projectId, workflow }: WorkflowEditorProps) {
   const syncRevision = useRef(0)
 
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  // `?task=<id>` deep-links from a failed execution's diagnosis straight to the
+  // task that needs fixing. Passing it to the builder selects and reveals it.
+  const focusTaskId = searchParams.get('task')
   const updateMutation = useUpdateWorkflow(projectId, workflow.id)
   const validateMutation = useValidateWorkflow(projectId, workflow.id)
   const publishMutation = usePublishWorkflow(projectId, workflow.id)
@@ -116,6 +121,10 @@ export function WorkflowEditor({ projectId, workflow }: WorkflowEditorProps) {
     name !== savedState.name ||
     description !== savedState.description ||
     !tasksEqual(tasks, savedState.tasks)
+
+  // Never let unsaved work disappear silently. Warn before leaving the editor
+  // through the sidebar, the back arrow, or a refresh/tab close.
+  useUnsavedChangesGuard(hasChanges)
 
   // Run is gated on a clean, saved, active definition: running must never
   // execute a stale server-side version while the builder holds newer edits.
@@ -573,6 +582,7 @@ export function WorkflowEditor({ projectId, workflow }: WorkflowEditorProps) {
         view={view}
         jsonEditor={jsonEditor}
         syncRequest={syncRequest}
+        focusTaskId={focusTaskId}
       />
       <AiWorkflowDialog
         projectId={projectId}

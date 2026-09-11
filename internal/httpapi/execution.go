@@ -138,6 +138,35 @@ func (s *Server) GetExecution(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, item)
 }
 
+// CancelExecution stops a pending or running execution. The repository does the
+// actual transition (cancel not-yet-started task runs and their queued work,
+// then mark the execution cancelled) in one transaction; cancelling an
+// execution that has already finished is an idempotent no-op, so a double-click
+// or a retry is safe. The response is the execution in its resulting state,
+// which the client uses to refresh the page immediately.
+func (s *Server) CancelExecution(w http.ResponseWriter, r *http.Request) {
+	ownerID, ok := authenticatedUserID(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "authentication required")
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "executionID"))
+	if err != nil {
+		writeError(w, http.StatusNotFound, "execution_not_found", "execution not found")
+		return
+	}
+	item, err := s.executions.CancelOwned(r.Context(), ownerID, id, time.Now().UTC())
+	if errors.Is(err, execution.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "execution_not_found", "execution not found")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "execution_cancel_failed", "execution could not be cancelled")
+		return
+	}
+	writeJSON(w, http.StatusOK, item)
+}
+
 func (s *Server) ListExecutions(w http.ResponseWriter, r *http.Request) {
 	ownerID, ok := authenticatedUserID(r.Context())
 	if !ok {

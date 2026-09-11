@@ -30,6 +30,7 @@ type Execution struct {
 	Status            string          `json:"status"`
 	Input             json.RawMessage `json:"input"`
 	FailureReason     string          `json:"failure_reason,omitempty"`
+	FailedTaskID      string          `json:"failed_task_id,omitempty"`
 	CreatedAt         time.Time       `json:"created_at"`
 	StartedAt         *time.Time      `json:"started_at,omitempty"`
 	CompletedAt       *time.Time      `json:"completed_at,omitempty"`
@@ -67,6 +68,13 @@ type Repository interface {
 	SetTaskBlocked(ctx context.Context, taskRunID uuid.UUID, reason string, completedAt time.Time) error
 	SetExecutionCompleted(ctx context.Context, executionID uuid.UUID, completedAt time.Time) error
 	SetExecutionFailed(ctx context.Context, executionID uuid.UUID, reason string, completedAt time.Time) error
+	// CancelOwned stops an owned execution that is still pending or running:
+	// it marks the execution cancelled, cancels every task run that has not
+	// finished, and cancels the queue rows behind them - including a claim held
+	// by a worker right now, which stops an in-flight task via the lease fence.
+	// It is idempotent - cancelling an already-terminal execution is a no-op
+	// that returns the current execution.
+	CancelOwned(ctx context.Context, ownerID, executionID uuid.UUID, now time.Time) (Execution, error)
 }
 
 type Engine struct {
@@ -113,6 +121,45 @@ func NewEngine(repository Repository, runtime Runtime, queues ...queue.Repositor
 	return &Engine{repository: repository, runtime: runtime, queue: taskQueue, running: make(map[uuid.UUID]struct{})}
 }
 
+// summarizeTaskFailure turns the flat set of task runs into a one-line reason
+// that names the task which broke the run. An execution's failure_reason is
+// rendered on its own - on the executions list and the execution detail header
+// - so it must say where the failure is, not just that one happened. A generic
+// "task failed" tells the user nothing; `task "fetch" failed: HTTP 500` points
+// them straight at the task to fix.
+//
+// When several tasks failed, the earliest by id is reported as the
+// representative failure. The full causal picture - root cause, downstream
+// blocking, tasks that never ran - lives in the run diagnosis on the execution
+// detail page, which reads the task runs directly.
+// isTerminalStatus reports whether an execution has reached a state where the
+// engine must stop scheduling. Cancelled joins completed and failed: a
+// cancelled run must never queue more work, even if a loop iteration is
+// already in flight when the cancellation lands.
+func isTerminalStatus(status string) bool {
+	return status == "completed" || status == "failed" || status == "cancelled"
+}
+
+func summarizeTaskFailure(runs []TaskRun) string {
+	var failed *TaskRun
+	for i := range runs {
+		run := &runs[i]
+		if run.Status != "failed" {
+			continue
+		}
+		if failed == nil || run.TaskID < failed.TaskID {
+			failed = run
+		}
+	}
+	if failed == nil {
+		return "task failed"
+	}
+	if reason := strings.TrimSpace(failed.FailureReason); reason != "" {
+		return fmt.Sprintf("task %q failed: %s", failed.TaskID, reason)
+	}
+	return fmt.Sprintf("task %q failed", failed.TaskID)
+}
+
 func (e *Engine) Start(ctx context.Context, ownerID, executionID uuid.UUID) {
 	e.mu.Lock()
 	if _, exists := e.running[executionID]; exists {
@@ -135,7 +182,7 @@ func (e *Engine) Run(ctx context.Context, ownerID, executionID uuid.UUID) error 
 	if err != nil {
 		return err
 	}
-	if execution.Status == "completed" || execution.Status == "failed" {
+	if isTerminalStatus(execution.Status) {
 		return nil
 	}
 	if err := e.repository.SetExecutionRunning(ctx, executionID, time.Now().UTC()); err != nil {
@@ -244,7 +291,7 @@ func (e *Engine) Run(ctx context.Context, ownerID, executionID uuid.UUID) error 
 					}
 				}
 			}
-			return e.repository.SetExecutionFailed(ctx, executionID, "task failed", time.Now().UTC())
+			return e.repository.SetExecutionFailed(ctx, executionID, summarizeTaskFailure(runs), time.Now().UTC())
 		}
 	}
 }
@@ -266,7 +313,7 @@ func (e *Engine) runQueued(ctx context.Context, ownerID, executionID uuid.UUID) 
 		if err != nil {
 			return err
 		}
-		if execution.Status == "completed" || execution.Status == "failed" {
+		if isTerminalStatus(execution.Status) {
 			return nil
 		}
 		byTask := make(map[string]TaskRun, len(runs))
@@ -298,8 +345,9 @@ func (e *Engine) runQueued(ctx context.Context, ownerID, executionID uuid.UUID) 
 					}
 				}
 			}
-			e.record(ctx, execution.ProjectID, executionID, "", nil, "execution_failed", map[string]any{"reason": "task failed"})
-			return e.repository.SetExecutionFailed(ctx, executionID, "task failed", time.Now().UTC())
+			reason := summarizeTaskFailure(runs)
+			e.record(ctx, execution.ProjectID, executionID, "", nil, "execution_failed", map[string]any{"reason": reason})
+			return e.repository.SetExecutionFailed(ctx, executionID, reason, time.Now().UTC())
 		}
 		eligible := make([]workflow.Task, 0)
 		for _, task := range definition.Tasks {

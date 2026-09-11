@@ -143,7 +143,12 @@ func (r *PostgresRepository) GetOwned(ctx context.Context, ownerID, executionID 
 }
 
 func (r *PostgresRepository) ListOwned(ctx context.Context, ownerID, projectID uuid.UUID) ([]Execution, error) {
-	rows, err := r.pool.Query(ctx, `SELECT e.id, e.project_id, e.workflow_id, e.workflow_version_id, e.status, e.input, e.failure_reason, e.created_at, e.started_at, e.completed_at FROM executions e JOIN projects p ON p.id = e.project_id WHERE e.project_id = $1 AND p.owner_id = $2 ORDER BY e.created_at DESC`, projectID, ownerID)
+	// The earliest failed task is folded into each row so the list can offer a
+	// direct "fix this task in the builder" link without a per-execution
+	// request. The subquery picks the same representative failure as
+	// summarizeTaskFailure (earliest by task id); an empty id means no task
+	// failed (e.g. "workflow cannot progress") and the caller shows no link.
+	rows, err := r.pool.Query(ctx, `SELECT e.id, e.project_id, e.workflow_id, e.workflow_version_id, e.status, e.input, e.failure_reason, COALESCE((SELECT tr.task_id FROM task_runs tr WHERE tr.execution_id = e.id AND tr.status = 'failed' ORDER BY tr.task_id LIMIT 1), '') AS failed_task_id, e.created_at, e.started_at, e.completed_at FROM executions e JOIN projects p ON p.id = e.project_id WHERE e.project_id = $1 AND p.owner_id = $2 ORDER BY e.created_at DESC`, projectID, ownerID)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +156,7 @@ func (r *PostgresRepository) ListOwned(ctx context.Context, ownerID, projectID u
 	results := make([]Execution, 0)
 	for rows.Next() {
 		var item Execution
-		if err := rows.Scan(&item.ID, &item.ProjectID, &item.WorkflowID, &item.WorkflowVersionID, &item.Status, &item.Input, &item.FailureReason, &item.CreatedAt, &item.StartedAt, &item.CompletedAt); err != nil {
+		if err := rows.Scan(&item.ID, &item.ProjectID, &item.WorkflowID, &item.WorkflowVersionID, &item.Status, &item.Input, &item.FailureReason, &item.FailedTaskID, &item.CreatedAt, &item.StartedAt, &item.CompletedAt); err != nil {
 			return nil, err
 		}
 		results = append(results, item)
@@ -230,6 +235,73 @@ func (r *PostgresRepository) SetExecutionCompleted(ctx context.Context, id uuid.
 }
 func (r *PostgresRepository) SetExecutionFailed(ctx context.Context, id uuid.UUID, reason string, completedAt time.Time) error {
 	return transition(ctx, r.pool, `UPDATE executions SET status = 'failed', failure_reason = $2, completed_at = $3 WHERE id = $1 AND status = 'running'`, id, reason, completedAt)
+}
+
+// CancelOwned stops an owned execution that is still pending or running. It
+// runs as a single transaction so an execution can never end up cancelled with
+// work still running or queued behind it:
+//
+//   - every queue row a worker could still act on is cancelled, including a
+//     live claim, so an in-flight task loses its lease;
+//   - every task run that has not finished (pending, queued, or running) is
+//     marked cancelled;
+//   - the in-flight attempts are closed;
+//   - the execution itself is marked cancelled with completed_at set.
+//
+// Releasing a live claim is what makes cancellation reach work that is already
+// executing: the worker's next heartbeat finds the lease gone, cancels the task
+// context, and its late result is rejected by the queue's lease fence - so a
+// cancelled run cannot be reopened by the attempt it interrupted.
+//
+// Cancelling an execution that has already reached a terminal state (completed,
+// failed, or already cancelled) is an idempotent no-op that returns the current
+// execution - a double-click or a racing worker must not error or reopen it.
+func (r *PostgresRepository) CancelOwned(ctx context.Context, ownerID, executionID uuid.UUID, now time.Time) (Execution, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return Execution{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	var current Execution
+	err = tx.QueryRow(ctx, `SELECT e.id, e.project_id, e.workflow_id, e.workflow_version_id, e.status, e.input, e.failure_reason, e.created_at, e.started_at, e.completed_at FROM executions e JOIN projects p ON p.id = e.project_id WHERE e.id = $1 AND p.owner_id = $2 FOR UPDATE OF e`, executionID, ownerID).Scan(&current.ID, &current.ProjectID, &current.WorkflowID, &current.WorkflowVersionID, &current.Status, &current.Input, &current.FailureReason, &current.CreatedAt, &current.StartedAt, &current.CompletedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Execution{}, ErrNotFound
+	}
+	if err != nil {
+		return Execution{}, err
+	}
+	if current.Status != "pending" && current.Status != "running" {
+		return current, nil
+	}
+	// Release every queue row a worker could still act on, including one that
+	// is claimed right now. Clearing the claim is deliberate: the worker keeps
+	// its task context, notices on the next heartbeat that the lease is gone,
+	// and stops. Its eventual result is rejected by the fence below, so the
+	// cancelled state cannot be overwritten from underneath.
+	if _, err := tx.Exec(ctx, `UPDATE task_queue SET status = 'cancelled', completed_at = $2, worker_id = '', claimed_at = NULL, lease_token = NULL, lease_expires_at = NULL, last_heartbeat_at = NULL WHERE status IN ('queued', 'claimed') AND task_run_id IN (SELECT id FROM task_runs WHERE execution_id = $1)`, executionID, now); err != nil {
+		return Execution{}, err
+	}
+	// Every task run that has not finished is cancelled - including a running
+	// one. After the claim above is released the worker can no longer report a
+	// result, so leaving it 'running' would be a state that never resolves.
+	if _, err := tx.Exec(ctx, `UPDATE task_runs SET status = 'cancelled', completed_at = $2 WHERE execution_id = $1 AND status IN ('pending', 'queued', 'running')`, executionID, now); err != nil {
+		return Execution{}, err
+	}
+	// Close the in-flight attempts too, so history does not keep showing a live
+	// attempt for work that was deliberately stopped.
+	if _, err := tx.Exec(ctx, `UPDATE task_attempts SET status = 'cancelled', completed_at = $2, failure_reason = 'execution cancelled' WHERE status = 'running' AND task_run_id IN (SELECT id FROM task_runs WHERE execution_id = $1)`, executionID, now); err != nil {
+		return Execution{}, err
+	}
+	if _, err := tx.Exec(ctx, `UPDATE executions SET status = 'cancelled', completed_at = $2 WHERE id = $1 AND status IN ('pending', 'running')`, executionID, now); err != nil {
+		return Execution{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Execution{}, err
+	}
+	current.Status = "cancelled"
+	current.CompletedAt = &now
+	return current, nil
 }
 
 func transition(ctx context.Context, pool interface {

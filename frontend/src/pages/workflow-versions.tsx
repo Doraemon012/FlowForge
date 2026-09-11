@@ -7,6 +7,7 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { WorkflowVersionDetailsDialog } from '@/components/workflows/WorkflowVersionDetailsDialog'
+import { WorkflowVersionCompareDialog } from '@/components/workflows/WorkflowVersionCompareDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -141,8 +142,9 @@ export function WorkflowVersionsPage() {
         />
       ) : (
         <div className="space-y-3">
-          {versions.map((version) => {
+          {versions.map((version, index) => {
             const isActive = workflow?.active_version_id === version.id
+            const previousVersion = index > 0 ? versions[index - 1] : undefined
             return (
               <Card key={version.id}>
                 <CardContent className="flex items-center justify-between p-4">
@@ -165,6 +167,7 @@ export function WorkflowVersionsPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    <WorkflowVersionCompareDialog version={version} previousVersion={previousVersion} />
                     <WorkflowVersionDetailsDialog version={version} />
                     {!isActive ? (
                       <Button

@@ -26,8 +26,7 @@ export function ExecutionsPage() {
             ['running', 'At least one task run is in progress.'],
             ['completed', 'All tasks succeeded.'],
             ['failed', 'A task failed and the workflow stopped.'],
-            ['cancel_requested', 'A cancellation was requested; the engine is stopping the run.'],
-            ['cancelled', 'The execution was cancelled.'],
+            ['cancelled', 'Stopped before it finished. Tasks that had not started were cancelled too, and a task already executing is stopped and reported cancelled.'],
             ['timed_out', 'The execution exceeded its time limit.'],
           ]}
         />
@@ -47,8 +46,7 @@ export function ExecutionsPage() {
         />
         <DocsParagraph>
           Additional statuses include <code>retry_scheduled</code>,{' '}
-          <code>cancel_requested</code>, <code>cancelled</code>, and{' '}
-          <code>timed_out</code>.
+          <code>cancelled</code>, and <code>timed_out</code>.
         </DocsParagraph>
       </DocsSection>
 
@@ -57,6 +55,15 @@ export function ExecutionsPage() {
           The execution detail page shows the header — workflow, pinned version, status, and
           timestamps — followed by the task-run list with outputs and failure reasons, plus
           attempt history for each task run.
+        </DocsParagraph>
+        <DocsParagraph>
+          While a run is pending or running, the page offers a <strong>Cancel run</strong>{' '}
+          action. Cancelling marks the execution <code>cancelled</code> and cancels the work
+          behind it — tasks that have not started so a worker never claims them, and the one
+          executing right now, which stops as soon as its worker notices the released lease.
+          A cancelled run never resumes: a late result from the interrupted attempt is
+          rejected. Once the run settles, <strong>Run again</strong> becomes the recovery
+          action.
         </DocsParagraph>
       </DocsSection>
 

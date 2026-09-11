@@ -14,6 +14,11 @@ FlowForge is a Go service and React dashboard for distributed workflow orchestra
 - **Observability (Phase 10):** structured JSON logs, append-only lifecycle events, persisted log entries, attempt history, worker/queue/metrics views, and project-isolated observability endpoints.
 - **Workflow review (advisory):** the `validate`, AI generate, and AI edit endpoints return non-blocking review warnings for definitions that are valid but probably wrong — placeholder values, credentials pasted inline instead of referenced, non-idempotent HTTP retries, and unconnected tasks. The builder shows them before a run. Review never blocks saving, publishing, or running.
 
+- **Execution-to-builder debug loop:** a failed run names the task that failed and why. The execution detail page derives a run diagnosis from the task runs and the exact version that ran — the root-cause task, what it blocked, and which tasks never ran — and every failure (on the execution detail page and the executions list) deep-links straight into the builder with the offending task selected, so you can fix the configuration and re-run.
+- **Run recovery:** an active run can be stopped from the execution detail page or the executions list with **Cancel run**; once a run settles, **Run again** starts a new execution of the exact same version and input, so a fix can be verified against the data that failed. Cancelling stops work that has not started and cancels an in-flight task, and a late result from the interrupted attempt is rejected so a cancelled run cannot resume.
+- **Starter templates:** the workflow empty states, the project overview, and the new-workflow page offer ready-made runnable examples (fetch-and-notify, status guard, scheduled digest, webhook relay). Choosing one creates an ordinary workflow with that definition already loaded — the same request a user could make by hand — so a new user can run a real pipeline without designing a task graph first.
+- **Version and change comparison:** the Versions page can compare a published version against the previous one and shows the task-level changes — which tasks were added, removed, or changed, and how each changed field (type, config, dependencies) moved. The AI assistant preview shows the same field-level diff between the current graph and its proposed change before you apply it.
+
 The result is an at-least-once distributed execution system: a task may run more than once when completion is ambiguous, so side-effecting tasks use a deterministic idempotency key where the external system supports it. The frontend currently focuses on the core build, run, and inspect journey; scheduling/webhook administration and broader operational dashboards remain follow-up work.
 
 ## Product workflow
@@ -21,10 +26,10 @@ The result is an at-least-once distributed execution system: a task may run more
 The normal user journey is:
 
 1. Open the frontend, register or log in, and create a project.
-2. Create a workflow, add tasks from the palette, connect dependencies, and configure each selected task in the inspector.
+2. Create a workflow — either from a ready-made starter template or from a blank canvas — add tasks from the palette, connect dependencies, and configure each selected task in the inspector.
 3. Save the draft, then use **Validate** to check the DAG and task configuration. **Publish** creates an immutable version and activates it for new runs.
 4. Press **Run**. FlowForge returns an execution immediately; the control plane queues eligible tasks and a worker claims them.
-5. Follow the execution detail page. It polls the persisted workflow status, task status, outputs, failures, attempt history, worker assignments, lifecycle events, and worker logs. Refreshing the page reads the same durable records.
+5. Follow the execution detail page. It polls the persisted workflow status, task status, outputs, failures, attempt history, worker assignments, lifecycle events, and worker logs. Refreshing the page reads the same durable records. A failed run is explained in place: the diagnosis names the root-cause task, what it blocked, and what never ran, and links into the builder at that task to fix and re-run.
 
 The API and worker are separate processes. A run can remain queued until at least one worker is running.
 

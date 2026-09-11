@@ -116,6 +116,9 @@ const whyGood = [
   'Visual timeline for every run, always',
   'Immutable versions + one-click rollback',
   'AI authoring that flags risky configs before you run',
+  'Failed runs explain why and jump straight to the task to fix',
+  'Starter templates so a first workflow runs before you design one',
+  'Compare versions to see exactly what changed, task by task',
 ]
 
 const whyBad = [

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  cancelExecution,
   createExecution,
   getExecution,
   listExecutionEvents,
@@ -123,6 +124,26 @@ export function useCreateExecution(projectId: string, workflowId: string) {
     onSuccess: (created) => {
       queryClient.invalidateQueries({ queryKey: executionKeys.list(projectId) })
       queryClient.setQueryData(executionKeys.detail(created.id), created)
+    },
+  })
+}
+
+/**
+ * Stop a running execution. On success the returned execution (status
+ * "cancelled") is written straight into the detail cache so the page updates
+ * without waiting for the poll, and the task-run list is refetched because the
+ * server marks the not-yet-started tasks cancelled. Because the cached status
+ * is now terminal, the detail query's refetch interval stops on its own.
+ */
+export function useCancelExecution(executionId: string, projectId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: () => cancelExecution(executionId),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(executionKeys.detail(executionId), updated)
+      queryClient.invalidateQueries({ queryKey: executionKeys.taskRuns(executionId) })
+      queryClient.invalidateQueries({ queryKey: executionKeys.list(projectId) })
     },
   })
 }
