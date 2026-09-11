@@ -14,6 +14,7 @@ import {
   Workflow as WorkflowIcon,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { StartTrialButton } from '@/components/auth/StartTrialButton'
 
 const steps = [
   {
@@ -243,6 +244,7 @@ export function LandingPage() {
           <Button variant="ghost" size="sm" asChild>
             <Link to="/login">Sign in</Link>
           </Button>
+          <StartTrialButton size="sm" variant="outline" label="Try FlowForge" hideArrow />
           <Button size="sm" asChild>
             <Link to="/signup">
               Get started
@@ -278,12 +280,7 @@ export function LandingPage() {
           </p>
 
           <div className="lhero-ctas">
-            <Button size="lg" asChild>
-              <Link to="/signup">
-                Start building
-                <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
-              </Link>
-            </Button>
+            <StartTrialButton size="lg" label="Try FlowForge" />
             <Button size="lg" variant="outline" asChild>
               <Link to="/docs">
                 <BookOpen className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -292,8 +289,8 @@ export function LandingPage() {
             </Button>
           </div>
           <div className="lhero-meta">
-            Open source · self-hostable ·{' '}
-            <Link to="/docs">read the docs →</Link>
+            No signup needed — a trial workspace is created instantly · 10 AI actions included ·{' '}
+            <Link to="/signup">create an account to keep your work →</Link>
           </div>
 
           <div className="lhero-dag" style={{ position: 'relative' }}>
@@ -539,15 +536,11 @@ export function LandingPage() {
             observable, and recoverable.
           </p>
           <div className="lcta-btns">
-            <Button size="lg" asChild>
-              <Link to="/signup">
-                Get started
-                <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
-              </Link>
-            </Button>
+            <StartTrialButton size="lg" label="Try FlowForge" />
             <Button size="lg" variant="outline" asChild>
-              <Link to="/docs">
-                Read the docs
+              <Link to="/signup">
+                Create an account
+                <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
               </Link>
             </Button>
           </div>

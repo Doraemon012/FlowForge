@@ -6,8 +6,18 @@ import (
 	"strings"
 
 	"github.com/neyati/flowforge/internal/ai"
+	"github.com/neyati/flowforge/internal/trial"
 	"github.com/neyati/flowforge/internal/workflow"
 )
+
+// isAIValidationError reports whether err is the server-side validator
+// rejecting the model's output, as opposed to the provider failing to answer at
+// all. The distinction decides whether a trial AI use is charged: a provider
+// outage is refunded, a model that answered with an unusable definition is not.
+func isAIValidationError(err error) bool {
+	var validationErr *ai.ValidationError
+	return errors.As(err, &validationErr)
+}
 
 type generateWorkflowRequest struct {
 	Prompt string `json:"prompt"`
@@ -85,8 +95,19 @@ func (s *Server) GenerateWorkflow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	refund, ok := s.beginTrialAIUse(w, r, ownerID, trial.KindGeneration)
+	if !ok {
+		return
+	}
+
 	definition, err := s.ai.Generate(r.Context(), request.Prompt)
 	if err != nil {
+		// A provider outage or misconfiguration is not the visitor's fault, so
+		// the use is given back. A model that answered with an invalid
+		// definition did do work, so that use stands.
+		if !isAIValidationError(err) {
+			refund()
+		}
 		var validationErr *ai.ValidationError
 		switch {
 		case errors.Is(err, ai.ErrNotConfigured):
@@ -192,8 +213,22 @@ func (s *Server) EditWorkflow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ownerID, ok := authenticatedUserID(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "authentication required")
+		return
+	}
+	refund, ok := s.beginTrialAIUse(w, r, ownerID, trial.KindEdit)
+	if !ok {
+		return
+	}
+
 	definition, err := s.ai.Edit(r.Context(), current, request.Instruction)
 	if err != nil {
+		// See GenerateWorkflow: refund only when the provider itself failed.
+		if !isAIValidationError(err) {
+			refund()
+		}
 		s.writeAIError(w, err, "the AI provider could not edit the workflow")
 		return
 	}

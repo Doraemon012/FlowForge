@@ -1,11 +1,20 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { BookOpen, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Search } from 'lucide-react'
+import {
+  BookOpen,
+  LogOut,
+  Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Search,
+  UserPlus,
+} from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import { useProject } from '@/hooks/use-projects'
 import { useWorkflow } from '@/hooks/use-workflows'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { commandPaletteStore } from '@/components/layout/command-palette-store'
+import { TrialIndicator } from '@/components/layout/TrialIndicator'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -100,7 +109,7 @@ interface TopBarProps {
 export function TopBar({ onToggleSidebar, sidebarCollapsed, onToggleCollapse }: TopBarProps) {
   const navigate = useNavigate()
   const location = useLocation()
-  const { user, logout } = useAuth()
+  const { user, logout, isTrial } = useAuth()
   const { projectId, workflowId } = parseRouteIds(location.pathname)
   const { data: project } = useProject(projectId ?? '')
   const { data: workflow } = useWorkflow(projectId ?? '', workflowId ?? '')
@@ -115,6 +124,13 @@ export function TopBar({ onToggleSidebar, sidebarCollapsed, onToggleCollapse }: 
   const handleLogout = () => {
     logout()
     navigate('/login', { replace: true })
+  }
+
+  // Signup is not reachable while a session exists, so a trial visitor who
+  // wants persistence leaves the disposable session first.
+  const handleCreateAccount = () => {
+    logout()
+    navigate('/signup', { replace: true })
   }
 
   return (
@@ -187,6 +203,8 @@ export function TopBar({ onToggleSidebar, sidebarCollapsed, onToggleCollapse }: 
         <span>Operational</span>
       </div>
 
+      <TrialIndicator />
+
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
@@ -209,6 +227,15 @@ export function TopBar({ onToggleSidebar, sidebarCollapsed, onToggleCollapse }: 
             ) : null}
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
+          {isTrial ? (
+            <>
+              <DropdownMenuItem onClick={handleCreateAccount}>
+                <UserPlus className="mr-2 h-4 w-4" aria-hidden="true" />
+                Create a free account
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          ) : null}
           <DropdownMenuItem onClick={handleLogout}>
             <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
             Log out

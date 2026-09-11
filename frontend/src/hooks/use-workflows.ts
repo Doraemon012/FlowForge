@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { WorkflowDefinition } from '@/api/types'
+import { trialUsageKey } from '@/hooks/use-trial'
 import {
   activateWorkflowVersion,
   createWorkflow,
@@ -141,15 +142,27 @@ export function useAiStatus() {
 }
 
 export function useGenerateWorkflow(projectId: string, workflowId: string) {
+  const queryClient = useQueryClient()
+
   return useMutation({
     mutationFn: (prompt: string) => generateWorkflow(projectId, workflowId, prompt),
+    // A generation always consumes trial AI quota (or is refused), so the
+    // cached counter is refreshed either way to keep the indicator honest.
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: trialUsageKey })
+    },
   })
 }
 
 export function useEditWorkflow(projectId: string, workflowId: string) {
+  const queryClient = useQueryClient()
+
   return useMutation({
     mutationFn: (input: { instruction: string; definition: WorkflowDefinition }) =>
       editWorkflow(projectId, workflowId, input.instruction, input.definition),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: trialUsageKey })
+    },
   })
 }
 

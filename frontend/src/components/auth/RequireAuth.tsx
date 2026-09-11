@@ -8,16 +8,26 @@ export function RequireAuth() {
   const { isAuthenticated, token, user } = useAuth()
   const location = useLocation()
 
-  // If a session is restored from storage or the profile fetch failed during
-  // login, refresh the profile so the UI can greet the user by their real
-  // display name instead of falling back to a generic placeholder.
+  // Refresh the profile when it is missing details the UI relies on: the
+  // display name (for the greeting) and the trial flag (for the trial
+  // indicator). A session restored from storage before the trial feature
+  // existed has no flag, so this backfills it from the server, which is the
+  // authoritative source.
+  const needsProfileRefresh =
+    isAuthenticated && token && (!user?.displayName || user?.isTrial === undefined)
+
   useEffect(() => {
-    if (isAuthenticated && token && !user?.displayName) {
+    if (needsProfileRefresh) {
       getMe()
         .then((me) => {
           authStore.setSession({
             token,
-            user: { id: me.id, email: me.email, displayName: me.display_name },
+            user: {
+              id: me.id,
+              email: me.email,
+              displayName: me.display_name,
+              isTrial: me.is_trial,
+            },
           })
         })
         .catch(() => {
@@ -25,7 +35,7 @@ export function RequireAuth() {
           // gracefully falls back to a generic placeholder until a refresh.
         })
     }
-  }, [isAuthenticated, token, user?.displayName])
+  }, [needsProfileRefresh, token])
 
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />

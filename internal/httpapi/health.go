@@ -13,6 +13,7 @@ import (
 	"github.com/neyati/flowforge/internal/observ"
 	"github.com/neyati/flowforge/internal/project"
 	"github.com/neyati/flowforge/internal/schedule"
+	"github.com/neyati/flowforge/internal/trial"
 	"github.com/neyati/flowforge/internal/user"
 	"github.com/neyati/flowforge/internal/webhook"
 	"github.com/neyati/flowforge/internal/workflow"
@@ -39,6 +40,14 @@ type Server struct {
 	authLimiter    *tokenBucket
 	webhookLimiter *tokenBucket
 	ai             *ai.Generator
+	trial          trial.Repository
+}
+
+// SetTrial wires the public-trial AI usage repository. It must be called
+// before Router() so the trial entry point is mounted and trial AI limits are
+// enforced. A nil repository disables trial entry and trial AI limiting.
+func (s *Server) SetTrial(repository trial.Repository) {
+	s.trial = repository
 }
 
 // SetAI wires the optional AI workflow generator. It must be called before

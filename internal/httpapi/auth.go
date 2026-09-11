@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/mail"
 	"strings"
@@ -11,6 +12,18 @@ import (
 	"github.com/google/uuid"
 	"github.com/neyati/flowforge/internal/auth"
 	"github.com/neyati/flowforge/internal/user"
+)
+
+const (
+	defaultTokenLifetime = 15 * time.Minute
+	// trialTokenLifetime is deliberately longer than a normal session: a trial
+	// account has no password, so once its access token expired the visitor
+	// could not sign back in. The longer token still only grants access to that
+	// one account's own, isolated data.
+	trialTokenLifetime = 24 * time.Hour
+	// trialDisplayName labels the disposable account so the workspace clearly
+	// reads as a trial rather than a named user.
+	trialDisplayName = "Trial workspace"
 )
 
 type contextKey string
@@ -35,8 +48,11 @@ type meResponse struct {
 	Email       string    `json:"email"`
 	DisplayName string    `json:"display_name"`
 	Status      string    `json:"status"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	// IsTrial tells the client it is running in the disposable public trial so
+	// it can show the trial indicator and AI usage. It is server-authoritative.
+	IsTrial   bool      `json:"is_trial"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 func (s *Server) Register(w http.ResponseWriter, r *http.Request) {
@@ -80,8 +96,41 @@ func (s *Server) Login(w http.ResponseWriter, r *http.Request) {
 	s.issueToken(w, stored.ID)
 }
 
+// StartTrial provisions a disposable public-trial account and returns a session
+// for it, so a visitor can enter the real product without signing up. The
+// account is an ordinary user with is_trial = true and no password: it can own
+// projects and workflows (kept isolated from every other account by the normal
+// ownership checks) but can never be authenticated through the login flow.
+func (s *Server) StartTrial(w http.ResponseWriter, r *http.Request) {
+	if s.users == nil || s.tokens == nil {
+		writeError(w, http.StatusServiceUnavailable, "trial_unavailable", "trial mode is unavailable")
+		return
+	}
+
+	now := time.Now().UTC()
+	id := uuid.New()
+	trialUser := user.User{
+		ID:          id,
+		Email:       fmt.Sprintf("trial-%s@trial.flowforge.local", id),
+		DisplayName: trialDisplayName,
+		// No password hash: login can never succeed for a trial account.
+		Status:    "active",
+		IsTrial:   true,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	if err := s.users.Create(r.Context(), trialUser); err != nil {
+		writeError(w, http.StatusInternalServerError, "trial_start_failed", "unable to start a trial session")
+		return
+	}
+	s.issueTokenWithLifetime(w, id, trialTokenLifetime)
+}
+
 func (s *Server) issueToken(w http.ResponseWriter, userID uuid.UUID) {
-	const lifetime = 15 * time.Minute
+	s.issueTokenWithLifetime(w, userID, defaultTokenLifetime)
+}
+
+func (s *Server) issueTokenWithLifetime(w http.ResponseWriter, userID uuid.UUID, lifetime time.Duration) {
 	token, err := s.tokens.Issue(userID, lifetime)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "token_issuance_failed", "unable to issue access token")
@@ -106,6 +155,7 @@ func (s *Server) Me(w http.ResponseWriter, r *http.Request) {
 		Email:       stored.Email,
 		DisplayName: stored.DisplayName,
 		Status:      stored.Status,
+		IsTrial:     stored.IsTrial,
 		CreatedAt:   stored.CreatedAt,
 		UpdatedAt:   stored.UpdatedAt,
 	})

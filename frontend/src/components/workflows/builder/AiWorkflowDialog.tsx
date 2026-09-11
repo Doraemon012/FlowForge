@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   AlertCircle,
   AlertTriangle,
@@ -6,11 +7,15 @@ import {
   RotateCcw,
   ShieldAlert,
   Sparkles,
+  UserPlus,
   Wand2,
 } from 'lucide-react'
 import { ApiError } from '@/api/client'
 import type { WorkflowReviewWarning, WorkflowTask } from '@/api/types'
+import { useAuth } from '@/hooks/use-auth'
+import { useTrialUsage } from '@/hooks/use-trial'
 import { useAiStatus, useEditWorkflow, useGenerateWorkflow } from '@/hooks/use-workflows'
+import { TRIAL_EXHAUSTED_MESSAGE } from '@/components/layout/TrialIndicator'
 import { diffDefinitions } from '@/lib/definition-diff'
 import { DefinitionDiffView } from '@/components/workflows/DefinitionDiffView'
 import { Button } from '@/components/ui/button'
@@ -81,9 +86,21 @@ export function AiWorkflowDialog({
   // tasks the user already has.
   const [replaceAcknowledged, setReplaceAcknowledged] = useState(false)
 
+  const navigate = useNavigate()
+  const { logout } = useAuth()
   const statusQuery = useAiStatus()
+  const trialQuery = useTrialUsage()
   const generateMutation = useGenerateWorkflow(projectId, workflowId)
   const editMutation = useEditWorkflow(projectId, workflowId)
+
+  // The server enforces the trial AI limit; these numbers only drive the UI so
+  // a trial visitor can see the allowance and is not offered an action that
+  // will be refused. A registered user sees none of this.
+  const trial = trialQuery.data?.is_trial ? trialQuery.data : null
+  const relevantRemaining =
+    trial === null ? null : mode === 'create' ? trial.remaining.generation : trial.remaining.edit
+  const trialBlocked =
+    trial !== null && (relevantRemaining! <= 0 || trial.remaining.total <= 0)
 
   const unavailable = statusQuery.data?.enabled === false
   const isPending = generateMutation.isPending || editMutation.isPending
@@ -112,7 +129,11 @@ export function AiWorkflowDialog({
 
   const refineBlocked = mode === 'refine' && !hasTasks
   const canSubmit =
-    text.trim().length > 0 && !isPending && !unavailable && !refineBlocked
+    text.trim().length > 0 &&
+    !isPending &&
+    !unavailable &&
+    !refineBlocked &&
+    !trialBlocked
 
   const reset = () => {
     setPreview(null)
@@ -157,13 +178,20 @@ export function AiWorkflowDialog({
       setWarnings(result.warnings ?? [])
     } catch (err) {
       if (err instanceof ApiError) {
-        setError(
-          err.code === 'ai_invalid_workflow'
-            ? 'The assistant could not produce a valid workflow. Nothing in your graph was changed.'
-            : err.message,
-        )
-        if (err.errors && err.errors.length > 0) {
-          setErrorList(err.errors)
+        if (err.code === 'trial_ai_limit_reached') {
+          // The server refused the request because the trial allowance is
+          // spent. Show the same explanation the indicator uses; the banner
+          // above also appears once the usage query refreshes.
+          setError(TRIAL_EXHAUSTED_MESSAGE)
+        } else {
+          setError(
+            err.code === 'ai_invalid_workflow'
+              ? 'The assistant could not produce a valid workflow. Nothing in your graph was changed.'
+              : err.message,
+          )
+          if (err.errors && err.errors.length > 0) {
+            setErrorList(err.errors)
+          }
         }
       } else {
         setError(
@@ -265,6 +293,26 @@ export function AiWorkflowDialog({
           </div>
         ) : null}
 
+        {trialBlocked ? (
+          <div className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm text-warning">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            <div className="space-y-2">
+              <p>{TRIAL_EXHAUSTED_MESSAGE}</p>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  logout()
+                  navigate('/signup', { replace: true })
+                }}
+              >
+                <UserPlus className="mr-2 h-4 w-4" aria-hidden="true" />
+                Create a free account
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
         <div className="space-y-2">
           <textarea
             value={text}
@@ -272,7 +320,7 @@ export function AiWorkflowDialog({
               setText(event.target.value.slice(0, limit))
               if (error || preview) reset()
             }}
-            disabled={unavailable || isPending || refineBlocked}
+            disabled={unavailable || isPending || refineBlocked || trialBlocked}
             rows={5}
             spellCheck={false}
             placeholder={placeholder}
@@ -299,6 +347,16 @@ export function AiWorkflowDialog({
             </p>
           )}
         </div>
+
+        {trial && !trialBlocked ? (
+          <p className="text-xs text-muted-foreground">
+            {mode === 'create'
+              ? `${trial.remaining.generation} of ${trial.limits.generation} trial AI generations left`
+              : `${trial.remaining.edit} of ${trial.limits.edit} trial AI refinements left`}
+            {' · '}
+            {trial.remaining.total} of {trial.limits.total} AI actions left in the trial
+          </p>
+        ) : null}
 
         {error ? (
           <div

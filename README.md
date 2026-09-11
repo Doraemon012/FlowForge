@@ -141,6 +141,42 @@ curl -X POST http://localhost:8080/api/v1/projects \
 
 Project endpoints reject unauthenticated requests and cannot be used to access another user's projects.
 
+## Public free trial (no signup)
+
+A visitor can enter the real product without registering. The landing page and
+the signup page both offer **Try FlowForge**, which provisions a disposable
+account and drops the visitor straight into the normal dashboard:
+
+```sh
+curl -X POST http://localhost:8080/api/v1/auth/trial
+```
+
+The response is an ordinary bearer session (`user_id`, `access_token`). The
+account behind it is a normal user with `is_trial = true` and no password: it
+owns its projects and workflows through the same ownership checks as any other
+account (so trial data is isolated), but it can never authenticate through
+`/auth/login` because it has no password hash. Registered-user authentication
+and authorization are unchanged.
+
+Trial AI usage is bounded **server-side** (never by a client counter). The
+allowance defaults to 5 generations + 5 edits, capped at 10 uses total, and is
+configurable with `TRIAL_AI_GENERATION_LIMIT`, `TRIAL_AI_EDIT_LIMIT`, and
+`TRIAL_AI_TOTAL_LIMIT` (set a value to `0` to disable that cap). Accounting is
+persisted in `trial_ai_usage`, keyed by the trial user.
+
+`GET /api/v1/trial/usage` reports the caller's allowance and consumption, which
+drives the trial/AI indicator in the app shell; registered users receive
+`is_trial: false`. When the allowance is spent, AI generate/edit requests are
+refused with HTTP `429` and code `trial_ai_limit_reached`, the UI explains that
+the free-trial AI limit is reached, and every non-AI feature keeps working.
+Provider API keys are used only inside the control plane and are never sent to
+the browser.
+
+Trial accounts persist until they are removed. Automatic cleanup is not
+implemented yet: see the TODO in `FLOWFORGE_WORKLOG.md` for deleting abandoned
+trial accounts (and their cascaded data) after a configurable N-day
+inactivity/age window.
+
 ## Workflows and versions
 
 Create and manage a workflow with a structured definition. Each task has an `id`, one of the fixed built-in types (`http`, `transform`, `delay`, `conditional`, or `email`), a JSON-object `config`, and optional `depends_on` task IDs. A workflow is stored as an editable draft. Publishing validates the DAG and creates an immutable numbered version.

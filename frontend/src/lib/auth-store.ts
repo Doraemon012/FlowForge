@@ -4,6 +4,12 @@ export interface AuthUser {
   id: string
   email?: string
   displayName?: string
+  /**
+   * True when this session belongs to a disposable public-trial account. Set
+   * from the server's response (which is authoritative) so the UI can show the
+   * trial indicator without asking again on every render.
+   */
+  isTrial?: boolean
 }
 
 export interface Session {

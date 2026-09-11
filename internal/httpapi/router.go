@@ -16,12 +16,22 @@ func (s *Server) Router() http.Handler {
 		router.Use(bodyLimitMiddleware(s.maxBodyBytes))
 		router.With(rateLimitMiddleware(s.authLimiter)).Post("/auth/register", s.Register)
 		router.With(rateLimitMiddleware(s.authLimiter)).Post("/auth/login", s.Login)
+		// Public trial entry point: provisions a disposable account and returns
+		// a session, so a visitor reaches the real product without signing up.
+		// Mounted only when trial accounting is wired; the same rate limiter as
+		// register/login guards it against abuse.
+		if s.trial != nil {
+			router.With(rateLimitMiddleware(s.authLimiter)).Post("/auth/trial", s.StartTrial)
+		}
 		// Public webhook endpoint (no auth required)
 		router.With(rateLimitMiddleware(s.webhookLimiter)).Post("/webhooks/{webhookID}", s.HandleWebhook)
 		router.Group(func(router chi.Router) {
 			router.Use(s.RequireAuth)
 			router.Get("/me", s.Me)
 			router.Get("/ai/status", s.AIStatus)
+			// Reports the caller's trial AI consumption. Registered users get
+			// is_trial = false, so the client hides the trial indicator.
+			router.Get("/trial/usage", s.TrialUsage)
 			router.Post("/projects", s.CreateProject)
 			router.Get("/projects", s.ListProjects)
 			router.Get("/projects/{projectID}", s.GetProject)

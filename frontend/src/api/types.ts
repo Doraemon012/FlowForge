@@ -29,8 +29,24 @@ export interface User {
   email: string
   display_name: string
   status: string
+  /** True for a disposable public-trial account. Server-authoritative. */
+  is_trial: boolean
   created_at: string
   updated_at: string
+}
+
+/**
+ * The caller's public-trial AI consumption. `is_trial` is false for registered
+ * accounts, in which case the counters are all zero and the UI shows no trial
+ * indicator. The numbers are read from the same store the server enforces
+ * against, so the client can never display a more generous limit than applies.
+ */
+export interface TrialUsage {
+  is_trial: boolean
+  ai_enabled: boolean
+  limits: { generation: number; edit: number; total: number }
+  usage: { generation: number; edit: number; total: number }
+  remaining: { generation: number; edit: number; total: number }
 }
 
 export interface Project {

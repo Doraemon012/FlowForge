@@ -22,6 +22,7 @@ import (
 	"github.com/neyati/flowforge/internal/queue"
 	"github.com/neyati/flowforge/internal/schedule"
 	"github.com/neyati/flowforge/internal/scheduler"
+	"github.com/neyati/flowforge/internal/trial"
 	"github.com/neyati/flowforge/internal/user"
 	"github.com/neyati/flowforge/internal/webhook"
 	"github.com/neyati/flowforge/internal/workflow"
@@ -104,6 +105,14 @@ func main() {
 		)
 	}
 	apiServer.SetLimits(cfg.MaxBodyBytes, cfg.AuthRateLimitRPS, cfg.AuthRateLimitBurst, cfg.WebhookRateLimitRPS, cfg.WebhookRateLimitBurst)
+	// Trial AI accounting bounds the cost of the no-signup public trial. It is
+	// always wired so the trial entry point is available and the limits are
+	// enforced server-side; registered users are never subject to them.
+	apiServer.SetTrial(trial.NewPostgresRepository(pool, trial.Limits{
+		Generation: cfg.TrialAIGenerationLimit,
+		Edit:       cfg.TrialAIEditLimit,
+		Total:      cfg.TrialAITotalLimit,
+	}))
 
 	server := &http.Server{
 		Addr:    cfg.HTTPAddr,

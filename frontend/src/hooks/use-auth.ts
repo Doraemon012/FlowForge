@@ -1,6 +1,11 @@
 import { useCallback } from 'react'
 import { useSession } from '@/lib/auth-store'
-import { login as apiLogin, register as apiRegister, logout as apiLogout } from '@/api/auth'
+import {
+  login as apiLogin,
+  register as apiRegister,
+  startTrial as apiStartTrial,
+  logout as apiLogout,
+} from '@/api/auth'
 import type { LoginInput, RegisterInput } from '@/api/auth'
 
 export function useAuth() {
@@ -14,6 +19,10 @@ export function useAuth() {
     await apiRegister(input)
   }, [])
 
+  const startTrial = useCallback(async () => {
+    await apiStartTrial()
+  }, [])
+
   const logout = useCallback(() => {
     apiLogout()
   }, [])
@@ -22,8 +31,11 @@ export function useAuth() {
     user: session?.user ?? null,
     token: session?.token ?? null,
     isAuthenticated: Boolean(session),
+    /** True when the current session is a disposable public-trial account. */
+    isTrial: Boolean(session?.user.isTrial),
     login,
     signup,
+    startTrial,
     logout,
   }
 }

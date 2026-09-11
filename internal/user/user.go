@@ -20,8 +20,12 @@ type User struct {
 	DisplayName  string
 	PasswordHash string
 	Status       string
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	// IsTrial marks a disposable public-trial account. Trial accounts have no
+	// password and own their projects/workflows exactly like registered users,
+	// which is what keeps their data isolated.
+	IsTrial   bool
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 type Repository interface {
@@ -53,18 +57,18 @@ func (r *PostgresRepository) Create(ctx context.Context, user User) error {
 	}
 
 	_, err := r.pool.Exec(ctx, `
-		INSERT INTO users (id, email, display_name, password_hash, status, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-	`, user.ID, user.Email, user.DisplayName, user.PasswordHash, user.Status, user.CreatedAt, user.UpdatedAt)
+		INSERT INTO users (id, email, display_name, password_hash, status, is_trial, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	`, user.ID, user.Email, user.DisplayName, user.PasswordHash, user.Status, user.IsTrial, user.CreatedAt, user.UpdatedAt)
 	return err
 }
 
 func (r *PostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (User, error) {
 	var user User
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, email, display_name, password_hash, status, created_at, updated_at
+		SELECT id, email, display_name, password_hash, status, is_trial, created_at, updated_at
 		FROM users WHERE id = $1
-	`, id).Scan(&user.ID, &user.Email, &user.DisplayName, &user.PasswordHash, &user.Status, &user.CreatedAt, &user.UpdatedAt)
+	`, id).Scan(&user.ID, &user.Email, &user.DisplayName, &user.PasswordHash, &user.Status, &user.IsTrial, &user.CreatedAt, &user.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return User{}, ErrNotFound
 	}
@@ -77,9 +81,9 @@ func (r *PostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (User, e
 func (r *PostgresRepository) GetByEmail(ctx context.Context, email string) (User, error) {
 	var user User
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, email, display_name, password_hash, status, created_at, updated_at
+		SELECT id, email, display_name, password_hash, status, is_trial, created_at, updated_at
 		FROM users WHERE email = $1
-	`, email).Scan(&user.ID, &user.Email, &user.DisplayName, &user.PasswordHash, &user.Status, &user.CreatedAt, &user.UpdatedAt)
+	`, email).Scan(&user.ID, &user.Email, &user.DisplayName, &user.PasswordHash, &user.Status, &user.IsTrial, &user.CreatedAt, &user.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return User{}, ErrNotFound
 	}

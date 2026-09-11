@@ -32,6 +32,11 @@ type Config struct {
 	CohereAPIKey  string
 	CohereBaseURL string
 	CohereModel   string
+	// Trial AI limits bound AI usage for disposable public-trial accounts. They
+	// are enforced server-side; registered users are never limited.
+	TrialAIGenerationLimit int
+	TrialAIEditLimit       int
+	TrialAITotalLimit      int
 }
 
 func Load() (Config, error) {
@@ -108,24 +113,54 @@ func Load() (Config, error) {
 		webhookBurst = parsed
 	}
 
+	trialGenerationLimit, err := nonNegativeIntEnv("TRIAL_AI_GENERATION_LIMIT", 5)
+	if err != nil {
+		return Config{}, err
+	}
+	trialEditLimit, err := nonNegativeIntEnv("TRIAL_AI_EDIT_LIMIT", 5)
+	if err != nil {
+		return Config{}, err
+	}
+	trialTotalLimit, err := nonNegativeIntEnv("TRIAL_AI_TOTAL_LIMIT", 10)
+	if err != nil {
+		return Config{}, err
+	}
+
 	return Config{
-		DatabaseURL:           databaseURL,
-		HTTPAddr:              httpAddr,
-		DBConnectTimeout:      timeout,
-		TokenSecret:           tokenSecret,
-		MaxBodyBytes:          maxBodyBytes,
-		AuthRateLimitRPS:      authRPS,
-		AuthRateLimitBurst:    authBurst,
-		WebhookRateLimitRPS:   webhookRPS,
-		WebhookRateLimitBurst: webhookBurst,
-		AIProvider:            strings.TrimSpace(os.Getenv("FLOWFORGE_AI_PROVIDER")),
-		OpenAIAPIKey:          strings.TrimSpace(os.Getenv("FLOWFORGE_OPENAI_API_KEY")),
-		OpenAIBaseURL:         strings.TrimSpace(os.Getenv("FLOWFORGE_OPENAI_BASE_URL")),
-		OpenAIModel:           strings.TrimSpace(os.Getenv("FLOWFORGE_OPENAI_MODEL")),
-		CohereAPIKey:          strings.TrimSpace(os.Getenv("FLOWFORGE_COHERE_API_KEY")),
-		CohereBaseURL:         strings.TrimSpace(os.Getenv("FLOWFORGE_COHERE_BASE_URL")),
-		CohereModel:           strings.TrimSpace(os.Getenv("FLOWFORGE_COHERE_MODEL")),
+		DatabaseURL:            databaseURL,
+		HTTPAddr:               httpAddr,
+		DBConnectTimeout:       timeout,
+		TokenSecret:            tokenSecret,
+		MaxBodyBytes:           maxBodyBytes,
+		AuthRateLimitRPS:       authRPS,
+		AuthRateLimitBurst:     authBurst,
+		WebhookRateLimitRPS:    webhookRPS,
+		WebhookRateLimitBurst:  webhookBurst,
+		AIProvider:             strings.TrimSpace(os.Getenv("FLOWFORGE_AI_PROVIDER")),
+		OpenAIAPIKey:           strings.TrimSpace(os.Getenv("FLOWFORGE_OPENAI_API_KEY")),
+		OpenAIBaseURL:          strings.TrimSpace(os.Getenv("FLOWFORGE_OPENAI_BASE_URL")),
+		OpenAIModel:            strings.TrimSpace(os.Getenv("FLOWFORGE_OPENAI_MODEL")),
+		CohereAPIKey:           strings.TrimSpace(os.Getenv("FLOWFORGE_COHERE_API_KEY")),
+		CohereBaseURL:          strings.TrimSpace(os.Getenv("FLOWFORGE_COHERE_BASE_URL")),
+		CohereModel:            strings.TrimSpace(os.Getenv("FLOWFORGE_COHERE_MODEL")),
+		TrialAIGenerationLimit: trialGenerationLimit,
+		TrialAIEditLimit:       trialEditLimit,
+		TrialAITotalLimit:      trialTotalLimit,
 	}, nil
+}
+
+// nonNegativeIntEnv reads an optional integer environment variable, falling
+// back to the supplied default. Zero disables the corresponding trial limit.
+func nonNegativeIntEnv(name string, fallback int) (int, error) {
+	raw := os.Getenv(name)
+	if raw == "" {
+		return fallback, nil
+	}
+	parsed, err := strconv.Atoi(raw)
+	if err != nil || parsed < 0 {
+		return 0, fmt.Errorf("%s must be a non-negative integer: %q", name, raw)
+	}
+	return parsed, nil
 }
 
 func validateDatabaseURL(raw string) error {
