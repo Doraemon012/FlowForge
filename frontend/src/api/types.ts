@@ -132,3 +132,32 @@ export interface ValidationResult {
   valid: boolean
   errors: string[]
 }
+
+export interface Schedule {
+  id: string
+  project_id: string
+  workflow_id: string
+  cron_expression: string
+  timezone: string
+  enabled: boolean
+  next_occurrence?: string | null
+  last_triggered_at?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface Webhook {
+  id: string
+  url: string
+  enabled: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface CreatedWebhook {
+  id: string
+  url: string
+  secret: string
+  enabled: boolean
+  created_at: string
+}

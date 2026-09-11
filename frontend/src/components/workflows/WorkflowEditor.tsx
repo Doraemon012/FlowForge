@@ -1,6 +1,17 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, CheckCircle, Play, PlayCircle, Save, ShieldCheck } from 'lucide-react'
+import {
+  ArrowLeft,
+  Braces,
+  CalendarClock,
+  CheckCircle,
+  Play,
+  PlayCircle,
+  Save,
+  ShieldCheck,
+  Sparkles,
+  Workflow as WorkflowIcon,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { ApiError } from '@/api/client'
 import type { Workflow, WorkflowTask } from '@/api/types'
@@ -12,7 +23,15 @@ import {
   useValidateWorkflow,
 } from '@/hooks/use-workflows'
 import { useCreateExecution } from '@/hooks/use-executions'
-import { WorkflowBuilderLayout } from '@/components/workflows/builder/WorkflowBuilderLayout'
+import {
+  WorkflowBuilderLayout,
+  type BuilderView,
+  type GraphSyncRequest,
+} from '@/components/workflows/builder/WorkflowBuilderLayout'
+import { WorkflowJsonEditor } from '@/components/workflows/builder/WorkflowJsonEditor'
+import { AiWorkflowDialog } from '@/components/workflows/builder/AiWorkflowDialog'
+import { TriggersDialog } from '@/components/workflows/triggers/TriggersDialog'
+import { cn } from '@/lib/utils'
 import { WorkflowGuide, type GuideStep } from '@/components/workflows/WorkflowGuide'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -72,6 +91,11 @@ export function WorkflowEditor({ projectId, workflow }: WorkflowEditorProps) {
   const [validationErrors, setValidationErrors] = useState<string[]>([])
   const [validationMessage, setValidationMessage] = useState<string | null>(null)
   const [hasRun, setHasRun] = useState(false)
+  const [view, setView] = useState<BuilderView>('graph')
+  const [syncRequest, setSyncRequest] = useState<GraphSyncRequest | null>(null)
+  const [aiOpen, setAiOpen] = useState(false)
+  const [triggersOpen, setTriggersOpen] = useState(false)
+  const syncRevision = useRef(0)
 
   const navigate = useNavigate()
   const updateMutation = useUpdateWorkflow(projectId, workflow.id)
@@ -116,6 +140,15 @@ export function WorkflowEditor({ projectId, workflow }: WorkflowEditorProps) {
       description: updated.description,
       tasks: savedTasks,
     })
+  }
+
+  // Push a definition produced outside the graph (structured JSON editor or the
+  // AI assistant) back into the graph. Bumping the revision guarantees the
+  // builder applies it even if the tasks look identical to a previous request.
+  const applyExternalTasks = (nextTasks: WorkflowTask[]) => {
+    setTasks(nextTasks)
+    syncRevision.current += 1
+    setSyncRequest({ revision: syncRevision.current, tasks: nextTasks })
   }
 
   const handleSave = async () => {
@@ -238,7 +271,15 @@ export function WorkflowEditor({ projectId, workflow }: WorkflowEditorProps) {
         className="h-9 w-40 sm:w-64"
         aria-label="Workflow name"
       />
-      <Badge variant={getStatusVariant(workflow.status)} className="capitalize">
+      <Badge
+        variant={getStatusVariant(workflow.status)}
+        className="capitalize"
+        title={
+          workflow.active_version_id
+            ? 'Active means this version is runnable. It runs when you press Run, or when a configured schedule or webhook triggers it \u2014 it does not run on its own.'
+            : 'Draft means no version is active yet. Publish and activate a version to make it runnable.'
+        }
+      >
         {workflow.status}
       </Badge>
       {hasChanges ? (
@@ -316,6 +357,60 @@ export function WorkflowEditor({ projectId, workflow }: WorkflowEditorProps) {
 
   const headerActions = (
     <>
+      <div
+        className="inline-flex items-center rounded-lg border border-border bg-card p-0.5"
+        role="tablist"
+        aria-label="Authoring view"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === 'graph'}
+          onClick={() => setView('graph')}
+          className={cn(
+            'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm font-medium transition-colors',
+            view === 'graph'
+              ? 'bg-muted text-foreground'
+              : 'text-muted-foreground hover:text-foreground',
+          )}
+        >
+          <WorkflowIcon className="h-4 w-4" aria-hidden="true" />
+          Graph
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === 'json'}
+          onClick={() => setView('json')}
+          className={cn(
+            'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm font-medium transition-colors',
+            view === 'json'
+              ? 'bg-muted text-foreground'
+              : 'text-muted-foreground hover:text-foreground',
+          )}
+        >
+          <Braces className="h-4 w-4" aria-hidden="true" />
+          JSON
+        </button>
+      </div>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setAiOpen(true)}
+        title="Generate a new workflow or refine the current one with AI"
+      >
+        <Sparkles className="mr-2 h-4 w-4" aria-hidden="true" />
+        AI
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setTriggersOpen(true)}
+        title="Schedules and webhooks that trigger the active version"
+      >
+        <CalendarClock className="mr-2 h-4 w-4" aria-hidden="true" />
+        Triggers
+      </Button>
       <WorkflowGuide steps={guideSteps} />
       <Button onClick={handleSave} loading={saveIsPending} disabled={!hasChanges} size="sm">
         <Save className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -325,7 +420,13 @@ export function WorkflowEditor({ projectId, workflow }: WorkflowEditorProps) {
         <ShieldCheck className="mr-2 h-4 w-4" aria-hidden="true" />
         Validate
       </Button>
-      <Button variant="outline" onClick={handlePublish} loading={publishIsPending} size="sm">
+      <Button
+        variant="outline"
+        onClick={handlePublish}
+        loading={publishIsPending}
+        size="sm"
+        title="Save the current definition, snapshot it as a new version, and activate it so it can be run."
+      >
         <PlayCircle className="mr-2 h-4 w-4" aria-hidden="true" />
         Publish
       </Button>
@@ -358,6 +459,16 @@ export function WorkflowEditor({ projectId, workflow }: WorkflowEditorProps) {
     </>
   )
 
+  const jsonEditor =
+    view === 'json' ? (
+      <WorkflowJsonEditor
+        tasks={tasks}
+        onApply={applyExternalTasks}
+        validationErrors={validationErrors}
+        validMessage={validationMessage}
+      />
+    ) : null
+
   const headerSecondary = (
     <div className="flex flex-wrap items-center gap-3">
       <Input
@@ -386,14 +497,36 @@ export function WorkflowEditor({ projectId, workflow }: WorkflowEditorProps) {
   )
 
   return (
-    <WorkflowBuilderLayout
-      key={workflow.id}
-      initialTasks={tasks}
-      onTasksChange={setTasks}
-      validationErrors={validationErrors}
-      headerLeft={headerLeft}
-      headerActions={headerActions}
-      headerSecondary={headerSecondary}
-    />
+    <>
+      <WorkflowBuilderLayout
+        key={workflow.id}
+        initialTasks={tasks}
+        onTasksChange={setTasks}
+        validationErrors={validationErrors}
+        headerLeft={headerLeft}
+        headerActions={headerActions}
+        headerSecondary={headerSecondary}
+        view={view}
+        jsonEditor={jsonEditor}
+        syncRequest={syncRequest}
+      />
+      <AiWorkflowDialog
+        projectId={projectId}
+        workflowId={workflow.id}
+        open={aiOpen}
+        onOpenChange={setAiOpen}
+        tasks={tasks}
+        onGenerated={(generated) => {
+          applyExternalTasks(generated)
+          setView('graph')
+        }}
+      />
+      <TriggersDialog
+        projectId={projectId}
+        workflowId={workflow.id}
+        open={triggersOpen}
+        onOpenChange={setTriggersOpen}
+      />
+    </>
   )
 }

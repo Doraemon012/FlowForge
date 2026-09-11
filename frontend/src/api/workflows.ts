@@ -99,3 +99,43 @@ export function deactivateWorkflow(
     },
   )
 }
+
+export function getAiStatus() {
+  return apiRequest<{ enabled: boolean }>('/api/v1/ai/status')
+}
+
+/**
+ * Ask FlowForge's AI assistance to turn a natural-language description into a
+ * workflow definition. The server validates the result before returning it, so
+ * a successful response is always a definition that passes validation.
+ */
+export function generateWorkflow(projectId: string, workflowId: string, prompt: string) {
+  return apiRequest<{ definition: WorkflowDefinition }>(
+    `/api/v1/projects/${projectId}/workflows/${workflowId}/generate`,
+    {
+      method: 'POST',
+      body: { prompt },
+    },
+  )
+}
+
+/**
+ * Ask FlowForge's AI assistance to revise an existing workflow from a
+ * natural-language instruction. The current definition is sent so the model
+ * edits what the builder shows (including unsaved changes); the server
+ * validates the result before returning it, exactly like generation.
+ */
+export function editWorkflow(
+  projectId: string,
+  workflowId: string,
+  instruction: string,
+  definition: WorkflowDefinition,
+) {
+  return apiRequest<{ definition: WorkflowDefinition }>(
+    `/api/v1/projects/${projectId}/workflows/${workflowId}/edit`,
+    {
+      method: 'POST',
+      body: { instruction, definition },
+    },
+  )
+}

@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -19,6 +20,18 @@ type Config struct {
 	AuthRateLimitBurst    int
 	WebhookRateLimitRPS   int
 	WebhookRateLimitBurst int
+	// AI settings for AI-assisted workflow generation and editing. Provider
+	// selects the backend ("openai", the default, or "cohere"); each backend has
+	// its own credentials so both may be present and switching is a single config
+	// change. All optional: when the selected provider has no API key the feature
+	// is reported as unavailable.
+	AIProvider    string
+	OpenAIAPIKey  string
+	OpenAIBaseURL string
+	OpenAIModel   string
+	CohereAPIKey  string
+	CohereBaseURL string
+	CohereModel   string
 }
 
 func Load() (Config, error) {
@@ -105,6 +118,13 @@ func Load() (Config, error) {
 		AuthRateLimitBurst:    authBurst,
 		WebhookRateLimitRPS:   webhookRPS,
 		WebhookRateLimitBurst: webhookBurst,
+		AIProvider:            strings.TrimSpace(os.Getenv("FLOWFORGE_AI_PROVIDER")),
+		OpenAIAPIKey:          strings.TrimSpace(os.Getenv("FLOWFORGE_OPENAI_API_KEY")),
+		OpenAIBaseURL:         strings.TrimSpace(os.Getenv("FLOWFORGE_OPENAI_BASE_URL")),
+		OpenAIModel:           strings.TrimSpace(os.Getenv("FLOWFORGE_OPENAI_MODEL")),
+		CohereAPIKey:          strings.TrimSpace(os.Getenv("FLOWFORGE_COHERE_API_KEY")),
+		CohereBaseURL:         strings.TrimSpace(os.Getenv("FLOWFORGE_COHERE_BASE_URL")),
+		CohereModel:           strings.TrimSpace(os.Getenv("FLOWFORGE_COHERE_MODEL")),
 	}, nil
 }
 

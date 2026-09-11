@@ -33,11 +33,29 @@ Execution creation fails with `409` for an inactive/deleted workflow, `422` for 
 
 ## Schedules
 
-`POST/GET/PATCH/DELETE /projects/{projectID}/schedules` manages schedules linked to a workflow and timezone. A schedule creates an execution request through the same path as manual triggers. Duplicate scheduler ticks are collapsed by a schedule occurrence key. Disabled workflows do not produce new executions.
+`POST/GET/PATCH/DELETE /projects/{projectID}/workflows/{workflowID}/schedules` manages the single schedule attached to a workflow (cron expression + timezone). `GET` returns `404` until a schedule exists. A schedule creates an execution request through the same path as manual triggers, against the workflow's active version. Duplicate scheduler ticks are collapsed by a schedule occurrence key. Disabled schedules and inactive workflows do not produce new executions.
 
 ## Webhooks
 
-`POST /hooks/{projectID}/{workflowID}/{hookID}` accepts only a configured active webhook. The caller supplies a signature or scoped secret according to deployment configuration, plus a timestamp/nonce where replay protection is enabled. The endpoint validates size, timestamp, signature, and payload before creating an execution and returns `202`. Invalid authentication is `401/403`; stale or repeated delivery is handled by the idempotency key and returns the original acceptance where applicable. Webhook secrets are stored as secret material or a verifier, not exposed in workflow responses.
+`POST /projects/{projectID}/workflows/{workflowID}/webhooks` creates a webhook and returns its signing secret once; `GET` on the same path lists the workflow's webhooks, and `GET/PATCH/DELETE .../webhooks/{webhookID}` reads, enables/disables, or deletes one. Deliveries are sent to the public `POST /webhooks/{webhookID}` with an `X-Webhook-Signature` (lowercase hex HMAC-SHA256 of the raw body), an optional `X-Webhook-Timestamp` unix epoch (rejects deliveries older than five minutes), and an optional `X-Delivery-ID` idempotency key. The webhook must be enabled and the workflow must have an active version; a valid delivery creates an execution and returns `202`. Invalid authentication is `401`; repeated deliveries with the same `X-Delivery-ID` return the original acceptance. Secrets are stored as verifier material and are never exposed in workflow responses.
+
+## AI-assisted generation and editing
+
+`GET /ai/status` reports whether AI assistance is configured (`{"enabled": bool}`).
+
+`POST /projects/{projectID}/workflows/{workflowID}/generate` accepts a natural-language `{ "prompt": string }` and returns a validated definition (`{ "definition": { "tasks": [...] } }`).
+
+`POST /projects/{projectID}/workflows/{workflowID}/edit` revises an existing definition in place. It accepts `{ "instruction": string, "definition"?: { "tasks": [...] } }`; when `definition` is omitted the workflow's stored draft is edited, otherwise the supplied definition is — so the builder can refine unsaved edits. It returns a validated definition in the same shape as generation.
+
+Both endpoints constrain the model to the supported task types and pass the result through the same definition validator before returning, with one repair retry, so a successful response is always valid. When no provider is configured they return `503`; a definition that remains invalid returns `422` with the validator errors.
+
+The provider is interchangeable and chosen entirely by configuration — application code and the UI are provider-agnostic:
+
+- `FLOWFORGE_AI_PROVIDER` — `openai` (default) or `cohere`. An unrecognized value disables AI.
+- `FLOWFORGE_OPENAI_API_KEY` / `FLOWFORGE_OPENAI_BASE_URL` / `FLOWFORGE_OPENAI_MODEL` — OpenAI (or any OpenAI-compatible chat-completions endpoint).
+- `FLOWFORGE_COHERE_API_KEY` / `FLOWFORGE_COHERE_BASE_URL` / `FLOWFORGE_COHERE_MODEL` — Cohere (`/v2/chat`).
+
+Both keys may be set at once; changing `FLOWFORGE_AI_PROVIDER` alone switches which provider is used. If the selected provider has no API key, `/ai/status` reports `{"enabled": false}` and both endpoints return `503` rather than fabricating output.
 
 ## Worker control-plane contract
 

@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/neyati/flowforge/internal/ai"
 	"github.com/neyati/flowforge/internal/auth"
 	"github.com/neyati/flowforge/internal/config"
 	"github.com/neyati/flowforge/internal/credential"
@@ -82,6 +83,26 @@ func main() {
 		logger,
 	)
 	apiServer.SetObservatory(observRepository)
+	aiGenerator := ai.NewGenerator(ai.Config{
+		Provider:      cfg.AIProvider,
+		OpenAIKey:     cfg.OpenAIAPIKey,
+		OpenAIBaseURL: cfg.OpenAIBaseURL,
+		OpenAIModel:   cfg.OpenAIModel,
+		CohereKey:     cfg.CohereAPIKey,
+		CohereBaseURL: cfg.CohereBaseURL,
+		CohereModel:   cfg.CohereModel,
+	})
+	apiServer.SetAI(aiGenerator)
+	logger.Info("ai provider configured",
+		"provider", aiGenerator.ProviderName(),
+		"enabled", aiGenerator.Enabled(),
+	)
+	if !ai.SupportedProvider(cfg.AIProvider) {
+		logger.Warn("unknown AI provider; AI features are disabled",
+			"provider", cfg.AIProvider,
+			"supported", []string{ai.ProviderOpenAI, ai.ProviderCohere},
+		)
+	}
 	apiServer.SetLimits(cfg.MaxBodyBytes, cfg.AuthRateLimitRPS, cfg.AuthRateLimitBurst, cfg.WebhookRateLimitRPS, cfg.WebhookRateLimitBurst)
 
 	server := &http.Server{

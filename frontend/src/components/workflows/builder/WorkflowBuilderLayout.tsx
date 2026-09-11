@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Box, X } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -37,6 +37,14 @@ import {
   type WorkflowGraphNode,
 } from './types'
 
+export type BuilderView = 'graph' | 'json'
+
+/** An externally produced definition to load into the graph. */
+export interface GraphSyncRequest {
+  revision: number
+  tasks: WorkflowTask[]
+}
+
 interface WorkflowBuilderLayoutProps {
   initialTasks: WorkflowTask[]
   onTasksChange: (tasks: WorkflowTask[]) => void
@@ -45,6 +53,15 @@ interface WorkflowBuilderLayoutProps {
   headerActions?: React.ReactNode
   headerSecondary?: React.ReactNode
   className?: string
+  /** Which authoring surface is visible. Both stay mounted to keep state. */
+  view?: BuilderView
+  /** Rendered instead of the graph when `view` is `'json'`. */
+  jsonEditor?: React.ReactNode
+  /**
+   * A definition produced outside the graph (structured editor, AI assistant).
+   * Applying a new revision replaces the graph with exactly these tasks.
+   */
+  syncRequest?: GraphSyncRequest | null
 }
 
 export function WorkflowBuilderLayout({
@@ -55,7 +72,11 @@ export function WorkflowBuilderLayout({
   headerActions,
   headerSecondary,
   className,
+  view = 'graph',
+  jsonEditor,
+  syncRequest,
 }: WorkflowBuilderLayoutProps) {
+  const isGraphView = view === 'graph'
   const [nodes, setNodes, onNodesChange] = useNodesState<WorkflowGraphNode>(
     tasksToNodes(initialTasks),
   )
@@ -93,6 +114,19 @@ export function WorkflowBuilderLayout({
       }),
     )
   }, [validationErrors, setNodes])
+
+  // Load a definition produced outside the graph (the structured editor or the
+  // AI assistant). Each revision is applied exactly once, and the graph is
+  // rebuilt from the tasks so the two views cannot drift apart.
+  const appliedSyncRevision = useRef<number | null>(null)
+  useEffect(() => {
+    if (!syncRequest || syncRequest.revision === appliedSyncRevision.current) return
+    appliedSyncRevision.current = syncRequest.revision
+    setNodes(tasksToNodes(syncRequest.tasks))
+    setEdges(tasksToEdges(syncRequest.tasks))
+    setSelectedNodeIds(new Set())
+    setSelectedEdgeIds(new Set())
+  }, [syncRequest, setNodes, setEdges])
 
   const addTask = useCallback(
     (type: SupportedTaskType, position?: { x: number; y: number }) => {
@@ -275,6 +309,7 @@ export function WorkflowBuilderLayout({
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (!isGraphView) return
       const target = event.target as HTMLElement
       const tagName = target?.tagName
       if (tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT') return
@@ -288,7 +323,7 @@ export function WorkflowBuilderLayout({
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [deleteSelected, selectedNodeIds, selectedEdgeIds])
+  }, [deleteSelected, isGraphView, selectedNodeIds, selectedEdgeIds])
 
   useEffect(() => {
     if (!paletteOpen && !configOpenMobile) return
@@ -334,17 +369,19 @@ export function WorkflowBuilderLayout({
         <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b px-3">
           <div className="flex min-w-0 items-center gap-2">{headerLeft}</div>
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="md:hidden"
-              onClick={togglePalette}
-              aria-expanded={paletteOpen}
-              aria-controls="task-palette-drawer"
-            >
-              <Box className="mr-1 h-4 w-4" aria-hidden="true" />
-              Tasks
-            </Button>
+            {isGraphView ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="md:hidden"
+                onClick={togglePalette}
+                aria-expanded={paletteOpen}
+                aria-controls="task-palette-drawer"
+              >
+                <Box className="mr-1 h-4 w-4" aria-hidden="true" />
+                Tasks
+              </Button>
+            ) : null}
             {headerActions}
           </div>
         </div>
@@ -354,11 +391,18 @@ export function WorkflowBuilderLayout({
         ) : null}
 
         <div className="flex min-h-0 flex-1">
-          <aside className="hidden w-56 shrink-0 border-r bg-surface md:block">
+          {/* The graph stays mounted while the JSON view is shown so node
+              positions and selection survive switching between the two. */}
+          <aside
+            className={cn(
+              'w-56 shrink-0 border-r bg-surface',
+              isGraphView ? 'hidden md:block' : 'hidden',
+            )}
+          >
             <TaskPalette onAddTask={addTask} />
           </aside>
 
-          <div className="relative min-w-0 flex-1">
+          <div className={cn('relative min-w-0 flex-1', !isGraphView && 'hidden')}>
             <WorkflowCanvas
               nodes={nodes}
               edges={edges}
@@ -447,6 +491,8 @@ export function WorkflowBuilderLayout({
               </div>
             ) : null}
           </div>
+
+          {jsonEditor}
         </div>
       </div>
       </EdgeActionsContext.Provider>

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/neyati/flowforge/internal/ai"
 	"github.com/neyati/flowforge/internal/auth"
 	"github.com/neyati/flowforge/internal/execution"
 	"github.com/neyati/flowforge/internal/observ"
@@ -37,6 +38,14 @@ type Server struct {
 	maxBodyBytes   int64
 	authLimiter    *tokenBucket
 	webhookLimiter *tokenBucket
+	ai             *ai.Generator
+}
+
+// SetAI wires the optional AI workflow generator. It must be called before
+// Router() so the generation endpoint is mounted. A nil or disabled generator
+// makes the feature report itself as unavailable.
+func (s *Server) SetAI(generator *ai.Generator) {
+	s.ai = generator
 }
 
 // SetObservatory wires the optional observability read/event repository. It

@@ -30,9 +30,65 @@ type createWebhookResponse struct {
 
 type webhookResponse struct {
 	ID        string    `json:"id"`
+	URL       string    `json:"url"`
 	Enabled   bool      `json:"enabled"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// webhookPublicPath is the address a sender posts to. It is derived from the
+// webhook ID rather than stored, so it can be shown for any webhook without
+// persisting a second copy of the URL.
+func webhookPublicPath(webhookID string) string {
+	return "/api/v1/webhooks/" + webhookID
+}
+
+// ListWebhooks returns every webhook endpoint owned by the workflow's project,
+// so the UI can manage (show, disable, re-enable, delete) all of them.
+func (s *Server) ListWebhooks(w http.ResponseWriter, r *http.Request) {
+	ownerID, ok := authenticatedUserID(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "authentication required")
+		return
+	}
+	if s.webhooks == nil {
+		writeError(w, http.StatusNotImplemented, "not_implemented", "webhooks not configured")
+		return
+	}
+
+	projectID, workflowID, valid := workflowIDs(r)
+	if !valid {
+		writeError(w, http.StatusNotFound, "workflow_not_found", "workflow not found")
+		return
+	}
+
+	item, err := s.workflows.GetOwned(r.Context(), ownerID, workflowID)
+	if errors.Is(err, workflow.ErrNotFound) || item.ProjectID != projectID {
+		writeError(w, http.StatusNotFound, "workflow_not_found", "workflow not found")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "workflow_lookup_failed", "unable to retrieve workflow")
+		return
+	}
+
+	webhooks, err := s.webhooks.ListByWorkflow(r.Context(), projectID, workflowID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "webhook_lookup_failed", "unable to list webhooks")
+		return
+	}
+
+	response := make([]webhookResponse, 0, len(webhooks))
+	for _, wh := range webhooks {
+		response = append(response, webhookResponse{
+			ID:        wh.ID,
+			URL:       webhookPublicPath(wh.ID),
+			Enabled:   wh.Enabled,
+			CreatedAt: wh.CreatedAt,
+			UpdatedAt: wh.UpdatedAt,
+		})
+	}
+	writeJSON(w, http.StatusOK, response)
 }
 
 // webhookTimestampTolerance bounds how old a replayable webhook timestamp may
@@ -98,7 +154,7 @@ func (s *Server) CreateWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	webhookURL := "/api/v1/webhooks/" + webhookID
+	webhookURL := webhookPublicPath(webhookID)
 
 	writeJSON(w, http.StatusCreated, createWebhookResponse{
 		ID:        webhookID,
@@ -290,6 +346,7 @@ func (s *Server) GetWebhook(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, webhookResponse{
 		ID:        wh.ID,
+		URL:       webhookPublicPath(wh.ID),
 		Enabled:   wh.Enabled,
 		CreatedAt: wh.CreatedAt,
 		UpdatedAt: wh.UpdatedAt,

@@ -96,11 +96,13 @@ func (r *PostgresRepository) GetSecretHash(ctx context.Context, webhookID string
 	return secretHash, err
 }
 
+// ListByWorkflow returns every webhook endpoint for a workflow, including
+// disabled ones, so the management UI can show and re-enable them.
 func (r *PostgresRepository) ListByWorkflow(ctx context.Context, projectID, workflowID uuid.UUID) ([]Webhook, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, project_id, workflow_id, enabled, created_at, updated_at
 		FROM webhook_endpoints
-		WHERE project_id = $1 AND workflow_id = $2 AND enabled = true
+		WHERE project_id = $1 AND workflow_id = $2
 		ORDER BY created_at, id
 	`, projectID, workflowID)
 	if err != nil {

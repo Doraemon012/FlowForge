@@ -21,6 +21,7 @@ func (s *Server) Router() http.Handler {
 		router.Group(func(router chi.Router) {
 			router.Use(s.RequireAuth)
 			router.Get("/me", s.Me)
+			router.Get("/ai/status", s.AIStatus)
 			router.Post("/projects", s.CreateProject)
 			router.Get("/projects", s.ListProjects)
 			router.Get("/projects/{projectID}", s.GetProject)
@@ -31,6 +32,8 @@ func (s *Server) Router() http.Handler {
 			router.Get("/projects/{projectID}/workflows/{workflowID}", s.GetWorkflow)
 			router.Patch("/projects/{projectID}/workflows/{workflowID}", s.UpdateWorkflow)
 			router.Post("/projects/{projectID}/workflows/{workflowID}/validate", s.ValidateWorkflow)
+			router.Post("/projects/{projectID}/workflows/{workflowID}/generate", s.GenerateWorkflow)
+			router.Post("/projects/{projectID}/workflows/{workflowID}/edit", s.EditWorkflow)
 			router.Post("/projects/{projectID}/workflows/{workflowID}/versions", s.PublishWorkflow)
 			router.Get("/projects/{projectID}/workflows/{workflowID}/versions", s.ListVersions)
 			router.Get("/projects/{projectID}/workflows/{workflowID}/versions/{versionID}", s.GetVersion)
@@ -50,6 +53,7 @@ func (s *Server) Router() http.Handler {
 			}
 			if s.webhooks != nil {
 				router.Post("/projects/{projectID}/workflows/{workflowID}/webhooks", s.CreateWebhook)
+				router.Get("/projects/{projectID}/workflows/{workflowID}/webhooks", s.ListWebhooks)
 				router.Get("/projects/{projectID}/workflows/{workflowID}/webhooks/{webhookID}", s.GetWebhook)
 				router.Patch("/projects/{projectID}/workflows/{workflowID}/webhooks/{webhookID}", s.UpdateWebhook)
 				router.Delete("/projects/{projectID}/workflows/{workflowID}/webhooks/{webhookID}", s.DeleteWebhook)

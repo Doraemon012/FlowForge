@@ -162,3 +162,48 @@ func TestLoadRejectsInvalidWebhookBurst(t *testing.T) {
 		t.Fatal("Load() expected an error for WEBHOOK_RATE_LIMIT_BURST=0")
 	}
 }
+func TestLoadAIConfig(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://localhost/flowforge")
+	t.Setenv("HTTP_ADDR", ":8080")
+	t.Setenv("TOKEN_SECRET", "01234567890123456789012345678901")
+	t.Setenv("FLOWFORGE_AI_PROVIDER", "cohere")
+	t.Setenv("FLOWFORGE_OPENAI_API_KEY", "openai-key")
+	t.Setenv("FLOWFORGE_OPENAI_BASE_URL", "https://openai.example/v1")
+	t.Setenv("FLOWFORGE_OPENAI_MODEL", "gpt-4o-mini")
+	t.Setenv("FLOWFORGE_COHERE_API_KEY", "cohere-key")
+	t.Setenv("FLOWFORGE_COHERE_BASE_URL", "https://cohere.example")
+	t.Setenv("FLOWFORGE_COHERE_MODEL", "command-r-plus-08-2024")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.AIProvider != "cohere" {
+		t.Fatalf("AIProvider = %q, want %q", cfg.AIProvider, "cohere")
+	}
+	if cfg.OpenAIAPIKey != "openai-key" || cfg.OpenAIBaseURL != "https://openai.example/v1" || cfg.OpenAIModel != "gpt-4o-mini" {
+		t.Fatalf("unexpected OpenAI settings: %+v", cfg)
+	}
+	if cfg.CohereAPIKey != "cohere-key" || cfg.CohereBaseURL != "https://cohere.example" || cfg.CohereModel != "command-r-plus-08-2024" {
+		t.Fatalf("unexpected Cohere settings: %+v", cfg)
+	}
+}
+
+func TestLoadAIProviderDefaultsToEmpty(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://localhost/flowforge")
+	t.Setenv("HTTP_ADDR", ":8080")
+	t.Setenv("TOKEN_SECRET", "01234567890123456789012345678901")
+	// Unset AI settings; Load must succeed and leave them empty so the ai
+	// package can apply its own default provider and report AI as disabled.
+	t.Setenv("FLOWFORGE_AI_PROVIDER", "")
+	t.Setenv("FLOWFORGE_OPENAI_API_KEY", "")
+	t.Setenv("FLOWFORGE_COHERE_API_KEY", "")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.AIProvider != "" || cfg.OpenAIAPIKey != "" || cfg.CohereAPIKey != "" {
+		t.Fatalf("expected empty AI settings, got %+v", cfg)
+	}
+}

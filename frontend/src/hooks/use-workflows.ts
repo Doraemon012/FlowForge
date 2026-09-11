@@ -4,6 +4,9 @@ import {
   activateWorkflowVersion,
   createWorkflow,
   deactivateWorkflow,
+  editWorkflow,
+  generateWorkflow,
+  getAiStatus,
   getWorkflow,
   getWorkflowVersion,
   listVersions,
@@ -125,6 +128,28 @@ export function useActivateWorkflowVersion(projectId: string, workflowId: string
       queryClient.invalidateQueries({ queryKey: workflowKeys.versions(projectId, workflowId) })
       queryClient.invalidateQueries({ queryKey: workflowKeys.list(projectId) })
     },
+  })
+}
+
+export function useAiStatus() {
+  return useQuery({
+    queryKey: ['ai', 'status'],
+    queryFn: getAiStatus,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  })
+}
+
+export function useGenerateWorkflow(projectId: string, workflowId: string) {
+  return useMutation({
+    mutationFn: (prompt: string) => generateWorkflow(projectId, workflowId, prompt),
+  })
+}
+
+export function useEditWorkflow(projectId: string, workflowId: string) {
+  return useMutation({
+    mutationFn: (input: { instruction: string; definition: WorkflowDefinition }) =>
+      editWorkflow(projectId, workflowId, input.instruction, input.definition),
   })
 }
 
