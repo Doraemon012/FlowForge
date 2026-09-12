@@ -1,6 +1,5 @@
 import { DocsSection, DocsParagraph } from '@/components/docs/DocsSection'
 import { DocsCallout } from '@/components/docs/DocsCallout'
-import { DocsVersionBadge } from '@/components/docs/DocsVersionBadge'
 import { DocsSteps } from '@/components/docs/DocsSteps'
 import { DocsTable } from '@/components/docs/DocsTable'
 
@@ -14,9 +13,6 @@ export function RecoveryPage() {
           Workers claim queued tasks under a bounded lease and heartbeat while alive. When a
           worker dies, the lease expires and another worker reclaims the work.
         </p>
-        <div className="docs-hero-badges">
-          <DocsVersionBadge label="V1" />
-        </div>
       </div>
 
       <DocsSection title="Leases & heartbeats">

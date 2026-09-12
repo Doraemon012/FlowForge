@@ -1,6 +1,5 @@
 import { DocsSection } from '@/components/docs/DocsSection'
 import { DocsCallout } from '@/components/docs/DocsCallout'
-import { DocsVersionBadge } from '@/components/docs/DocsVersionBadge'
 
 export function TroubleshootingPage() {
   return (
@@ -12,9 +11,6 @@ export function TroubleshootingPage() {
           Common mistakes and how to fix them. If something isn't behaving as expected,
           start here.
         </p>
-        <div className="docs-hero-badges">
-          <DocsVersionBadge label="V1" />
-        </div>
       </div>
 
       <DocsSection title="Common issues">

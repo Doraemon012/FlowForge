@@ -1,6 +1,5 @@
 import { DocsSection, DocsParagraph } from '@/components/docs/DocsSection'
 import { DocsCallout } from '@/components/docs/DocsCallout'
-import { DocsVersionBadge } from '@/components/docs/DocsVersionBadge'
 import { DocsCodeBlock } from '@/components/docs/DocsCodeBlock'
 
 export function RunningPage() {
@@ -13,15 +12,12 @@ export function RunningPage() {
           Trigger an execution from an active version. FlowForge returns immediately with an
           execution ID; your work is picked up by a worker asynchronously.
         </p>
-        <div className="docs-hero-badges">
-          <DocsVersionBadge label="V1" />
-        </div>
       </div>
 
       <DocsSection title="In the UI">
         <DocsParagraph>
           Open a workflow with an <strong>active version</strong> and click{' '}
-          <strong>Run</strong>. You can optionally provide an input payload. The V1 UI
+          <strong>Run</strong>. You can optionally provide an input payload. The app
           navigates to the execution detail page, which polls at a controlled 2-second
           interval until the execution reaches a terminal state.
         </DocsParagraph>

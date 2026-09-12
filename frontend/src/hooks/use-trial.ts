@@ -7,8 +7,9 @@ export const trialUsageKey = ['trial', 'usage'] as const
 /**
  * The caller's trial AI allowance, fetched from the server. It is enabled only
  * for trial sessions: registered users never issue the request and never see a
- * trial indicator. The query is kept fresh on a short interval so the counter
- * stays accurate even if usage changes from another tab.
+ * trial indicator. It refetches on window focus, and every AI mutation
+ * invalidates it, so the counter stays accurate even if usage changes from
+ * another tab.
  */
 export function useTrialUsage() {
   const { isAuthenticated, isTrial } = useAuth()

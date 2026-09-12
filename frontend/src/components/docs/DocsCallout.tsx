@@ -1,21 +1,8 @@
 import type { ReactNode } from 'react'
-import {
-  AlertTriangle,
-  Info,
-  Lock,
-  ShieldCheck,
-  Sparkles,
-  CheckCircle2,
-} from 'lucide-react'
+import { AlertTriangle, Info, Lock, ShieldCheck, CheckCircle2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-export type DocsCalloutVariant =
-  | 'info'
-  | 'success'
-  | 'warning'
-  | 'deferred'
-  | 'security'
-  | 'v1'
+export type DocsCalloutVariant = 'info' | 'success' | 'warning' | 'security' | 'v1'
 
 interface DocsCalloutProps {
   variant?: DocsCalloutVariant
@@ -28,7 +15,6 @@ const iconMap: Record<DocsCalloutVariant, ReactNode> = {
   info: <Info className="docs-callout-icon" aria-hidden="true" />,
   success: <CheckCircle2 className="docs-callout-icon" aria-hidden="true" />,
   warning: <AlertTriangle className="docs-callout-icon" aria-hidden="true" />,
-  deferred: <Sparkles className="docs-callout-icon" aria-hidden="true" />,
   security: <Lock className="docs-callout-icon" aria-hidden="true" />,
   v1: <ShieldCheck className="docs-callout-icon" aria-hidden="true" />,
 }

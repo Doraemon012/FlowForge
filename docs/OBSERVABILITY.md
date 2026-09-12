@@ -18,7 +18,7 @@ Track API request rate/latency/errors, execution acceptance and terminal counts,
 
 ## Traces and events
 
-V1 may use request and execution spans where tracing infrastructure is available; the domain event history is mandatory even without distributed tracing. Events are append-only and queryable by execution. A trace should connect trigger, orchestration, queue delivery, worker attempt, and external call while recording sampling and redaction policy.
+The system may use request and execution spans where tracing infrastructure is available; the domain event history is mandatory even without distributed tracing. Events are append-only and queryable by execution. A trace should connect trigger, orchestration, queue delivery, worker attempt, and external call while recording sampling and redaction policy.
 
 ## Health and dashboard
 

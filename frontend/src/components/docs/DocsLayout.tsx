@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { X } from 'lucide-react'
 import { getFlatDocs } from '@/components/docs/nav-data'
+import { FlowForgeMark } from '@/components/brand/FlowForgeLogo'
 import { DocsTopNav } from '@/components/docs/DocsTopNav'
 import { DocsSidebar } from '@/components/docs/DocsSidebar'
 import { DocsToc } from '@/components/docs/DocsToc'
@@ -108,7 +109,7 @@ export function DocsLayout({ slug, children }: DocsLayoutProps) {
       <footer className="docs-footer">
         <div className="l">
           <Link to="/docs" className="logo" aria-label="FlowForge documentation home">
-            <span className="logo-mark">F</span>
+            <FlowForgeMark />
             <span>FlowForge</span>
           </Link>
         </div>

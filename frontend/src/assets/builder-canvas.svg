@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 300" width="640" height="300" role="img" aria-label="The FlowForge visual builder: a palette of the five built-in task types beside a canvas where an http task feeds an email task, a transform task is selected, and a new task can be dropped into the graph.">
+  <style>
+    .bc-mono { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .bc-node-t { font-size: 12.5px; fill: #E6E8EB; font-weight: 600; }
+    .bc-node-s { font-size: 9.5px; fill: #5A6069; }
+    .bc-chip { font-size: 11px; fill: #B6BCC6; }
+    .bc-meta { font-size: 9.5px; }
+    .bc-cap { font-size: 10px; fill: #3E454E; }
+  </style>
+
+  <rect x="0.5" y="0.5" width="639" height="299" rx="14" fill="#0E1013" stroke="#1F2328" />
+  <path d="M168 24 V276" stroke="#1F2328" />
+
+  <!-- task type palette -->
+  <text class="bc-mono bc-cap" x="22" y="40">TASK TYPES</text>
+  <g class="bc-mono bc-chip">
+    <rect x="20" y="56" width="128" height="32" rx="8" fill="#14171B" stroke="#2A2F36" />
+    <circle cx="38" cy="72" r="3.5" fill="#60A5FA" />
+    <text x="50" y="76">http</text>
+
+    <rect x="20" y="96" width="128" height="32" rx="8" fill="#14171B" stroke="#2A2F36" />
+    <circle cx="38" cy="112" r="3.5" fill="#5EEAD4" />
+    <text x="50" y="116">transform</text>
+
+    <rect x="20" y="136" width="128" height="32" rx="8" fill="#14171B" stroke="#2A2F36" />
+    <circle cx="38" cy="152" r="3.5" fill="#94A3B8" />
+    <text x="50" y="156">delay</text>
+
+    <rect x="20" y="176" width="128" height="32" rx="8" fill="#14171B" stroke="#2A2F36" />
+    <circle cx="38" cy="192" r="3.5" fill="#FBBF24" />
+    <text x="50" y="196">conditional</text>
+
+    <rect x="20" y="216" width="128" height="32" rx="8" fill="#14171B" stroke="#2A2F36" />
+    <circle cx="38" cy="232" r="3.5" fill="#34D399" />
+    <text x="50" y="236">email</text>
+  </g>
+
+  <text class="bc-mono bc-cap" x="618" y="40" text-anchor="end">drag to connect · validated before publish</text>
+
+  <!-- edges -->
+  <path d="M346 76 C 383 76 383 138 420 138" fill="none" stroke="#134E45" stroke-width="1.8" />
+  <path d="M346 200 C 383 200 383 138 420 138" fill="none" stroke="#134E45" stroke-width="1.8" />
+  <path d="M346 200 C 383 200 383 238 420 238" fill="none" stroke="#5EEAD4" stroke-width="1.8" stroke-dasharray="5 5" opacity="0.6" />
+
+  <!-- selection ring -->
+  <rect x="190" y="170" width="162" height="60" rx="13" fill="none" stroke="#5EEAD4" stroke-opacity="0.4" stroke-width="1.5" />
+
+  <!-- fetch -->
+  <g class="bc-mono">
+    <rect x="196" y="52" width="150" height="48" rx="10" fill="#131A18" stroke="#1E6B54" />
+    <rect x="196" y="60" width="3" height="32" rx="1.5" fill="#34D399" />
+    <text class="bc-node-t" x="210" y="73">fetch</text>
+    <text class="bc-node-s" x="210" y="89">http</text>
+    <text class="bc-meta" x="332" y="73" text-anchor="end" fill="#34D399">done</text>
+  </g>
+
+  <!-- enrich (selected) -->
+  <g class="bc-mono">
+    <rect x="196" y="176" width="150" height="48" rx="10" fill="#131720" stroke="#2563EB" />
+    <rect x="196" y="184" width="3" height="32" rx="1.5" fill="#60A5FA" />
+    <text class="bc-node-t" x="210" y="197">enrich</text>
+    <text class="bc-node-s" x="210" y="213">transform</text>
+    <text class="bc-meta" x="332" y="197" text-anchor="end" fill="#5EEAD4">selected</text>
+  </g>
+
+  <!-- notify -->
+  <g class="bc-mono">
+    <rect x="420" y="114" width="150" height="48" rx="10" fill="#14171B" stroke="#2A2F36" />
+    <rect x="420" y="122" width="3" height="32" rx="1.5" fill="#94A3B8" />
+    <text class="bc-node-t" x="434" y="135" fill="#B6BCC6">notify</text>
+    <text class="bc-node-s" x="434" y="151">email</text>
+    <text class="bc-meta" x="556" y="135" text-anchor="end" fill="#5A6069">queued</text>
+  </g>
+
+  <!-- drop slot -->
+  <g class="bc-mono">
+    <rect x="420" y="214" width="150" height="48" rx="10" fill="#101317" stroke="#2A2F36" stroke-dasharray="5 5" />
+    <text x="495" y="243" text-anchor="middle" font-size="10.5" fill="#5A6069">drop a task</text>
+  </g>
+</svg>

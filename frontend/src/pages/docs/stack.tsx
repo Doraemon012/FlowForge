@@ -1,6 +1,4 @@
 import { DocsSection, DocsParagraph } from '@/components/docs/DocsSection'
-import { DocsCallout } from '@/components/docs/DocsCallout'
-import { DocsVersionBadge } from '@/components/docs/DocsVersionBadge'
 import { DocsTable } from '@/components/docs/DocsTable'
 
 export function StackPage() {
@@ -10,17 +8,14 @@ export function StackPage() {
         <div className="docs-eyebrow">Concepts</div>
         <h1 className="docs-title">Technology stack</h1>
         <p className="docs-lead">
-          The V1 stack is deliberately small. Control plane, durable state, queue, workers,
-          and frontend are all chosen to keep moving parts down.
+          The stack is deliberately small. Control plane, durable state, queue, workers, and
+          frontend are all chosen to keep moving parts down.
         </p>
-        <div className="docs-hero-badges">
-          <DocsVersionBadge label="V1" />
-        </div>
       </div>
 
       <DocsSection title="Stack at a glance">
         <DocsTable
-          headers={['Layer', 'Technology', 'Why (V1)']}
+          headers={['Layer', 'Technology', 'Why']}
           rows={[
             ['Control plane', 'Go', 'Concurrency, single binary, strong standard library.'],
             ['Durable state', 'PostgreSQL', 'Atomicity, transactional state, source of truth, no extra infrastructure.'],
@@ -37,10 +32,9 @@ export function StackPage() {
 
       <DocsSection title="Why these choices">
         <DocsParagraph>
-          The V1 goal is to ship a single durable engine without a sprawling service
-          topology. A PostgreSQL-backed queue keeps delivery durable and atomic without a
-          separate message broker, which is a meaningful simplification for a self-hosted
-          deployment.
+          The goal is to ship a single durable engine without a sprawling service topology.
+          A PostgreSQL-backed queue keeps delivery durable and atomic without a separate
+          message broker, which is a meaningful simplification for a self-hosted deployment.
         </DocsParagraph>
         <DocsParagraph>
           Workers are independent processes so they can be scaled and restarted separately
@@ -48,11 +42,6 @@ export function StackPage() {
           work — no state is lost.
         </DocsParagraph>
       </DocsSection>
-
-      <DocsCallout variant="deferred" title="Not in V1">
-        Kubernetes-native execution, multi-region deployment, and a plugin marketplace are
-        future concerns, not part of the V1 stack.
-      </DocsCallout>
     </>
   )
 }

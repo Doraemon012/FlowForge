@@ -1,6 +1,6 @@
 # FlowForge Operations & Runbook
 
-This document is the V1 operational reference for running, migrating, backing up, recovering, and troubleshooting FlowForge. It complements `SECURITY.md` (threat model) and `TESTING.md` (verification strategy).
+This document is the operational reference for running, migrating, backing up, recovering, and troubleshooting FlowForge. It complements `SECURITY.md` (threat model) and `TESTING.md` (verification strategy).
 
 ## Architecture at a glance
 
@@ -10,7 +10,7 @@ FlowForge is a Go service with three processes and one shared PostgreSQL databas
 - `cmd/worker` — independent task runner. One or more workers claim queued task runs under a bounded lease, execute them, and record attempts/results. Workers also sweep for expired leases left by dead workers.
 - `cmd/migrate` — applies Goose database migrations.
 
-The only external dependency for V1 is PostgreSQL. There is no in-memory queue; all durable state lives in Postgres.
+The only external dependency is PostgreSQL. There is no in-memory queue; all durable state lives in Postgres.
 
 ## Prerequisites
 
@@ -129,7 +129,7 @@ Use `pg_dump` to capture both schema and data:
 pg_dump "$DATABASE_URL" -Fc -f flowforge.dump
 ```
 
-Store dumps in an access-controlled location. For V1, a scheduled `pg_dump` at least daily is recommended.
+Store dumps in an access-controlled location. For a self-hosted deployment, a scheduled `pg_dump` at least daily is recommended.
 
 ### Restore
 
@@ -147,11 +147,11 @@ Backups are only trustworthy if a restore has been exercised:
 3. Run `go run ./cmd/migrate` to bring it to the current version.
 4. Start the control plane against it and confirm `/health` returns `200` and an existing execution is queryable.
 
-V1 requires at least one documented, successful backup/restore rehearsal per release.
+Production use requires at least one documented, successful backup/restore rehearsal per release.
 
 ## Retention
 
-For V1 the database is the source of truth and no automatic retention job is enabled by default. The following tables grow with use and should be bounded by operational policy or a scheduled cleanup job before V1 ships to a public tenant:
+The database is the source of truth and no automatic retention job is enabled by default. The following tables grow with use and should be bounded by operational policy or the `cmd/retention` cleanup job before the service is exposed to a public tenant:
 
 - `execution_events` — lifecycle events.
 - `log_entries` — persisted structured logs.

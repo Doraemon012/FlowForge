@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom'
 import { DocsSection, DocsParagraph } from '@/components/docs/DocsSection'
 import { DocsCallout } from '@/components/docs/DocsCallout'
-import { DocsVersionBadge } from '@/components/docs/DocsVersionBadge'
 import { DocsTable } from '@/components/docs/DocsTable'
 import { DocsDiagram } from '@/components/docs/DocsDiagram'
 import { DocsCodeBlock } from '@/components/docs/DocsCodeBlock'
@@ -13,12 +12,9 @@ export function ExamplesPage() {
         <div className="docs-eyebrow">Guides & References</div>
         <h1 className="docs-title">Realistic examples</h1>
         <p className="docs-lead">
-          Two complete, runnable workflows built entirely with V1 built-in task types. Both
-          run end-to-end with zero external setup.
+          Two complete, runnable workflows built entirely with built-in task types. Both run
+          end-to-end with zero external setup.
         </p>
-        <div className="docs-hero-badges">
-          <DocsVersionBadge label="V1" />
-        </div>
       </div>
 
       <DocsSection title="Start from a template (in the app)">
@@ -148,7 +144,7 @@ export function ExamplesPage() {
 }`}
         />
         <DocsCallout variant="info" title="Reproduce either example">
-          Both examples can be built in the V1 UI: create a project, create a workflow, add
+          Both examples can be built in the app: create a project, create a workflow, add
           the three tasks, configure the conditional field and comparison, connect them, validate,
           save, publish, and run. Publish activates the version for the run. See the{' '}
           <Link to="/docs/tutorials" className="inline-link">
@@ -160,7 +156,7 @@ export function ExamplesPage() {
 
       <DocsCallout variant="warning" title="Advanced {http, email} variation">
         An advanced variation of these examples uses <code>http</code> (fetch a payload) and{' '}
-        <code>email</code> (send a notification). These are real V1 task types but require
+        <code>email</code> (send a notification). These are real task types but require
         configured credentials and endpoints, so they are not part of the zero-setup
         follow-along demo.
       </DocsCallout>

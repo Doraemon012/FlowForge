@@ -1,37 +1,61 @@
 # FlowForge
 
-FlowForge is a Go service and React dashboard for distributed workflow orchestration. It executes versioned directed acyclic graphs (DAGs) of tasks asynchronously through a durable PostgreSQL-backed queue and independently running workers, with bounded leases, heartbeats, retries, and recovery. The current build is a runnable V1 implementation in active hardening, not a frozen release.
+FlowForge is a distributed workflow orchestration system: a Go control plane and worker fleet with a React dashboard. It executes versioned directed acyclic graphs (DAGs) of tasks asynchronously through a durable PostgreSQL-backed queue and independently running workers, with bounded leases, heartbeats, retries, and recovery.
 
-## What is implemented
+## The problem
 
-- **Authentication & ownership (Phases 1–2):** email/password registration and login with bcrypt password hashes, short-lived bearer tokens, and single-owner project isolation. Every project-owned resource is authorized by the caller's ownership.
-- **Workflow definitions (Phase 3):** draft definitions, DAG validation (cycles, unknown dependencies, duplicate IDs, unsupported types, size limits), immutable published versions, and activate/deactivate.
-- **Execution engine (Phase 4):** persisted execution and task-run state, dependency gating, parallel branch scheduling, terminal transitions, and idempotency guards.
-- **Durable queue & workers (Phase 5):** PostgreSQL-backed task queue with atomic claiming (`FOR UPDATE SKIP LOCKED`), independent worker processes, and concurrent independent task execution.
-- **Reliability & recovery (Phase 6):** bounded task leases, heartbeats, lease expiry detection, fencing (stale results are rejected), append-only attempt history, retry policy with exponential backoff, timeout handling, and cooperative cancellation on lease loss.
-- **Triggers (Phase 7–8):** manual/API triggers, signed webhooks with replay/timestamp protection, and a scheduler with timezone handling, missed-occurrence policy, and duplicate-suppression via atomic idempotency keys.
-- **V1 task set (Phase 9):** built-in `http`, `transform`, `delay`, `conditional`, and `email` task types behind a stable task contract, credential references with redaction, object-storage artifact references, and safe input/output limits.
-- **Observability (Phase 10):** structured JSON logs, append-only lifecycle events, persisted log entries, attempt history, worker/queue/metrics views, and project-isolated observability endpoints.
-- **Workflow review (advisory):** the `validate`, AI generate, and AI edit endpoints return non-blocking review warnings for definitions that are valid but probably wrong — placeholder values, credentials pasted inline instead of referenced, non-idempotent HTTP retries, and unconnected tasks. The builder shows them before a run. Review never blocks saving, publishing, or running.
+Coordinating background work reliably is usually a pile of cron jobs, a queue, and hand-rolled retry logic. Retries are re-invented per job, state is lost when a process restarts, and debugging means grepping across several services. FlowForge replaces that with a single durable, observable engine: you describe a graph of tasks, and FlowForge decides when and where each task runs and records everything that happened.
 
-- **Execution-to-builder debug loop:** a failed run names the task that failed and why. The execution detail page derives a run diagnosis from the task runs and the exact version that ran — the root-cause task, what it blocked, and which tasks never ran — and every failure (on the execution detail page and the executions list) deep-links straight into the builder with the offending task selected, so you can fix the configuration and re-run.
-- **Run recovery:** an active run can be stopped from the execution detail page or the executions list with **Cancel run**; once a run settles, **Run again** starts a new execution of the exact same version and input, so a fix can be verified against the data that failed. Cancelling stops work that has not started and cancels an in-flight task, and a late result from the interrupted attempt is rejected so a cancelled run cannot resume.
-- **Starter templates:** the workflow empty states, the project overview, and the new-workflow page offer ready-made runnable examples (fetch-and-notify, status guard, scheduled digest, webhook relay). Choosing one creates an ordinary workflow with that definition already loaded — the same request a user could make by hand — so a new user can run a real pipeline without designing a task graph first.
-- **Version and change comparison:** the Versions page can compare a published version against the previous one and shows the task-level changes — which tasks were added, removed, or changed, and how each changed field (type, config, dependencies) moved. The AI assistant preview shows the same field-level diff between the current graph and its proposed change before you apply it.
+## The differentiator
 
-The result is an at-least-once distributed execution system: a task may run more than once when completion is ambiguous, so side-effecting tasks use a deterministic idempotency key where the external system supports it. The frontend currently focuses on the core build, run, and inspect journey; scheduling/webhook administration and broader operational dashboards remain follow-up work.
+Durable distributed execution, backed by PostgreSQL as the single source of truth:
 
+- A task is **leased** to one worker with a bounded lease and periodic heartbeats. If the worker dies, the lease expires and another worker reclaims and re-runs the task.
+- Results from a stale attempt are **fenced** and rejected, so a task that was reclaimed cannot be completed twice by a slow original worker.
+- Every attempt is an append-only record. The system is **at-least-once**: a task may run more than once when completion is ambiguous, so side-effecting tasks use a deterministic idempotency key where the external system supports it.
+- Independent branches of the DAG run **concurrently** across workers.
+
+Around that engine: a visual DAG builder, immutable published versions with one-click activation, a compare/diff view between versions, readiness warnings from an advisory workflow review, and AI-assisted authoring that drafts or edits a workflow and flags likely mistakes before you run it.
+
+## What it does
+
+- **Authentication & ownership** — email/password accounts with bcrypt password hashes, short-lived bearer tokens, and single-owner project isolation. Every project-owned resource is authorized by the caller's ownership.
+- **Workflows & versions** — draft definitions, DAG validation (cycles, unknown dependencies, duplicate IDs, unsupported types, size limits), immutable published versions, and activate/deactivate.
+- **Execution engine** — persisted execution and task-run state, dependency gating, parallel branch scheduling, terminal transitions, and idempotency guards.
+- **Durable queue & workers** — a PostgreSQL-backed task queue with atomic claiming (`FOR UPDATE SKIP LOCKED`) and independent worker processes executing tasks concurrently.
+- **Reliability & recovery** — bounded leases, heartbeats, lease-expiry detection, result fencing, append-only attempt history, retries with exponential backoff and jitter, timeout handling, and cooperative cancellation on lease loss.
+- **Triggers** — manual/API runs, signed webhooks with replay and timestamp protection, and a scheduler with timezone handling, missed-occurrence policy, and duplicate suppression via atomic idempotency keys.
+- **Task types** — built-in `http`, `transform`, `delay`, `conditional`, and `email` tasks behind a stable contract, with credential references, redaction, artifact references, and safe input/output limits.
+- **Observability** — structured JSON logs, append-only lifecycle events, persisted log entries, attempt history, worker/queue/metrics views, and project-isolated observability endpoints.
+- **Advisory workflow review** — the validate, AI generate, and AI edit endpoints return non-blocking warnings for definitions that are valid but probably wrong (placeholder values, credentials pasted inline instead of referenced, non-idempotent HTTP retries, unconnected tasks). Review never blocks saving, publishing, or running.
+- **Debug loop** — a failed run names the task that failed and why. The execution detail page derives a diagnosis from the task runs and the exact version that ran — the root-cause task, what it blocked, and what never ran — and failure rows deep-link into the builder with the offending task selected.
+- **Run recovery** — an active run can be cancelled from the execution detail page or the executions list; once it settles, **Run again** starts a new execution of the same version and input, so a fix can be verified against the data that failed.
+- **Starter templates** — the new-workflow page (and workflow empty states) offer ready-made runnable examples (fetch-and-notify, status guard, scheduled digest, webhook relay). Choosing one creates an ordinary workflow with that definition already loaded, so a new user can run a real pipeline before designing a task graph.
+- **Version comparison** — the Versions page compares a published version against the previous one and shows task-level changes (added, removed, changed, and how each field moved). The AI assistant preview shows the same field-level diff before you apply a change.
+- **AI-assisted authoring** — generate a workflow from a prompt or edit an existing draft, with the same review warnings applied to the result.
+
+## Public free trial (no signup)
+
+A visitor can enter the real product without registering. The landing page and the signup page both offer **Try FlowForge**, which provisions a disposable account and drops the visitor straight into the dashboard:
+
+```sh
+curl -X POST http://localhost:8080/api/v1/auth/trial
+```
+
+The response is an ordinary bearer session. The account behind it is a normal user with `is_trial = true` and no password: it owns its projects through the same ownership checks as any other account (so trial data is isolated), but it can never authenticate through `/auth/login` because it has no password hash. Registered-user authentication and authorization are unchanged.
+
+Trial AI usage is bounded server-side (never by a client counter). The allowance defaults to 5 generations + 5 edits, capped at 10 uses total, and is configurable with `TRIAL_AI_GENERATION_LIMIT`, `TRIAL_AI_EDIT_LIMIT`, and `TRIAL_AI_TOTAL_LIMIT` (set a value to `0` to disable that cap). Accounting is persisted in `trial_ai_usage`, keyed by the trial user.
+
+`GET /api/v1/trial/usage` reports the caller's allowance and consumption, which drives the trial/AI indicator in the app shell; registered users receive `is_trial: false`. When the allowance is spent, AI generate/edit requests are refused with HTTP `429` and code `trial_ai_limit_reached`; every non-AI feature keeps working. Provider API keys are used only inside the control plane and are never sent to the browser.
 ## Product workflow
 
-The normal user journey is:
-
-1. Open the frontend, register or log in, and create a project.
-2. Create a workflow — either from a ready-made starter template or from a blank canvas — add tasks from the palette, connect dependencies, and configure each selected task in the inspector.
-3. Save the draft, then use **Validate** to check the DAG and task configuration. **Publish** creates an immutable version and activates it for new runs.
+1. Open the frontend and try the product (trial) or register / log in, then create a project.
+2. Create a workflow — from a ready-made template or a blank canvas — add tasks from the palette, connect dependencies, and configure each selected task in the inspector.
+3. Save the draft, then **Validate** to check the DAG and task configuration. **Publish** creates an immutable version and activates it for new runs.
 4. Press **Run**. FlowForge returns an execution immediately; the control plane queues eligible tasks and a worker claims them.
-5. Follow the execution detail page. It polls the persisted workflow status, task status, outputs, failures, attempt history, worker assignments, lifecycle events, and worker logs. Refreshing the page reads the same durable records. A failed run is explained in place: the diagnosis names the root-cause task, what it blocked, and what never ran, and links into the builder at that task to fix and re-run.
+5. Follow the execution detail page. It polls the persisted status, task status, outputs, failures, attempt history, worker assignments, lifecycle events, and worker logs. Refreshing reads the same durable records. A failed run is explained in place and links into the builder at the offending task to fix and re-run.
 
-The API and worker are separate processes. A run can remain queued until at least one worker is running.
+The API and workers are separate processes. A run can remain queued until at least one worker is running.
 
 ### Built-in task types
 
@@ -50,7 +74,16 @@ Downstream tasks receive the succeeded output of their dependency. A task with m
 - `cmd/migrate` — applies Goose database migrations.
 - `cmd/retention` — offline retention cleanup for append-only observability tables.
 
-The only external dependency for V1 is PostgreSQL. There is no in-memory queue; all durable state lives in Postgres. The API never executes workflow tasks directly.
+The only external dependency is PostgreSQL. There is no in-memory queue; all durable state lives in Postgres. The API never executes workflow tasks directly.
+
+### AI providers
+
+AI authoring is enabled when a provider is configured, through environment variables:
+
+- `FLOWFORGE_OPENAI_API_KEY` / `FLOWFORGE_OPENAI_BASE_URL` / `FLOWFORGE_OPENAI_MODEL` (OpenAI-compatible `/chat/completions`).
+- `FLOWFORGE_COHERE_API_KEY` / `FLOWFORGE_COHERE_BASE_URL` / `FLOWFORGE_COHERE_MODEL` (Cohere `/v2/chat`).
+
+Without a configured provider the AI endpoints return a clear error and every non-AI feature keeps working.
 
 ## Prerequisites
 
@@ -110,7 +143,7 @@ WORKER_ID=worker-1 go run ./cmd/worker
 WORKER_ID=worker-2 go run ./cmd/worker
 ```
 
-The control plane and workers are separate processes; the API never executes task code itself. A scheduled or webhook-triggered execution is orchestrated by the in-process engine, which enqueues runnable tasks for workers to claim.
+The control plane and workers are separate processes; the API never executes task code itself. A triggered execution is orchestrated by the in-process engine, which enqueues runnable tasks for workers to claim.
 
 ## Verify health
 
@@ -140,43 +173,6 @@ curl -X POST http://localhost:8080/api/v1/projects \
 ```
 
 Project endpoints reject unauthenticated requests and cannot be used to access another user's projects.
-
-## Public free trial (no signup)
-
-A visitor can enter the real product without registering. The landing page and
-the signup page both offer **Try FlowForge**, which provisions a disposable
-account and drops the visitor straight into the normal dashboard:
-
-```sh
-curl -X POST http://localhost:8080/api/v1/auth/trial
-```
-
-The response is an ordinary bearer session (`user_id`, `access_token`). The
-account behind it is a normal user with `is_trial = true` and no password: it
-owns its projects and workflows through the same ownership checks as any other
-account (so trial data is isolated), but it can never authenticate through
-`/auth/login` because it has no password hash. Registered-user authentication
-and authorization are unchanged.
-
-Trial AI usage is bounded **server-side** (never by a client counter). The
-allowance defaults to 5 generations + 5 edits, capped at 10 uses total, and is
-configurable with `TRIAL_AI_GENERATION_LIMIT`, `TRIAL_AI_EDIT_LIMIT`, and
-`TRIAL_AI_TOTAL_LIMIT` (set a value to `0` to disable that cap). Accounting is
-persisted in `trial_ai_usage`, keyed by the trial user.
-
-`GET /api/v1/trial/usage` reports the caller's allowance and consumption, which
-drives the trial/AI indicator in the app shell; registered users receive
-`is_trial: false`. When the allowance is spent, AI generate/edit requests are
-refused with HTTP `429` and code `trial_ai_limit_reached`, the UI explains that
-the free-trial AI limit is reached, and every non-AI feature keeps working.
-Provider API keys are used only inside the control plane and are never sent to
-the browser.
-
-Trial accounts persist until they are removed. Automatic cleanup is not
-implemented yet: see the TODO in `FLOWFORGE_WORKLOG.md` for deleting abandoned
-trial accounts (and their cascaded data) after a configurable N-day
-inactivity/age window.
-
 ## Workflows and versions
 
 Create and manage a workflow with a structured definition. Each task has an `id`, one of the fixed built-in types (`http`, `transform`, `delay`, `conditional`, or `email`), a JSON-object `config`, and optional `depends_on` task IDs. A workflow is stored as an editable draft. Publishing validates the DAG and creates an immutable numbered version.
@@ -212,7 +208,7 @@ To safely retry a trigger without creating a duplicate, send an `Idempotency-Key
 ```sh
 curl -X POST http://localhost:8080/api/v1/projects/<project_id>/workflows/<workflow_id>/executions \
 	-H "Authorization: Bearer <access_token>" \
-	-H "Idempotency-Key: my-unique-run" \
+	-H 'Idempotency-Key: my-unique-run' \
 	-H 'Content-Type: application/json' \
 	-d '{"input":{}}'
 ```
@@ -302,4 +298,4 @@ make check          # gofmt -l + go vet + go build
 
 The repository's CI (`.github/workflows/ci.yml`) runs formatting, vet, build, unit tests, `govulncheck`, and a PostgreSQL-backed integration job.
 
-See `docs/OPERATIONS.md` for the full deployment, migration, backup/restore, and failure runbook. See `docs/TESTING.md` for the verification strategy.
+See `docs/OPERATIONS.md` for the deployment, migration, backup/restore, and failure runbook. See `docs/TESTING.md` for the verification strategy.

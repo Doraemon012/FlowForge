@@ -1,6 +1,5 @@
 import { DocsSection, DocsParagraph } from '@/components/docs/DocsSection'
 import { DocsCallout } from '@/components/docs/DocsCallout'
-import { DocsVersionBadge } from '@/components/docs/DocsVersionBadge'
 import { DocsCodeBlock } from '@/components/docs/DocsCodeBlock'
 import { DocsTable } from '@/components/docs/DocsTable'
 
@@ -21,9 +20,6 @@ export function AddingTasksPage() {
           A task is a single unit of work. Add one from the palette on the left and
           configure it in the panel on the right.
         </p>
-        <div className="docs-hero-badges">
-          <DocsVersionBadge label="V1" />
-        </div>
       </div>
 
       <DocsSection title="From the palette">
@@ -47,14 +43,14 @@ export function AddingTasksPage() {
         />
       </DocsSection>
 
-      <DocsSection title="Supported V1 types">
+      <DocsSection title="Supported types">
         <DocsTable
-          headers={['Type', 'What it does', 'V1 config note']}
+          headers={['Type', 'What it does', 'Config note']}
           rows={taskTypes.map((r) => r.map((cell, i) => (i === 0 ? <strong key={cell}>{cell}</strong> : cell)))}
         />
       </DocsSection>
 
-      <DocsCallout variant="v1" title="All five are V1">
+      <DocsCallout variant="success" title="Which types run with no setup">
         The simple follow-along samples use <code>transform</code>, <code>conditional</code>,
         and <code>delay</code> so they run with zero external setup.
       </DocsCallout>

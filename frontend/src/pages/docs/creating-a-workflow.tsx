@@ -1,6 +1,5 @@
 import { DocsSection, DocsParagraph } from '@/components/docs/DocsSection'
 import { DocsCallout } from '@/components/docs/DocsCallout'
-import { DocsVersionBadge } from '@/components/docs/DocsVersionBadge'
 import { DocsCodeBlock } from '@/components/docs/DocsCodeBlock'
 
 export function CreatingAWorkflowPage() {
@@ -13,9 +12,6 @@ export function CreatingAWorkflowPage() {
           A workflow is a named, versioned collection of tasks. Create one inside a project
           and open it in the builder.
         </p>
-        <div className="docs-hero-badges">
-          <DocsVersionBadge label="V1" />
-        </div>
       </div>
 
       <DocsSection title="In the UI">
@@ -28,13 +24,13 @@ export function CreatingAWorkflowPage() {
 
       <DocsSection title="Or start from a template">
         <DocsParagraph>
-          A blank canvas is not the only way in. The workflow empty states, the project
-          overview, and the new-workflow page each offer ready-made{' '}
-          <strong>starter templates</strong> — for example an http → transform → email
-          pipeline, a status-guard branch, a scheduled digest, or a webhook relay. Choosing
-          one creates an ordinary workflow with that definition already loaded, so you can
-          run a real pipeline immediately and edit it from there. No template-specific state
-          is created; it is the same create-workflow request as building by hand.
+          A blank canvas is not the only way in. The new-workflow page also offers
+          ready-made <strong>starter templates</strong> — for example an http → transform →
+          email pipeline, a status-guard branch, a scheduled digest, or a webhook relay.
+          Choosing one creates an ordinary workflow with that definition already loaded, so
+          you can run a real pipeline immediately and edit it from there. No
+          template-specific state is created; it is the same create-workflow request as
+          building by hand.
         </DocsParagraph>
       </DocsSection>
 

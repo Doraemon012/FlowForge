@@ -1,6 +1,5 @@
 import { DocsSection, DocsParagraph } from '@/components/docs/DocsSection'
 import { DocsCallout } from '@/components/docs/DocsCallout'
-import { DocsVersionBadge } from '@/components/docs/DocsVersionBadge'
 import { DocsTable } from '@/components/docs/DocsTable'
 
 export function TaskTypesPage() {
@@ -10,17 +9,14 @@ export function TaskTypesPage() {
         <div className="docs-eyebrow">Guides & References</div>
         <h1 className="docs-title">Supported task types</h1>
         <p className="docs-lead">
-          V1 ships five built-in task types behind a stable task contract. Each has a type,
-          a config object, and optional dependency references.
+          FlowForge ships five built-in task types behind a stable task contract. Each has a
+          type, a config object, and optional dependency references.
         </p>
-        <div className="docs-hero-badges">
-          <DocsVersionBadge label="V1" />
-        </div>
       </div>
 
-      <DocsSection title="The V1 task set">
+      <DocsSection title="The built-in task set">
         <DocsTable
-          headers={['Type', 'What it does', 'V1 config note']}
+          headers={['Type', 'What it does', 'Config note']}
           rows={[
             ['http', 'Performs an HTTP request.', 'Requires a configured endpoint or credential.'],
             ['transform', 'Applies a transformation to input.', 'Runs end-to-end in the simple samples.'],
@@ -39,11 +35,11 @@ export function TaskTypesPage() {
         </DocsParagraph>
       </DocsSection>
 
-      <DocsCallout variant="v1" title="All five are V1">
+      <DocsCallout variant="success" title="Which types run with no setup">
         The simple follow-along samples use <code>transform</code>, <code>conditional</code>,
         and <code>delay</code> so they run end-to-end with zero external setup.{' '}
-        <code>http</code> and <code>email</code> are real V1 types but need configured
-        credentials or endpoints.
+        <code>http</code> and <code>email</code> are fully supported types but need
+        configured credentials or endpoints.
       </DocsCallout>
     </>
   )

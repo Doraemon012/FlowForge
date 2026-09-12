@@ -135,15 +135,20 @@ export function TopBar({ onToggleSidebar, sidebarCollapsed, onToggleCollapse }: 
 
   return (
     <header className="topbar">
-      <Button
-        variant="ghost"
-        size="icon"
-        className="md:hidden"
-        aria-label="Toggle navigation"
-        onClick={onToggleSidebar}
-      >
-        <Menu className="h-4 w-4" aria-hidden="true" />
-      </Button>
+      {/* Mobile-only navigation trigger. It lives in a wrapper because the
+          `.btn` class sets `display: inline-flex` from unlayered CSS, which
+          outranks Tailwind's layered `md:hidden` — putting the responsive
+          utility on the button itself left a dead control visible on desktop. */}
+      <div className="md:hidden">
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Toggle navigation"
+          onClick={onToggleSidebar}
+        >
+          <Menu className="h-4 w-4" aria-hidden="true" />
+        </Button>
+      </div>
 
       {onToggleCollapse ? (
         <Button
@@ -197,11 +202,6 @@ export function TopBar({ onToggleSidebar, sidebarCollapsed, onToggleCollapse }: 
         <span className="grow">Search…</span>
         <span className="kbd">⌘K</span>
       </button>
-
-      <div className="live-indicator" title="All systems operational">
-        <span className="live-dot" aria-hidden="true" />
-        <span>Operational</span>
-      </div>
 
       <TrialIndicator />
 

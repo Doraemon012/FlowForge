@@ -1,6 +1,5 @@
 import { DocsSection, DocsParagraph } from '@/components/docs/DocsSection'
 import { DocsCallout } from '@/components/docs/DocsCallout'
-import { DocsVersionBadge } from '@/components/docs/DocsVersionBadge'
 import { DocsTable } from '@/components/docs/DocsTable'
 
 export function ExecutionsPage() {
@@ -13,9 +12,6 @@ export function ExecutionsPage() {
           An execution is one run of a specific workflow version. Inside it, each task is a
           task run that records its own attempts and outcome.
         </p>
-        <div className="docs-hero-badges">
-          <DocsVersionBadge label="V1" />
-        </div>
       </div>
 
       <DocsSection title="Execution statuses">
@@ -80,10 +76,9 @@ export function ExecutionsPage() {
         so the UI remains accessible and unambiguous.
       </DocsCallout>
 
-      <DocsCallout variant="deferred" title="Frontend gap">
-        While the backend exposes execution event and log streaming endpoints, the V1
-        frontend surfaces attempt history on execution detail and the execution list with
-        polling. Live streaming is not yet in the app.
+      <DocsCallout variant="info" title="How the app reads this data">
+        The API exposes execution events and logs. The app fetches them by polling, so the
+        execution list and detail page always reflect the durable records.
       </DocsCallout>
     </>
   )

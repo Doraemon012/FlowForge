@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom'
 import { DocsSection, DocsParagraph } from '@/components/docs/DocsSection'
 import { DocsCallout } from '@/components/docs/DocsCallout'
-import { DocsVersionBadge } from '@/components/docs/DocsVersionBadge'
 import { DocsCodeBlock } from '@/components/docs/DocsCodeBlock'
 import { DocsDiagram } from '@/components/docs/DocsDiagram'
 import { DocsTable } from '@/components/docs/DocsTable'
@@ -16,9 +15,6 @@ export function VersionsPage() {
           A workflow is a live draft until you publish it as an immutable version, then
           activate that version to receive new runs.
         </p>
-        <div className="docs-hero-badges">
-          <DocsVersionBadge label="V1" />
-        </div>
       </div>
 
       <DocsSection title="The lifecycle">
@@ -116,9 +112,9 @@ export function VersionsPage() {
         />
       </DocsSection>
 
-      <DocsCallout variant="v1" title="Publish ≠ Activate">
+      <DocsCallout variant="success" title="Publish ≠ Activate">
         Publishing creates an immutable snapshot but does <strong>not</strong> make it the
-        version that receives runs. You must explicitly activate it. The V1 UI links to the
+        version that receives runs. You must explicitly activate it. The app links to the
         Versions page after publishing.
       </DocsCallout>
 

@@ -1,6 +1,5 @@
 import { DocsSection, DocsParagraph } from '@/components/docs/DocsSection'
 import { DocsCallout } from '@/components/docs/DocsCallout'
-import { DocsVersionBadge } from '@/components/docs/DocsVersionBadge'
 import { DocsSteps } from '@/components/docs/DocsSteps'
 
 export function TutorialsPage() {
@@ -10,17 +9,14 @@ export function TutorialsPage() {
         <div className="docs-eyebrow">Guides & References</div>
         <h1 className="docs-title">Step-by-step tutorial</h1>
         <p className="docs-lead">
-          Build the "Order notification pipeline" end-to-end in the V1 UI. Every step uses
+          Build the "Order notification pipeline" end-to-end in the app. Every step uses
           built-in task types, so no external setup is needed.
         </p>
-        <div className="docs-hero-badges">
-          <DocsVersionBadge label="V1" />
-        </div>
       </div>
 
       <DocsSection title="Build it yourself">
         <DocsParagraph>
-          Follow these steps in the V1 app. If the <strong>Run</strong> button is disabled
+          Follow these steps in the app. If the <strong>Run</strong> button is disabled
           at any point, you likely haven't activated a version yet.
         </DocsParagraph>
         <DocsSteps

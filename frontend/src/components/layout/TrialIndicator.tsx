@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { Sparkles } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import { useTrialUsage } from '@/hooks/use-trial'
+import { isTrialExhausted } from '@/lib/trial-usage'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 /** Shared copy so the indicator and the AI dialog explain exhaustion the same way. */
@@ -27,11 +28,9 @@ export function TrialIndicator() {
 
   const { remaining, limits, ai_enabled: aiEnabled } = data
 
-  // Mirrors the server's rule: any enforced allowance at zero means AI is
-  // unavailable. Display-only; the server makes the real decision.
-  const exhausted =
-    aiEnabled &&
-    (remaining.total <= 0 || remaining.generation <= 0 || remaining.edit <= 0)
+  // Mirrors the server's rule (see lib/trial-usage). Display-only; the server
+  // makes the real decision.
+  const exhausted = aiEnabled && isTrialExhausted(data)
 
   // Signup is unreachable while a session exists (RequirePublic bounces
   // authenticated visitors to /app), so leaving the trial discards the
@@ -42,7 +41,7 @@ export function TrialIndicator() {
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex shrink-0 items-center gap-2">
       <span className="badge" style={{ padding: '2px 8px', fontSize: '10px' }}>
         Trial
       </span>
@@ -54,13 +53,13 @@ export function TrialIndicator() {
               <button
                 type="button"
                 onClick={goToSignup}
-                className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground transition-colors hover:border-accent hover:text-foreground"
+                className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-border px-2 py-1 text-xs text-muted-foreground transition-colors hover:border-accent hover:text-foreground"
               >
                 <Sparkles className="h-3 w-3" aria-hidden="true" />
                 <span>AI limit reached</span>
               </button>
             ) : (
-              <span className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground">
+              <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-border px-2 py-1 text-xs text-muted-foreground">
                 <Sparkles className="h-3 w-3" aria-hidden="true" />
                 <span>
                   AI {remaining.total}/{limits.total}

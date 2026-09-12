@@ -1,6 +1,5 @@
 import { DocsSection, DocsSubsection, DocsParagraph } from '@/components/docs/DocsSection'
 import { DocsCallout } from '@/components/docs/DocsCallout'
-import { DocsVersionBadge } from '@/components/docs/DocsVersionBadge'
 import { DocsDiagram } from '@/components/docs/DocsDiagram'
 
 export function ArchitecturePage() {
@@ -13,9 +12,6 @@ export function ArchitecturePage() {
           FlowForge is split into a control plane that decides and persists authoritative
           state, and an execution plane that actually runs task code.
         </p>
-        <div className="docs-hero-badges">
-          <DocsVersionBadge label="V1" />
-        </div>
       </div>
 
       <DocsSection title="High-level flow">

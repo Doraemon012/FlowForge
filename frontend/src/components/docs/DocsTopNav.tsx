@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Menu, Search } from 'lucide-react'
+import { FlowForgeMark } from '@/components/brand/FlowForgeLogo'
 
 interface DocsTopNavProps {
   onToggleSidebar: () => void
@@ -19,7 +20,7 @@ export function DocsTopNav({ onToggleSidebar, onOpenSearch }: DocsTopNavProps) {
           <Menu className="h-4 w-4" aria-hidden="true" />
         </button>
         <Link to="/docs" className="logo" aria-label="FlowForge documentation home">
-          <span className="logo-mark">F</span>
+          <FlowForgeMark />
           <span>FlowForge</span>
         </Link>
         <nav className="breadcrumb" aria-label="Breadcrumb">

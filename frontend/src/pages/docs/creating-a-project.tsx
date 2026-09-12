@@ -1,6 +1,5 @@
 import { DocsSection, DocsParagraph } from '@/components/docs/DocsSection'
 import { DocsCallout } from '@/components/docs/DocsCallout'
-import { DocsVersionBadge } from '@/components/docs/DocsVersionBadge'
 import { DocsCodeBlock } from '@/components/docs/DocsCodeBlock'
 
 export function CreatingAProjectPage() {
@@ -13,9 +12,6 @@ export function CreatingAProjectPage() {
           Projects are the ownership and isolation boundary. Every workflow and execution
           lives inside exactly one project.
         </p>
-        <div className="docs-hero-badges">
-          <DocsVersionBadge label="V1" />
-        </div>
       </div>
 
       <DocsSection title="In the UI">
@@ -25,8 +21,8 @@ export function CreatingAProjectPage() {
           <strong>Create</strong>. The new project appears in the project list.
         </DocsParagraph>
         <DocsParagraph muted>
-          The authenticated user becomes the project's single owner. Name is the only
-          required field in V1.
+          The authenticated user becomes the project's single owner. The name is the only
+          required field.
         </DocsParagraph>
       </DocsSection>
 
@@ -53,7 +49,8 @@ export function CreatingAProjectPage() {
       </DocsSection>
 
       <DocsCallout variant="v1" title="Single-owner model">
-        Each project has a single owner in V1. Team collaboration and roles are deferred.
+        Each project has a single owner. Every project-owned resource is authorized by that
+        ownership, which is what isolates one account's work from another's.
       </DocsCallout>
     </>
   )

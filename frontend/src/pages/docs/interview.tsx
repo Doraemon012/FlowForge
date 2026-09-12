@@ -1,6 +1,5 @@
 import { DocsSection, DocsParagraph } from '@/components/docs/DocsSection'
 import { DocsCallout } from '@/components/docs/DocsCallout'
-import { DocsVersionBadge } from '@/components/docs/DocsVersionBadge'
 import { DocsDiagram } from '@/components/docs/DocsDiagram'
 
 export function InterviewPage() {
@@ -13,9 +12,6 @@ export function InterviewPage() {
           A concise technical overview of the architecture, reliability model, and the
           design trade-offs that shape FlowForge.
         </p>
-        <div className="docs-hero-badges">
-          <DocsVersionBadge label="V1" />
-        </div>
       </div>
 
       <DocsSection title="What it is">

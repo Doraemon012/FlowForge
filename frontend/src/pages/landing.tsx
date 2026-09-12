@@ -1,62 +1,58 @@
-import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowRight,
   BookOpen,
-  Check,
   CheckCircle2,
   ChevronRight,
-  Copy,
   GitBranch,
   History,
   Play,
   RefreshCw,
+  Sparkles,
   Workflow as WorkflowIcon,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { StartTrialButton } from '@/components/auth/StartTrialButton'
+import { FlowForgeLogo } from '@/components/brand/FlowForgeLogo'
+import { ExecutionDemo } from '@/components/landing/ExecutionDemo'
+import { useScrollReveal } from '@/hooks/use-scroll-reveal'
+import orchestrationGraph from '@/assets/orchestration-graph.svg'
+import builderCanvas from '@/assets/builder-canvas.svg'
+import heroOrchestration from '@/assets/hero-orchestration.webp'
 
 const steps = [
   {
     num: 'STEP 01',
-    title: 'Define your graph',
+    title: 'Model the workflow',
     description:
-      'Model work as tasks with dependencies. Use our TypeScript SDK, YAML, or the visual editor.',
+      'Add tasks in the visual builder and connect their dependencies. Five built-in types: HTTP, transform, delay, conditional, and email.',
     code: (
       <div className="step-visual">
-        <span className="c">// workflow.ts</span>
+        <span className="c">// workflow definition</span>
         <br />
-        <span className="k">export const</span> <span className="var">wf</span> ={' '}
-        <span className="k">defineWorkflow</span>({'('}
+        <span className="var">"tasks"</span>: [
         <br />
-        <span>  </span>
-        <span className="var">id</span>: <span className="str">"order-fulfillment"</span>,
+        <span>{'  '}</span>
+        <span>{'{ '}</span>
+        <span className="str">"id"</span>: <span className="str">"fetch"</span>,{' '}
+        <span className="str">"type"</span>: <span className="n">"http"</span>
+        <span>{' }'}</span>,
         <br />
-        <span>  </span>
-        <span className="var">tasks</span>:{' '}
-        <span>{'{'}</span>
+        <span>{'  '}</span>
+        <span>{'{ '}</span>
+        <span className="str">"id"</span>: <span className="str">"summarize"</span>,{' '}
+        <span className="str">"type"</span>: <span className="n">"transform"</span>,{' '}
+        <span className="str">"depends_on"</span>: [<span className="str">"fetch"</span>]
+        <span>{' }'}</span>,
         <br />
-        <span>    </span>
-        <span className="n">fetch</span>: <span className="k">http</span>({'('}
-        <span>{'{'}</span> <span className="var">url</span>: <span className="str">"…"</span>{' '}
-        <span>{'}'}</span>
-        <span>{')'}</span>
-        <span>,</span>
+        <span>{'  '}</span>
+        <span>{'{ '}</span>
+        <span className="str">"id"</span>: <span className="str">"notify"</span>,{' '}
+        <span className="str">"type"</span>: <span className="n">"email"</span>,{' '}
+        <span className="str">"depends_on"</span>: [<span className="str">"summarize"</span>]
+        <span>{' }'}</span>
         <br />
-        <span>    </span>
-        <span className="n">validate</span>: <span>{'{'}</span> <span className="var">deps</span>:{' '}
-        [<span className="str">"fetch"</span>] <span>{'}'}</span>
-        <span>,</span>
-        <br />
-        <span>    </span>
-        <span className="n">notify</span>: <span>{'{'}</span> <span className="var">deps</span>:{' '}
-        [<span className="str">"validate"</span>] <span>{'}'}</span>
-        <br />
-        <span>  </span>
-        <span>{'}'}</span>
-        <br />
-        <span>{'}'}</span>
-        <span>);</span>
+        ]
       </div>
     ),
   },
@@ -64,60 +60,51 @@ const steps = [
     num: 'STEP 02',
     title: 'Publish a version',
     description:
-      'Every publish is immutable. Roll back instantly. Old runs finish on their pinned version.',
+      'Publishing freezes an immutable version; activating it decides which version new runs use. Editing later never changes a version already running.',
     code: (
       <div className="step-visual">
-        <span className="c">$ flowforge publish</span>
+        <span className="c">// versions</span>
+        <br />
+        <span className="s">✓</span> validated
+        <br />
+        <span className="s">✓</span> published <span className="n">v3</span>
+        <br />
+        <span className="s">✓</span> activated <span className="var">v3</span> for new runs
         <br />
         <br />
-        <span className="s">✓</span> validated <span className="var">order-fulfillment</span>
-        <br />
-        <span className="s">✓</span> published <span className="n">v3</span> · sha 8a2f01c9
-        <br />
-        <span className="s">✓</span> activated in <span className="var">prod</span>
-        <br />
-        <br />
-        <span className="c">→ triggers armed · webhooks ready</span>
-        <br />
-        <span className="c">→ dashboard: flowforge.app/…/v3</span>
+        <span className="c">history · v1 · v2 · v3 (immutable)</span>
       </div>
     ),
   },
   {
     num: 'STEP 03',
-    title: 'Watch it run',
+    title: 'Run and watch',
     description:
-      'Live graph view, timeline, logs, retries — everything you need at 2am when something breaks.',
+      'Start a run from the button, the API, a webhook, or a schedule. Workers claim ready tasks in parallel and record every attempt.',
     code: (
       <div className="step-visual">
-        <span className="c">// live · c013970d</span>
+        <span className="c">// execution c013970d</span>
         <br />
         <span className="s">✓</span> <span className="n">fetch</span> &nbsp;&nbsp;&nbsp;&nbsp;
         <span className="num">412ms</span>
         <br />
-        <span className="s">✓</span> <span className="n">validate</span> &nbsp;
-        <span className="num">89ms</span>
-        <br />
-        <span className="s">✓</span> <span className="n">persist</span> &nbsp;&nbsp;
-        <span className="num">34ms</span>
-        <br />
-        <span className="s">✓</span> <span className="n">route</span> &nbsp;&nbsp;&nbsp;&nbsp;
-        <span className="num">12ms</span>
+        <span className="s">✓</span> <span className="n">summarize</span>
+        &nbsp;&nbsp;<span className="num">89ms</span>
         <br />
         <span style={{ color: '#60a5fa' }}>▍</span> <span className="n">notify</span>{' '}
-        &nbsp;&nbsp;&nbsp;<span style={{ color: '#60a5fa' }}>running…</span>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span style={{ color: '#60a5fa' }}>running…</span>
       </div>
     ),
   },
 ]
 
 const whyGood = [
-  'Retries built-in with exponential backoff + jitter',
-  'Durable state — every step, every attempt',
-  'Visual timeline for every run, always',
-  'Immutable versions + one-click rollback',
-  'AI authoring that flags risky configs before you run',
-  'Failed runs explain why and jump straight to the task to fix',
+  'A dead worker’s task is reclaimed automatically from lease expiry',
+  'Durable state in Postgres — every step, every attempt',
+  'Attempt history and logs for every run',
+  'Immutable versions with one-click activate',
+  'Retries with exponential backoff and jitter',
+  'AI authoring that flags risky config before you run',
   'Starter templates so a first workflow runs before you design one',
   'Compare versions to see exactly what changed, task by task',
 ]
@@ -129,116 +116,36 @@ const whyBad = [
   'Versioning? Good luck.',
 ]
 
-const codeExample = `import { defineWorkflow, step } from "@flowforge/sdk";
-
-export const orderFulfillment = defineWorkflow({
-  id: "order-fulfillment",
-  trigger: { event: "order.created" },
-
-  async run(ctx, order) {
-    // Each step is durable — resumes exactly where it left off.
-    const customer = await step("fetch", () =>
-      fetch(\`/api/customers/\${order.customerId}\`).then(r => r.json()));
-
-    await step("validate", { retries: 3 }, () => validate(order));
-    await step("persist", () => db.insert(order));
-
-    // Sleep durably — worker can die, the wait continues.
-    await ctx.sleep("30s");
-
-    await step("notify", () => sendEmail(customer.email));
-  }
-});`
-
-function FlowGraph() {
-  const nodes = [
-    { label: 'HTTP', sub: 'Fetch transcript', x: '10%', y: '34%', cls: 'ti-http' },
-    { label: 'Transform', sub: 'Normalize data', x: '50%', y: '14%', cls: 'ti-transform' },
-    { label: 'Email', sub: 'Send summary', x: '50%', y: '54%', cls: 'ti-email' },
+const definitionExample = `{
+  "tasks": [
+    { "id": "fetch", "type": "http", "config": { "url": "https://api.example.com" } },
+    { "id": "summarize", "type": "transform", "config": {}, "depends_on": ["fetch"] },
+    { "id": "notify", "type": "email", "config": { "to": "ops@example.com" }, "depends_on": ["summarize"] }
   ]
+}`
 
-  return (
-    <div className="max-w-xl w-full overflow-hidden rounded-lg border border-border/70 bg-surface shadow-surface-lg">
-      <div className="flex items-center gap-1.5 border-b border-border/70 bg-surface-2 px-4 py-2.5">
-        <span className="h-2 w-2 rounded-full bg-border-strong" aria-hidden="true" />
-        <span className="h-2 w-2 rounded-full bg-border-strong" aria-hidden="true" />
-        <span className="h-2 w-2 rounded-full bg-border-strong" aria-hidden="true" />
-        <span className="ml-2 font-mono text-xs text-muted">workflow.graph</span>
-      </div>
-      <div
-        className="relative h-64 w-full bg-bg"
-        style={{
-          backgroundImage: 'radial-gradient(circle at 1px 1px, #1a1d21 1px, transparent 0)',
-          backgroundSize: '24px 24px',
-        }}
-      >
-        <svg className="absolute inset-0 h-full w-full" viewBox="0 0 420 200" aria-hidden="true">
-          <path d="M 95 95 L 200 60" stroke="#3a4048" strokeWidth="1.5" fill="none" />
-          <path d="M 95 95 L 200 130" stroke="#3a4048" strokeWidth="1.5" fill="none" />
-          <circle cx="200" cy="60" r="3" fill="var(--accent)" />
-          <circle cx="200" cy="130" r="3" fill="var(--accent)" />
-        </svg>
-        {nodes.map((node) => (
-          <div
-            key={node.label}
-            className="absolute flex -translate-y-1/2 flex-col rounded-lg border border-border-strong bg-surface px-3 py-2 shadow-sm"
-            style={{ left: node.x, top: node.y }}
-          >
-            <div className="flex items-center gap-2">
-              <span className={`h-5 w-5 rounded-md grid place-items-center ${node.cls}`}>
-                <svg
-                  width="10"
-                  height="10"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  aria-hidden="true"
-                >
-                  {node.label === 'HTTP' ? <circle cx="12" cy="12" r="9" /> : null}
-                  {node.label === 'Transform' ? <path d="M4 7h16M4 12h10M4 17h16" /> : null}
-                  {node.label === 'Email' ? <path d="M3 6h18v12H3z" /> : null}
-                </svg>
-              </span>
-              <span className="text-sm font-medium">{node.label}</span>
-            </div>
-            <span className="mt-0.5 text-[11px] text-muted">{node.sub}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
+const runExample = `# publish an immutable version, then run it
+curl -X POST $API/projects/$PID/workflows/$WID/versions
+curl -X POST $API/projects/$PID/workflows/$WID/executions \\
+  -H "Authorization: Bearer $TOKEN" \\
+  -d '{ "version_id": "v3", "input": {} }'`
 
 export function LandingPage() {
-  const [copied, setCopied] = useState(false)
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(codeExample)
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 2000)
-    } catch {
-      setCopied(false)
-    }
-  }
-
+  const pageRef = useScrollReveal<HTMLDivElement>()
   return (
-    <div className="min-h-svh flex flex-col" style={{ background: 'var(--bg)' }}>
+    <div
+      ref={pageRef}
+      className="min-h-svh flex flex-col"
+      style={{ background: 'var(--bg)' }}
+    >
       <header className="lnav">
         <div className="flex items-center gap-4">
-          <div className="logo">
-            <span className="logo-mark">F</span>
-            <span>FlowForge</span>
-          </div>
-          <span className="badge" style={{ padding: '2px 8px', fontSize: '10px' }}>
-            v1 · beta
-          </span>
+          <FlowForgeLogo />
         </div>
         <nav className="lnav-links">
           <a href="#product">Product</a>
-          <Link to="/docs">Docs</Link>
           <a href="#features">Features</a>
+          <Link to="/docs">Docs</Link>
         </nav>
         <div className="lnav-cta">
           <Button variant="ghost" size="sm" asChild>
@@ -259,14 +166,20 @@ export function LandingPage() {
           <div className="lhero-bg" aria-hidden="true">
             <div className="grid" />
             <div className="glow" />
+            <div className="lhero-art">
+              <img
+                src={heroOrchestration}
+                alt=""
+                width={1024}
+                height={1024}
+                decoding="async"
+                fetchPriority="high"
+              />
+            </div>
           </div>
 
-          <div className="lhero-eyebrow" style={{ position: 'relative', zIndex: 1 }}>
-            <span className="live-dot" aria-hidden="true" />
-            <span>
-              Now in public beta ·{' '}
-              <span style={{ color: 'var(--accent)' }}>open source</span>
-            </span>
+          <div className="lhero-eyebrow">
+            <span>Distributed workflow orchestration</span>
           </div>
 
           <h1>
@@ -275,8 +188,9 @@ export function LandingPage() {
             <span className="grad">never lose state.</span>
           </h1>
           <p>
-            Define a graph of tasks once. FlowForge runs it asynchronously, recovers from worker
-            failures automatically, and records every attempt — so you always know what happened.
+            Define a graph of tasks once. FlowForge runs it asynchronously, recovers from
+            worker failures automatically, and records every attempt — so you always know
+            what happened.
           </p>
 
           <div className="lhero-ctas">
@@ -293,20 +207,20 @@ export function LandingPage() {
             <Link to="/signup">create an account to keep your work →</Link>
           </div>
 
-          <div className="lhero-dag" style={{ position: 'relative' }}>
-            <FlowGraph />
+          <div className="mt-16 flex justify-center px-2">
+            <ExecutionDemo />
           </div>
         </section>
 
         <section className="logos">
           <div className="label">Built on a focused, durable stack</div>
           <div className="logos-row">
-            <div className="logo-slot">◆ Go</div>
-            <div className="logo-slot">● PostgreSQL</div>
-            <div className="logo-slot">◆ React</div>
-            <div className="logo-slot">■ Vite</div>
-            <div className="logo-slot">▲ React Flow</div>
-            <div className="logo-slot">■ TanStack Query</div>
+            <div className="logo-slot">Go</div>
+            <div className="logo-slot">PostgreSQL</div>
+            <div className="logo-slot">React</div>
+            <div className="logo-slot">Vite</div>
+            <div className="logo-slot">React Flow</div>
+            <div className="logo-slot">TanStack Query</div>
           </div>
           <div className="logos-metric">
             <span className="text-accent">At-least-once</span> execution · <b>durable</b> by
@@ -317,20 +231,65 @@ export function LandingPage() {
           </div>
         </section>
 
+        <section className="lshowcase" id="graph">
+          <div className="lshowcase-inner">
+            <div className="lsection-head">
+              <div className="lsection-eyebrow">The workflow graph</div>
+              <h2 className="lsection-title">
+                One definition.
+                <br />
+                Every dependency explicit.
+              </h2>
+              <p className="lsection-sub">
+                A version is a frozen snapshot of the graph — its tasks, their config, and the
+                edges between them. Activating a version decides which one new runs use.
+              </p>
+            </div>
+            <div className="lshowcase-art reveal">
+              <img
+                src={orchestrationGraph}
+                alt="A FlowForge workflow graph: a signed webhook trigger starts an http task that has completed, feeding a transform task that is currently running and a conditional task that is being retried. Dependent email and delay tasks are still queued."
+                width={1200}
+                height={640}
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
+            <div className="lshowcase-chips reveal">
+              <span className="lshowcase-chip">
+                <i style={{ background: 'var(--queued)' }} />
+                queued
+              </span>
+              <span className="lshowcase-chip">
+                <i style={{ background: 'var(--running)' }} />
+                running
+              </span>
+              <span className="lshowcase-chip">
+                <i style={{ background: 'var(--success)' }} />
+                done
+              </span>
+              <span className="lshowcase-chip">
+                <i style={{ background: 'var(--paused)' }} />
+                retry
+              </span>
+            </div>
+          </div>
+        </section>
+
         <section className="lsection" id="product">
           <div className="lsection-inner">
             <div className="lsection-head">
               <div className="lsection-eyebrow">How it works</div>
               <h2 className="lsection-title">
-                From code to running graph
+                From a task graph to a running
                 <br />
-                in three steps.
+                execution in three steps.
               </h2>
               <p className="lsection-sub">
-                No queues to configure. No state machine to write. Define, publish, watch it run.
+                No broker to run and no state machine to write. Model it, publish it, run it.
               </p>
             </div>
-            <div className="steps">
+            <div className="steps reveal">
               {steps.map((step) => (
                 <div className="step" key={step.num}>
                   <div className="step-num">{step.num}</div>
@@ -348,39 +307,39 @@ export function LandingPage() {
             <div className="lsection-head">
               <div className="lsection-eyebrow">Built for reliability</div>
               <h2 className="lsection-title">
-                Every feature exists because
+                Every capability exists because
                 <br />
                 an on-call engineer needed it.
               </h2>
             </div>
-            <div className="bento">
+            <div className="bento reveal">
               <div className="bento-card b-1">
                 <div className="bi">
                   <RefreshCw className="h-4 w-4" aria-hidden="true" />
                 </div>
                 <div className="bt">Durable execution</div>
                 <div className="bd">
-                  Worker crashed mid-task? Another picks it up. Leases and heartbeats guarantee
-                  at-least-once execution.
+                  Worker crashed mid-task? Its lease expires, another worker reclaims the
+                  task, and the attempt is recorded. Retries use exponential backoff with
+                  jitter.
                 </div>
-                <div className="fillvis">
-                  <div className="flex items-center gap-2 font-mono text-[11px] text-muted mb-3">
-                    <span className="live-dot" aria-hidden="true" /> worker-01a · task-3 · lease 30s
+                <div className="fillvis dur-vis">
+                  <div className="dur-kicker">task-3 · lease 30s</div>
+                  <div className="dur-row">
+                    <span className="dur-w">w-01a</span>
+                    <span className="dur-track">
+                      <span className="dur-seg lost" />
+                    </span>
+                    <span className="dur-tag lost">lease expired</span>
                   </div>
-                  <div className="durable-bar">
-                    <div
-                      className="durable-bar-fill"
-                      style={{ width: '100%', background: 'var(--running)' }}
-                    />
+                  <div className="dur-row">
+                    <span className="dur-w">w-02b</span>
+                    <span className="dur-track">
+                      <span className="dur-seg reclaimed" />
+                    </span>
+                    <span className="dur-tag ok">reclaimed</span>
                   </div>
-                  <div className="durable-demo">
-                    <div className="durable-line in" style={{ color: 'var(--success)' }}>
-                      ✓ resumed on w-02b
-                    </div>
-                    <div className="durable-line in" style={{ color: 'var(--success)' }}>
-                      ✓ completed · no data lost
-                    </div>
-                  </div>
+                  <div className="dur-note">attempt 1 persisted · task re-queued, not lost</div>
                 </div>
               </div>
               <div className="bento-card b-2">
@@ -388,7 +347,10 @@ export function LandingPage() {
                   <GitBranch className="h-4 w-4" aria-hidden="true" />
                 </div>
                 <div className="bt">Immutable versions</div>
-                <div className="bd">Publish creates a frozen snapshot. Rollback in one click.</div>
+                <div className="bd">
+                  Publishing freezes a snapshot; activating it decides new runs. Rollback by
+                  activating an older version.
+                </div>
                 <div className="flex gap-6 mt-auto">
                   <span className="badge">v1</span>
                   <span className="badge">v2</span>
@@ -402,19 +364,20 @@ export function LandingPage() {
                 <div className="bi">
                   <WorkflowIcon className="h-4 w-4" aria-hidden="true" />
                 </div>
-                <div className="bt">Visual + code, either way</div>
-                <div className="bd">Design in the drag-drop editor. Ship YAML/TS from CI.</div>
-                <div className="fillvis" style={{ padding: 14 }}>
-                  <svg viewBox="0 0 260 90" style={{ width: '100%', height: '100%' }} aria-hidden="true">
-                    <rect x="10" y="30" width="60" height="30" rx="4" fill="var(--surface-3)" stroke="var(--success)" />
-                    <rect x="100" y="10" width="60" height="30" rx="4" fill="var(--surface-3)" stroke="var(--border-strong)" />
-                    <rect x="100" y="50" width="60" height="30" rx="4" fill="var(--surface-3)" stroke="var(--border-strong)" />
-                    <rect x="190" y="30" width="60" height="30" rx="4" fill="var(--surface-3)" stroke="var(--accent)" />
-                    <path d="M70,45 C85,45 85,25 100,25" fill="none" stroke="#3a4048" strokeWidth="1.4" />
-                    <path d="M70,45 C85,45 85,65 100,65" fill="none" stroke="#3a4048" strokeWidth="1.4" />
-                    <path d="M160,25 C175,25 175,45 190,45" fill="none" stroke="#3a4048" strokeWidth="1.4" />
-                    <path d="M160,65 C175,65 175,45 190,45" fill="none" stroke="#3a4048" strokeWidth="1.4" />
-                  </svg>
+                <div className="bt">Visual builder</div>
+                <div className="bd">
+                  Design the DAG by drag-and-drop or post the definition from your own
+                  tooling. HTTP, transform, delay, conditional, and email tasks out of the box.
+                </div>
+                <div className="fillvis fillvis-art">
+                  <img
+                    src={builderCanvas}
+                    alt="The FlowForge builder: a palette of the five built-in task types beside a canvas where an http task feeds an email task, a transform task is selected, and a new task can be dropped into the graph."
+                    width={640}
+                    height={300}
+                    loading="lazy"
+                    decoding="async"
+                  />
                 </div>
               </div>
               <div className="bento-card b-4">
@@ -422,64 +385,68 @@ export function LandingPage() {
                   <History className="h-4 w-4" aria-hidden="true" />
                 </div>
                 <div className="bt">Deep observability</div>
-                <div className="bd">Timelines, logs, inputs — per task, per run.</div>
+                <div className="bd">
+                  Timelines, persisted logs, outputs, and attempt history — per task, per run.
+                </div>
               </div>
               <div className="bento-card b-5">
                 <div className="bi">
-                  <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                  <Play className="h-4 w-4" aria-hidden="true" />
                 </div>
-                <div className="bt">Smart retries</div>
-                <div className="bd">Exponential backoff, jitter, dead-letter.</div>
+                <div className="bt">Triggers</div>
+                <div className="bd">Manual and API runs, signed webhooks, and a timezone-aware cron scheduler.</div>
               </div>
               <div className="bento-card b-6">
                 <div className="bi">
-                  <Play className="h-4 w-4" aria-hidden="true" />
+                  <Sparkles className="h-4 w-4" aria-hidden="true" />
                 </div>
-                <div className="bt">Any trigger</div>
-                <div className="bd">Cron, webhooks, events, API.</div>
+                <div className="bt">AI-assisted authoring</div>
+                <div className="bd">
+                  Generate a workflow from a prompt and flag risky config — placeholders,
+                  inline secrets, unsafe retries — before you run.
+                </div>
               </div>
             </div>
           </div>
         </section>
 
-        <section className="lsection" id="docs" style={{ paddingTop: 20 }}>
-          <div className="lsection-inner" style={{ maxWidth: 960 }}>
+        <section className="lsection" id="api" style={{ paddingTop: 20 }}>
+          <div className="lsection-inner">
             <div className="lsection-head">
-              <div className="lsection-eyebrow">Developer-first API</div>
+              <div className="lsection-eyebrow">Built to integrate</div>
               <h2 className="lsection-title">
-                Feels like writing
+                Author in the app,
                 <br />
-                regular functions.
+                run it from anywhere.
               </h2>
               <p className="lsection-sub">
-                Because it is. FlowForge just makes them durable, retriable, and observable.
+                The visual builder and the API describe the same definition. Create a
+                workflow, publish a version, then start a run from the UI, the API, a
+                webhook, or a schedule.
               </p>
             </div>
-            <div className="code-block">
-              <div className="code-head">
-                <div className="dots" aria-hidden="true">
-                  <i />
-                  <i />
-                  <i />
+            <div className="why-grid reveal">
+              <div className="why-card">
+                <h4>
+                  <WorkflowIcon className="h-4 w-4" aria-hidden="true" />
+                  Workflow definition
+                </h4>
+                <div className="step-visual">
+                  <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>
+                    {definitionExample}
+                  </pre>
                 </div>
-                <span style={{ flex: 1, textAlign: 'center' }}>order-fulfillment.ts</span>
-                <span>TypeScript</span>
               </div>
-              <button
-                className="copy-btn"
-                type="button"
-                onClick={handleCopy}
-                aria-label="Copy code example"
-              >
-                {copied ? (
-                  <Check className="mr-1 h-3 w-3" aria-hidden="true" />
-                ) : (
-                  <Copy className="mr-1 h-3 w-3" aria-hidden="true" />
-                )}
-                {copied ? 'Copied!' : 'Copy'}
-              </button>
-              <div className="code-body">
-                <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{codeExample}</pre>
+              <div className="why-card">
+                <h4>
+                  <Play className="h-4 w-4" aria-hidden="true" />
+                  Publish and run
+                </h4>
+                <div className="step-visual">
+                  <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>
+                    {runExample}
+                  </pre>
+                </div>
               </div>
             </div>
           </div>
@@ -491,7 +458,7 @@ export function LandingPage() {
               <div className="lsection-eyebrow">Why FlowForge</div>
               <h2 className="lsection-title">The bar has moved.</h2>
             </div>
-            <div className="why-grid">
+            <div className="why-grid reveal">
               <div className="why-card why-bad">
                 <h4>
                   <ChevronRight className="h-4 w-4 rotate-45" aria-hidden="true" />
@@ -526,81 +493,104 @@ export function LandingPage() {
 
         <section className="lcta">
           <div className="lcta-bg" aria-hidden="true" />
-          <h2>
-            Ship your first
-            <br />
-            durable workflow tonight.
-          </h2>
-          <p>
-            Open source and self-hostable. Define a DAG once, and every run is durable,
-            observable, and recoverable.
-          </p>
-          <div className="lcta-btns">
-            <StartTrialButton size="lg" label="Try FlowForge" />
-            <Button size="lg" variant="outline" asChild>
-              <Link to="/signup">
-                Create an account
-                <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
-              </Link>
-            </Button>
+          <div className="lcta-inner">
+            <div className="lcta-art">
+              <img
+                src={heroOrchestration}
+                alt="A FlowForge task graph: one task fans out to three dependents — two finished, one being retried — with worker nodes alongside."
+                width={1024}
+                height={1024}
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
+            <div className="lcta-copy">
+              <h2>
+                Run your first
+                <br />
+                durable workflow tonight.
+              </h2>
+              <p>
+                Self-hostable and PostgreSQL-backed end to end. Define a DAG once, and every
+                run is durable, observable, and recoverable.
+              </p>
+              <div className="lcta-btns reveal">
+                <StartTrialButton size="lg" label="Try FlowForge" />
+                <Button size="lg" variant="outline" asChild>
+                  <Link to="/signup">
+                    Create an account
+                    <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
+                  </Link>
+                </Button>
+              </div>
+            </div>
           </div>
         </section>
       </main>
 
       <footer className="lfoot">
         <div className="lfoot-brand">
-          <div className="logo">
-            <span className="logo-mark">F</span>
-            <span>FlowForge</span>
-          </div>
+          <FlowForgeLogo />
           <p>
-            Durable distributed workflow orchestration. Built for the moment your infrastructure is
-            on fire.
+            Durable distributed workflow orchestration. A Postgres-backed queue, independent
+            workers, and at-least-once execution.
           </p>
-          <div className="status">
-            <span className="live-dot" aria-hidden="true" />
-            Public beta
-          </div>
+          <div className="status">Runs locally · self-hosted</div>
         </div>
         <div>
           <h5>Product</h5>
           <ul>
-            <li>Editor</li>
-            <li>Observability</li>
-            <li>Versions</li>
-            <li>Triggers</li>
-            <li>Changelog</li>
+            <li>
+              <a href="#features">Features</a>
+            </li>
+            <li>
+              <a href="#product">How it works</a>
+            </li>
+            <li>
+              <Link to="/docs">Documentation</Link>
+            </li>
           </ul>
         </div>
         <div>
           <h5>Developers</h5>
           <ul>
             <li>
-              <Link to="/docs">Documentation</Link>
+              <Link to="/docs/running">Running a workflow</Link>
             </li>
-            <li>API reference</li>
-            <li>SDKs</li>
-            <li>Examples</li>
-            <li>Open source</li>
+            <li>
+              <Link to="/docs/executions">Execution & failures</Link>
+            </li>
+            <li>
+              <Link to="/docs/recovery">Retries & recovery</Link>
+            </li>
           </ul>
         </div>
         <div>
-          <h5>Company</h5>
+          <h5>Learn</h5>
           <ul>
-            <li>About</li>
-            <li>Blog</li>
-            <li>Contributing</li>
-            <li>Community</li>
-            <li>Contact</li>
+            <li>
+              <Link to="/docs/tutorials">Tutorials</Link>
+            </li>
+            <li>
+              <Link to="/docs/examples">Examples</Link>
+            </li>
+            <li>
+              <Link to="/docs/task-types">Task types</Link>
+            </li>
           </ul>
         </div>
         <div>
-          <h5>Legal</h5>
+          <h5>Account</h5>
           <ul>
-            <li>Privacy</li>
-            <li>Terms</li>
-            <li>Security</li>
-            <li>License</li>
+            <li>
+              <Link to="/login">Sign in</Link>
+            </li>
+            <li>
+              <Link to="/signup">Create account</Link>
+            </li>
+            <li>
+              <Link to="/signup">Free trial</Link>
+            </li>
           </ul>
         </div>
       </footer>

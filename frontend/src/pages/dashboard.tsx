@@ -8,6 +8,7 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { greetingForHour } from '@/lib/utils'
 
 function ProjectSkeleton() {
   return (
@@ -39,13 +40,16 @@ export function DashboardPage() {
 
   const firstName = user?.displayName?.split(/\s+/)[0] ?? 'there'
   const projectCount = projects?.length ?? 0
+  const greeting = greetingForHour(new Date().getHours())
 
   return (
     <div className="space-y-6">
       <div className="hero-strip">
         <div className="hero-strip-inner">
           <div>
-            <h1 className="hero-greet">Good evening, {firstName}</h1>
+            <h1 className="hero-greet">
+              {greeting}, {firstName}
+            </h1>
             <p className="hero-summary">
               You have <b>{projectCount} project{projectCount === 1 ? '' : 's'}</b> in your
               workspace. Create a project to start building durable workflows.

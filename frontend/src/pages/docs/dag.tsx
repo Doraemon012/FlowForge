@@ -1,6 +1,5 @@
 import { DocsSection, DocsParagraph } from '@/components/docs/DocsSection'
 import { DocsCallout } from '@/components/docs/DocsCallout'
-import { DocsVersionBadge } from '@/components/docs/DocsVersionBadge'
 import { DocsDiagram } from '@/components/docs/DocsDiagram'
 
 export function DagPage() {
@@ -13,9 +12,6 @@ export function DagPage() {
           Connect tasks with dependencies to form a directed acyclic graph. Dependencies
           flow one way — cycles are not allowed.
         </p>
-        <div className="docs-hero-badges">
-          <DocsVersionBadge label="V1" />
-        </div>
       </div>
 
       <DocsSection title="Connecting tasks">

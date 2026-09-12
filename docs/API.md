@@ -13,7 +13,7 @@ The API is the control-plane boundary. It authenticates requests, authorizes acc
 
 ## Authentication and authorization
 
-V1 provides email/password account creation and login, stores only a slow password hash, and issues short-lived bearer access tokens. User endpoints require that token. The token identifies a `User`; an inactive user is rejected. Every resource lookup includes the authenticated user's project ownership check. V1 has one owner per project. Workers use a separate service credential and worker identity, never a user token. Password reset, external identity providers, and SSO are later concerns.
+FlowForge provides email/password account creation and login, stores only a slow password hash, and issues short-lived bearer access tokens. User endpoints require that token. The token identifies a `User`; an inactive user is rejected. Every resource lookup includes the authenticated user's project ownership check. Each project has one owner. Workers use a separate service credential and worker identity, never a user token. Password reset, external identity providers, and SSO are not implemented.
 
 ## Projects
 
@@ -23,7 +23,7 @@ V1 provides email/password account creation and login, stores only a slow passwo
 
 `POST /projects/{projectID}/workflows` creates a draft. `GET/PATCH /projects/{projectID}/workflows/{workflowID}` reads or edits draft metadata and definition. `POST .../validate` returns graph and task validation errors without publishing, plus the advisory review warnings described under "Workflow review warnings" below. `POST .../versions` validates and creates an immutable version. `POST .../versions/{versionID}/activate` and `/deactivate` change which version receives new triggers. `GET .../versions` lists versions.
 
-A draft definition is `{ "tasks": [...] }`. Each task is `{ "id": string, "type": string, "config": object, "depends_on": [string] }`. Phase 3 accepts only the fixed built-in types `http`, `transform`, `delay`, `conditional`, and `email`; it stores configuration but does not execute tasks. A version must contain a valid acyclic task graph, supported task types, configuration objects, and dependency references. Empty definitions, duplicate or blank IDs, unknown dependencies, self-dependencies, cycles, and unsupported types are rejected with deterministic `422` validation errors. Published versions cannot be edited or deleted.
+A draft definition is `{ "tasks": [...] }`. Each task is `{ "id": string, "type": string, "config": object, "depends_on": [string] }`. The fixed built-in types are `http`, `transform`, `delay`, `conditional`, and `email`. The API stores and validates definitions but never executes tasks itself. A version must contain a valid acyclic task graph, supported task types, configuration objects, and dependency references. Empty definitions, duplicate or blank IDs, unknown dependencies, self-dependencies, cycles, and unsupported types are rejected with deterministic `422` validation errors. Published versions cannot be edited or deleted.
 
 ## Workflow review warnings
 
@@ -52,9 +52,9 @@ Warnings are advisory only: ignoring them never fails a request.
 
 ## Executions and tasks
 
-`POST /projects/{projectID}/workflows/{workflowID}/executions` creates a run from the active version, or an explicitly requested version permitted by policy. It accepts an optional JSON input payload and returns `202` immediately; an empty body uses `{}`. `GET /projects/{projectID}/executions` lists executions in an owned project. `GET /executions/{executionID}` returns persisted status and timestamps. `GET /executions/{executionID}/tasks` lists task runs. Phase 5 workers claim queued task runs; attempts, cancellation, and worker registration APIs remain later-phase functionality.
+`POST /projects/{projectID}/workflows/{workflowID}/executions` creates a run from the active version, or an explicitly requested version permitted by policy. It accepts an optional JSON input payload and returns `202` immediately; an empty body uses `{}`. `GET /projects/{projectID}/executions` lists executions in an owned project. `GET /executions/{executionID}` returns persisted status and timestamps. `GET /executions/{executionID}/tasks` lists task runs. `GET /executions/{executionID}/attempts` lists the append-only attempt history. Independent workers claim queued task runs; attempts, cancellation, and worker registration are implemented.
 
-Execution creation fails with `409` for an inactive/deleted workflow, `422` for invalid input, and `503` when the control plane cannot durably accept the request. A successful request never implies task success. Phase 4 executes the built-in `transform`, `delay`, and `conditional` task types in-process. Other structurally valid V1 task types remain representable but fail as unsupported until their runtime integration phase.
+Execution creation fails with `409` for an inactive/deleted workflow, `422` for invalid input, and `503` when the control plane cannot durably accept the request. A successful request never implies task success. Workers execute all five built-in task types (`http`, `transform`, `delay`, `conditional`, `email`); the control plane never executes task code.
 
 ## Schedules
 

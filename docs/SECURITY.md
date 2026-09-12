@@ -2,7 +2,7 @@
 
 ## Identity and authorization
 
-V1 provides email/password account creation and login, stores only a slow password hash, and issues short-lived bearer access tokens for control-plane requests. A token identifies an active `User`; authentication failures return `401`. Projects are owned by one user in V1. Every workflow, version, execution, schedule, credential, log, event, and artifact lookup is constrained by the caller's project ownership; missing resources may return `404` to avoid disclosure. Mutations require ownership and lifecycle checks. Password reset, collaborator roles, and external SSO are V2/V3.
+FlowForge provides email/password account creation and login, stores only a slow password hash, and issues short-lived bearer access tokens for control-plane requests. A token identifies an active `User`; authentication failures return `401`. Projects are owned by a single user. Every workflow, version, execution, schedule, credential, log, event, and artifact lookup is constrained by the caller's project ownership; missing resources may return `404` to avoid disclosure. Mutations require ownership and lifecycle checks. Password reset, collaborator roles, and external SSO are not implemented.
 
 Workers use separate service credentials, register an identity and capabilities, and may call only worker/task endpoints. A worker receives only the selected task context, artifact references, and authorized credential references. It cannot browse project resources.
 

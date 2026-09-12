@@ -28,14 +28,13 @@ This is a portfolio project, but the architecture should follow production-quali
 Before making architectural or implementation decisions, read:
 
 1. `docs/DESIGN.md`
-2. `docs/IMPLEMENTATION_PLAN.md`
-3. `docs/API.md`
-4. `docs/DATA_MODEL.md`
-5. `docs/EXECUTION_ENGINE.md`
-6. `docs/TESTING.md`
-7. `docs/SECURITY.md`
-8. `docs/OBSERVABILITY.md`
-9. all ADRs under `docs/adr/`
+2. `docs/API.md`
+3. `docs/DATA_MODEL.md`
+4. `docs/EXECUTION_ENGINE.md`
+5. `docs/TESTING.md`
+6. `docs/SECURITY.md`
+7. `docs/OBSERVABILITY.md`
+8. all ADRs under `docs/adr/`
 
 These documents define the intended system behavior.
 
@@ -228,9 +227,7 @@ Do not leave architectural documentation describing behavior that the implementa
 
 ## Development Workflow
 
-Implement one phase from `docs/IMPLEMENTATION_PLAN.md` at a time.
-
-For each phase:
+Work in focused changes, one at a time. For each change:
 
 1. understand the requirements
 2. inspect the existing implementation
@@ -241,7 +238,7 @@ For each phase:
 7. review for architectural consistency
 8. update documentation where required
 
-Do not implement future phases prematurely unless required by a dependency.
+Do not implement unrelated work in the same change.
 
 ---
 

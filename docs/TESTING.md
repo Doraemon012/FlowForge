@@ -8,7 +8,7 @@ Cover configuration validation, authentication/authorization decisions, workflow
 
 ## Integration tests
 
-Run against PostgreSQL and the selected queue implementation. Verify migrations on an empty database, rerun safety, project isolation queries, immutable versions, transactional execution/task state changes, durable enqueue/acknowledgement, delayed retries, lease expiry, heartbeat renewal, stale-result rejection, and restart reconciliation.
+Run against PostgreSQL (which is also the queue). Verify migrations on an empty database, rerun safety, project isolation queries, immutable versions, transactional execution/task state changes, durable enqueue/acknowledgement, delayed retries, lease expiry, heartbeat renewal, stale-result rejection, and restart reconciliation.
 
 ## API tests
 
@@ -26,4 +26,4 @@ Exercise the complete path from workflow publication through manual, API, webhoo
 
 ## Test gates
 
-Every phase in `IMPLEMENTATION_PLAN.md` has focused tests and objective exit criteria. CI runs formatting, static analysis, unit tests, integration tests with disposable dependencies, and race detection where supported. End-to-end and failure-injection tests are required before V1 acceptance; skipped tests must be explained and cannot satisfy an exit criterion.
+Each subsystem has focused tests and objective exit criteria. CI runs formatting, static analysis, unit tests, integration tests with disposable dependencies, and race detection where supported. Failure-injection tests must exist for recovery behavior, and skipped tests must be explained rather than counted as passing.

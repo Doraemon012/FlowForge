@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cn, formatDate, formatDateTime } from '@/lib/utils'
+import { cn, formatDate, formatDateTime, greetingForHour } from '@/lib/utils'
 
 describe('cn', () => {
   it('merges class names', () => {
@@ -36,5 +36,22 @@ describe('formatDateTime', () => {
 
   it('returns an em dash for invalid dates', () => {
     expect(formatDateTime('not-a-date')).toBe('—')
+  })
+})
+
+describe('greetingForHour', () => {
+  it('greets the morning before noon', () => {
+    expect(greetingForHour(0)).toBe('Good morning')
+    expect(greetingForHour(11)).toBe('Good morning')
+  })
+
+  it('greets the afternoon from noon until 6pm', () => {
+    expect(greetingForHour(12)).toBe('Good afternoon')
+    expect(greetingForHour(17)).toBe('Good afternoon')
+  })
+
+  it('greets the evening from 6pm onwards', () => {
+    expect(greetingForHour(18)).toBe('Good evening')
+    expect(greetingForHour(23)).toBe('Good evening')
   })
 })

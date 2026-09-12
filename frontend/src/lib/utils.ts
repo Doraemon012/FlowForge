@@ -28,3 +28,17 @@ export function formatDateTime(date: string | Date | null | undefined): string {
     minute: '2-digit',
   }).format(value)
 }
+
+const NOON_HOUR = 12
+const EVENING_HOUR = 18
+
+/**
+ * Time-of-day greeting for the dashboard. It takes the hour (0-23) rather than
+ * reading the clock itself so the message stays testable and correct in every
+ * timezone the viewer happens to be in.
+ */
+export function greetingForHour(hour: number): string {
+  if (hour < NOON_HOUR) return 'Good morning'
+  if (hour < EVENING_HOUR) return 'Good afternoon'
+  return 'Good evening'
+}

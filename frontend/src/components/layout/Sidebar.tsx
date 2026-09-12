@@ -2,6 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { LayoutDashboard, FolderKanban, BookOpen } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useSession } from '@/lib/auth-store'
+import { FlowForgeMark } from '@/components/brand/FlowForgeLogo'
 
 const groups = [
   {
@@ -71,7 +72,9 @@ export function Sidebar({ className, onNavigate, collapsed = false }: SidebarPro
           }
         }}
       >
-        <div className="sb-avatar">{initials}</div>
+        {/* The workspace slot carries the FlowForge mark rather than a second
+            copy of the account's initials, which the footer already shows. */}
+        <FlowForgeMark size={30} />
         {!collapsed ? (
           <div style={{ minWidth: 0, flex: 1 }}>
             <div className="name">{workspaceName}</div>
@@ -109,7 +112,11 @@ export function Sidebar({ className, onNavigate, collapsed = false }: SidebarPro
         {!collapsed ? (
           <div>
             <div className="who">{user?.displayName ?? user?.email ?? 'Account'}</div>
-            <div className="plan">Team plan</div>
+            {/* The account's own address. The previous "Team plan" label was
+                static decoration — FlowForge has no plans or billing. */}
+            {user?.displayName && user?.email ? (
+              <div className="plan">{user.email}</div>
+            ) : null}
           </div>
         ) : null}
       </div>

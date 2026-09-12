@@ -552,11 +552,11 @@ The frontend interacts only with supported HTTP/application APIs.
 
 # 15. Worker System
 
-The backend contains worker execution infrastructure.
+The backend contains worker execution infrastructure and exposes read-only observability for it (`GET /api/v1/workers`, `/api/v1/queue`, `/api/v1/metrics`).
 
-The current frontend must not assume a worker-management API exists.
+The frontend must not assume a worker-management API exists.
 
-Therefore V1 must not implement:
+Therefore the frontend does not implement:
 
 * worker registration UI
 * worker start/stop controls
@@ -564,27 +564,24 @@ Therefore V1 must not implement:
 * fabricated worker health dashboards
 * direct worker communication
 
-Worker information may only appear indirectly through supported execution/attempt data.
+Worker information appears as read-only data — indirectly through execution/attempt records, and through the observability endpoints above.
 
 ---
 
 # 16. Deferred APIs
 
-The following capabilities should not be implemented in the UI unless corresponding backend APIs are added:
+Implement only what the backend exposes. Do not build UI for backend capabilities that do not exist, and do not assume an endpoint exists from its name alone.
 
-* execution event stream
-* SSE
-* WebSockets
-* execution log streaming
-* worker listing
+Capabilities the backend does not currently expose as frontend features include:
+
+* execution event streaming (SSE / WebSockets)
+* live log streaming
 * worker management
-* scheduling
-* webhooks
-* execution cancellation
 * API key management
 * team management
 * billing
-* provider-side idempotency controls
+
+Execution cancellation, scheduling, webhooks, and AI-assisted authoring are implemented and surfaced in the product: a cancel action on active runs, a Triggers dialog inside the workflow, and AI generate/edit in the builder.
 
 ---
 
@@ -739,5 +736,3 @@ If the frontend documentation and backend implementation disagree:
 5. do not invent compatibility behavior without a reason
 
 Backend changes should only be made when there is a genuine product/integration requirement.
-
-```

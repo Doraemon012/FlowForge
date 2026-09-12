@@ -604,21 +604,16 @@ After dialogs, validation failures, and major navigation changes, focus should r
 
 ---
 
-# 26. V1 UX Boundaries
+# 26. Product Boundaries
 
-Do not design or implement user experiences for capabilities that are not part of the current backend/product scope.
+Do not design or implement user experiences for capabilities that are not part of the product.
 
-Explicitly deferred:
+FlowForge deliberately does not include:
 
-* team collaboration
-* role management
-* billing
+* team collaboration and role management
+* billing or plan management
 * API key management
-* scheduling
-* webhooks
-* worker administration
-* real-time execution event streaming
-* AI-generated workflows
-* plugin marketplace
-* advanced execution logs
-* worker management
+* a plugin marketplace
+* a worker administration UI — worker, queue, and metrics views are read-only observability
+
+Scheduling, signed webhooks, AI-assisted authoring, execution logs, and attempt history are part of the product and are surfaced through the workflow and execution views.

@@ -415,21 +415,31 @@ const handleDeleteTask = useCallback(() => {
     <ReactFlowProvider>
       <EdgeActionsContext.Provider value={edgeActions}>
       <div className={cn('flex h-full min-h-0 flex-col overflow-hidden', className)}>
-        <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b px-3">
-          <div className="flex min-w-0 items-center gap-2">{headerLeft}</div>
+        {/* The toolbar carries many actions, so it wraps and grows rather than
+            sitting in a fixed-height row where wrapped buttons would be
+            clipped by the builder's overflow-hidden shell. */}
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-2 gap-y-1 border-b px-3 py-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">{headerLeft}</div>
           <div className="flex flex-wrap items-center justify-end gap-2">
             {isGraphView ? (
-              <Button
-                variant="outline"
-                size="sm"
-                className="md:hidden"
-                onClick={togglePalette}
-                aria-expanded={paletteOpen}
-                aria-controls="task-palette-drawer"
-              >
-                <Box className="mr-1 h-4 w-4" aria-hidden="true" />
-                Tasks
-              </Button>
+              // Mobile-only: below md the palette rail is hidden and this opens
+              // it as a drawer. The wrapper carries the responsive utility
+              // because `.btn` sets `display: inline-flex` from unlayered CSS,
+              // which beats Tailwind's layered `md:hidden` — on the button
+              // itself it stayed visible next to the desktop rail, giving two
+              // competing task panels.
+              <div className="md:hidden">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={togglePalette}
+                  aria-expanded={paletteOpen}
+                  aria-controls="task-palette-drawer"
+                >
+                  <Box className="mr-1 h-4 w-4" aria-hidden="true" />
+                  Tasks
+                </Button>
+              </div>
             ) : null}
             {headerActions}
           </div>

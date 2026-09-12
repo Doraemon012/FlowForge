@@ -57,7 +57,7 @@ The frontend may only use APIs that exist.
 
 If a desired UI feature requires an API that does not currently exist, the feature must be:
 
-1. omitted from V1,
+1. omitted from the product,
 2. implemented using an existing supported contract, or
 3. explicitly documented as a backend gap requiring a future change.
 
@@ -101,7 +101,7 @@ Introduce global state only when a concrete cross-route or cross-component requi
 
 ## 3. Frontend Technology
 
-The approved V1 stack is:
+The stack is:
 
 - React
 - TypeScript

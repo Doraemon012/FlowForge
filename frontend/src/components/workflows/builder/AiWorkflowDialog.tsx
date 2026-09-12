@@ -17,6 +17,7 @@ import { useTrialUsage } from '@/hooks/use-trial'
 import { useAiStatus, useEditWorkflow, useGenerateWorkflow } from '@/hooks/use-workflows'
 import { TRIAL_EXHAUSTED_MESSAGE } from '@/components/layout/TrialIndicator'
 import { diffDefinitions } from '@/lib/definition-diff'
+import { isTrialModeSpent } from '@/lib/trial-usage'
 import { DefinitionDiffView } from '@/components/workflows/DefinitionDiffView'
 import { Button } from '@/components/ui/button'
 import {
@@ -97,10 +98,8 @@ export function AiWorkflowDialog({
   // a trial visitor can see the allowance and is not offered an action that
   // will be refused. A registered user sees none of this.
   const trial = trialQuery.data?.is_trial ? trialQuery.data : null
-  const relevantRemaining =
-    trial === null ? null : mode === 'create' ? trial.remaining.generation : trial.remaining.edit
   const trialBlocked =
-    trial !== null && (relevantRemaining! <= 0 || trial.remaining.total <= 0)
+    trial !== null && isTrialModeSpent(trial, mode === 'create' ? 'generation' : 'edit')
 
   const unavailable = statusQuery.data?.enabled === false
   const isPending = generateMutation.isPending || editMutation.isPending

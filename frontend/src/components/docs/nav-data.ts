@@ -28,7 +28,7 @@ export const docsNavGroups: DocsNavGroup[] = [
       { slug: 'concepts', title: 'Core concepts & terminology' },
       { slug: 'architecture', title: 'Architecture' },
       { slug: 'stack', title: 'Technology stack' },
-      { slug: 'features', title: 'V1 features' },
+      { slug: 'features', title: 'Features' },
       { slug: 'how-workflows-work', title: 'How workflows work' },
     ],
   },

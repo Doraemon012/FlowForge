@@ -226,22 +226,20 @@ Displays:
 
 Settings.
 
-V1 should only contain settings supported by actual backend functionality.
+Settings should only contain options supported by actual backend functionality.
 
 Do not create fake settings for unsupported features.
 
 ---
 
-# 4. Deferred Routes
+# 4. Not Top-Level Routes
 
-Do not implement these routes in the current frontend unless the backend capability is added:
+Schedules and webhooks are backend capabilities, but they are managed in context inside a workflow (the Triggers dialog), not as top-level pages, so `/app/schedules` and `/app/webhooks` do not exist.
 
-- `/app/workers`
-- `/app/schedules`
-- `/app/webhooks`
-- `/app/api-keys`
-- `/app/team`
-- `/app/billing`
+Do not add routes for capabilities the backend does not expose:
+
+- `/app/workers` — worker, queue, and metrics data is read-only observability, not an administration UI
+- `/app/team`, `/app/billing`, `/app/api-keys` — not part of the product
 
 ---
 

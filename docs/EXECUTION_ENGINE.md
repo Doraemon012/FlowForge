@@ -21,11 +21,11 @@ State transitions are conditional and idempotent. A duplicate queue message or r
 
 ## Dependencies and concurrency
 
-Workflow definitions are DAGs. Publication rejects cycles, missing nodes, duplicate keys, and unsupported dependency references. A node becomes eligible only when every required predecessor is `succeeded`. Independent nodes may run concurrently across workers. V1 enforces bounded workflow and worker concurrency; queue depth provides backpressure. Fairness and project quotas are later extensions, but dispatch must not create unlimited work in memory.
+Workflow definitions are DAGs. Publication rejects cycles, missing nodes, duplicate keys, and unsupported dependency references. A node becomes eligible only when every required predecessor is `succeeded`. Independent nodes may run concurrently across workers. FlowForge enforces bounded workflow and worker concurrency; queue depth provides backpressure. Fairness and project quotas are not implemented, but dispatch never creates unlimited work in memory.
 
 ## Queue contract
 
-The queue must durably accept a task reference, execution ID, attempt ID, task type, lease/dispatch metadata, and idempotency key. It must support acknowledgement, delayed delivery for retries, visibility/lease recovery, and redelivery after consumer loss. Queue messages are hints to reconcile persisted state, not the source of truth. The concrete queue technology is selected in the queue phase of `IMPLEMENTATION_PLAN.md`.
+The queue is PostgreSQL-backed. It durably accepts a task reference, execution ID, attempt ID, task type, lease/dispatch metadata, and idempotency key, and supports acknowledgement, delayed delivery for retries, lease-expiry recovery, and redelivery after consumer loss. Queue rows are hints used to reconcile persisted state, not the source of truth: claiming is an atomic `FOR UPDATE SKIP LOCKED` update, so two workers cannot claim the same task.
 
 ## Leases and heartbeats
 
@@ -51,4 +51,4 @@ After API, orchestrator, queue, or worker restart, reconciliation reads persiste
 
 ## Required distributed tests
 
-The engine must test dependency gating, parallel branches, duplicate delivery, stale result fencing, retries and backoff, timeouts, cancellation, restart reconciliation, lease expiry, heartbeat loss, and recovery by a second worker. The scenario of killing a worker during a leased task is a V1 acceptance test.
+The engine tests dependency gating, parallel branches, duplicate delivery, stale result fencing, retries and backoff, timeouts, cancellation, restart reconciliation, lease expiry, heartbeat loss, and recovery by a second worker. Killing a worker during a leased task and observing another worker reclaim it is a covered acceptance test.

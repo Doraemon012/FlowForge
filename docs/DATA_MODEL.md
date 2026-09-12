@@ -4,7 +4,7 @@ PostgreSQL is the authoritative store for control-plane state. IDs are opaque id
 
 ## Entities
 
-- **User:** authenticated identity, status, and timestamps. Owns projects in V1.
+- **User:** authenticated identity, status, and timestamps. Owns projects.
 - **Project:** isolation boundary, owner, name, status, and timestamps.
 - **Workflow:** logical identity, project, name, description, status, and active version reference.
 - **WorkflowVersion:** immutable published snapshot with monotonically increasing version number, trigger definition, task graph, policies, creator, and timestamp.
@@ -39,7 +39,7 @@ erDiagram
 
 A workflow version cannot change after publication. An execution always points to one version, and task executions point to task definitions in that version. Attempt numbers are unique within a task execution. At most one current valid lease exists for an attempt; lease renewal and result persistence are conditional on the lease token/version. Event and attempt history is append-only.
 
-Execution state may be represented by current-state columns plus history; V1 is not full event sourcing. JSON is appropriate for task configuration and small payloads, while large inputs/outputs use object-storage references with content metadata and retention policy.
+Execution state is current-state columns plus append-only history; this is not full event sourcing. JSON is appropriate for task configuration and small payloads, while large inputs/outputs use object-storage references with content metadata and retention policy.
 
 ## Lifecycle states
 

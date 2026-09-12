@@ -1,6 +1,5 @@
 import { DocsSection, DocsParagraph } from '@/components/docs/DocsSection'
 import { DocsCallout } from '@/components/docs/DocsCallout'
-import { DocsVersionBadge } from '@/components/docs/DocsVersionBadge'
 import { DocsCodeBlock } from '@/components/docs/DocsCodeBlock'
 import { DocsSteps } from '@/components/docs/DocsSteps'
 
@@ -14,9 +13,6 @@ export function ValidationPage() {
           Validate a workflow before you publish. The builder and the server both check the
           graph and task configuration, so you catch problems early.
         </p>
-        <div className="docs-hero-badges">
-          <DocsVersionBadge label="V1" />
-        </div>
       </div>
 
       <DocsSection title="In the builder">

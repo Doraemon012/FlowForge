@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom'
 import {
   Boxes,
   FolderKanban,
@@ -9,7 +8,6 @@ import {
 } from 'lucide-react'
 import { DocsSection, DocsParagraph } from '@/components/docs/DocsSection'
 import { DocsCallout } from '@/components/docs/DocsCallout'
-import { DocsVersionBadge } from '@/components/docs/DocsVersionBadge'
 import { DocsTable } from '@/components/docs/DocsTable'
 import { DocsCardGrid } from '@/components/docs/DocsCardGrid'
 
@@ -24,9 +22,6 @@ export function IntroductionPage() {
           worker failures automatically, and records every attempt — so you always know
           what happened.
         </p>
-        <div className="docs-hero-badges">
-          <DocsVersionBadge label="V1" />
-        </div>
       </div>
 
       <DocsSection title="What FlowForge is">
@@ -76,7 +71,7 @@ export function IntroductionPage() {
         />
       </DocsSection>
 
-      <DocsCallout variant="v1" title="Key differentiators">
+      <DocsCallout variant="success" title="Key differentiators">
         <ul style={{ margin: 0, paddingLeft: 18 }}>
           <li>Reliable distributed execution with bounded leases and heartbeats</li>
           <li>Durable state — PostgreSQL is the source of truth</li>
@@ -129,15 +124,6 @@ export function IntroductionPage() {
         />
       </DocsSection>
 
-      <DocsCallout variant="deferred" title="Non-goals in V1">
-        Team collaboration and roles, SSO, billing, a plugin marketplace, multi-region
-        deployment, exactly-once execution, and AI-generated workflows are labeled{' '}
-        <strong>Deferred</strong> throughout the docs.{' '}
-        <Link to="/docs/features" className="inline-link">
-          See the V1 feature list
-        </Link>{' '}
-        for the complete picture.
-      </DocsCallout>
     </>
   )
 }

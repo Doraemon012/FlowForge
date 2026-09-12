@@ -1,6 +1,5 @@
 import { DocsSection, DocsParagraph } from '@/components/docs/DocsSection'
 import { DocsCallout } from '@/components/docs/DocsCallout'
-import { DocsVersionBadge } from '@/components/docs/DocsVersionBadge'
 import { DocsTable } from '@/components/docs/DocsTable'
 
 export function ObservabilityPage() {
@@ -10,18 +9,15 @@ export function ObservabilityPage() {
         <div className="docs-eyebrow">Guides & References</div>
         <h1 className="docs-title">Observability</h1>
         <p className="docs-lead">
-          Every execution, task run, and attempt is recorded. The backend exposes
-          project-isolated observability endpoints, and the V1 frontend surfaces attempt
-          history and execution views.
+          Every execution, task run, and attempt is recorded. FlowForge exposes
+          project-isolated observability endpoints, and the app surfaces attempt history and
+          full execution views built on those durable records.
         </p>
-        <div className="docs-hero-badges">
-          <DocsVersionBadge label="V1" />
-        </div>
       </div>
 
-      <DocsSection title="What the backend exposes">
+      <DocsSection title="What the API exposes">
         <DocsParagraph>
-          The backend exposes project-isolated endpoints for execution events, persisted
+          The control plane exposes project-isolated endpoints for execution events, persisted
           logs, attempt history, worker activity, queue and lease health, and metrics.
         </DocsParagraph>
         <DocsTable
@@ -35,11 +31,12 @@ export function ObservabilityPage() {
         />
       </DocsSection>
 
-      <DocsSection title="What the V1 frontend surfaces">
+      <DocsSection title="What the app shows">
         <DocsParagraph>
-          The V1 app shows <strong>attempt history</strong> on the execution detail page and
-          the execution list/detail with polling. Log and event streaming are backend
-          capabilities; the V1 app does not render live streams yet.
+          The execution detail page shows <strong>attempt history</strong>, per-task status,
+          outputs, failures, worker assignments, and logs, refreshed by polling. Live
+          log/event streaming is available from the API; the app reads the same durable
+          records on refresh rather than opening a stream.
         </DocsParagraph>
       </DocsSection>
 
@@ -50,9 +47,10 @@ export function ObservabilityPage() {
         </DocsParagraph>
       </DocsSection>
 
-      <DocsCallout variant="deferred" title="Frontend gap">
-        Worker/queue/metrics UI and real-time log/event streaming are not surfaced in the V1
-        app. The backend supports these endpoints; the UI does not render them yet.
+      <DocsCallout variant="info" title="Worker, queue, and metrics views">
+        Worker activity, queue/lease health, and aggregate metrics are served by the API
+        endpoints above and are used for operations. They are not currently rendered as
+        dedicated pages in the app.
       </DocsCallout>
     </>
   )

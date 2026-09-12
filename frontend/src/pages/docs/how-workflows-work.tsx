@@ -1,6 +1,5 @@
 import { DocsSection, DocsParagraph } from '@/components/docs/DocsSection'
 import { DocsCallout } from '@/components/docs/DocsCallout'
-import { DocsVersionBadge } from '@/components/docs/DocsVersionBadge'
 import { DocsDiagram } from '@/components/docs/DocsDiagram'
 
 export function HowWorkflowsWorkPage() {
@@ -13,9 +12,6 @@ export function HowWorkflowsWorkPage() {
           A workflow is a directed acyclic graph of tasks. You author a draft, publish an
           immutable version, activate it, and trigger runs.
         </p>
-        <div className="docs-hero-badges">
-          <DocsVersionBadge label="V1" />
-        </div>
       </div>
 
       <DocsSection title="The mental model">
