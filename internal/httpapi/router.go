@@ -8,6 +8,12 @@ import (
 
 func (s *Server) Router() http.Handler {
 	router := chi.NewRouter()
+	// Mounted first so it runs ahead of route matching and can answer the
+	// CORS preflight OPTIONS request itself. An empty list leaves the
+	// middleware off (same-origin deployment).
+	if len(s.corsOrigins) > 0 {
+		router.Use(corsMiddleware(s.corsOrigins))
+	}
 	router.Get("/health", s.Health)
 	if s.users == nil || s.projects == nil || s.workflows == nil || s.tokens == nil {
 		return router

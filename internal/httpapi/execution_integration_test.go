@@ -71,7 +71,16 @@ func TestExecutionRunsBranchesAndBlocksAfterFailure(t *testing.T) {
 	}
 	waitForExecution(t, handler, token, created.ID.String(), "completed")
 
-	failureDefinition := workflow.Definition{Tasks: []workflow.Task{{ID: "a", Type: "transform", Config: json.RawMessage(`{"output":{}}`)}, {ID: "bad", Type: "delay", Config: json.RawMessage(`{"seconds":"invalid"}`), Dependencies: []string{"a"}}, {ID: "downstream", Type: "transform", Config: json.RawMessage(`{"output":{}}`), Dependencies: []string{"bad"}}}}
+	// This definition must PUBLISH cleanly and then FAIL at execution time: that
+	// is the point of the test (a failing task blocks its dependents). A task
+	// whose config is rejected by workflow validation (for example a `delay`
+	// whose `seconds` is not a number) can never reach the runtime, so the
+	// failure has to come from something validation cannot know about. An `http`
+	// task that references a credential is exactly that: the validator only
+	// checks the reference is a non-empty string, while the runtime used here
+	// (execution.NewBuiltinRuntime with no credential provider) fails the task
+	// terminally without making any network call.
+	failureDefinition := workflow.Definition{Tasks: []workflow.Task{{ID: "a", Type: "transform", Config: json.RawMessage(`{"output":{}}`)}, {ID: "bad", Type: "http", Config: json.RawMessage(`{"url":"https://example.invalid/","credential":"unconfigured-secret"}`), Dependencies: []string{"a"}}, {ID: "downstream", Type: "transform", Config: json.RawMessage(`{"output":{}}`), Dependencies: []string{"bad"}}}}
 	if response := requestJSON(handler, http.MethodPatch, "/api/v1/projects/"+projectID+"/workflows/"+workflowID, map[string]any{"name": "Branch", "definition": failureDefinition}, token); response.Code != http.StatusOK {
 		t.Fatalf("failure draft update status = %d", response.Code)
 	}

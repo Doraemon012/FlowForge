@@ -44,7 +44,11 @@ type Worker struct {
 	// RecoveryInterval controls how often this worker sweeps the queue for
 	// expired leases left behind by dead workers.
 	RecoveryInterval time.Duration
-	claimPoll        time.Duration
+	// ClaimPollInterval is how long the claim loop waits after an empty claim
+	// before polling again. A small value keeps the latency to pick up new work
+	// low; a larger value cuts idle query load and billed activity. Zero uses
+	// the default (50ms).
+	ClaimPollInterval time.Duration
 }
 
 func (w *Worker) Run(ctx context.Context) error {
@@ -55,7 +59,7 @@ func (w *Worker) Run(ctx context.Context) error {
 	defer cancelRun()
 	go w.recoverExpiredLeases(runCtx, logger)
 
-	poll := w.claimPoll
+	poll := w.ClaimPollInterval
 	if poll <= 0 {
 		poll = defaultClaimPollInterval
 	}

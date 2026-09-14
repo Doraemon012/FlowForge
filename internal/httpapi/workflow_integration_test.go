@@ -69,7 +69,12 @@ func TestWorkflowLifecycleAndIsolation(t *testing.T) {
 		t.Fatalf("version number = %d, want 1", firstVersion.VersionNumber)
 	}
 
-	updatedDefinition := workflow.Definition{Tasks: append(definition.Tasks, workflow.Task{ID: "extra", Type: "email", Config: json.RawMessage(`{"to":"test@example.com"}`), Dependencies: []string{"finish"}})}
+	// The email task type requires both "to" and "subject" — enforced by
+	// workflow.validateEmailConfig and by the runtime (internal/execution), and
+	// reflected in the builder's defaults. A config with only "to" is invalid and
+	// publishing it is expected to fail validation, so the draft a happy-path
+	// publish is asserted against must be valid.
+	updatedDefinition := workflow.Definition{Tasks: append(definition.Tasks, workflow.Task{ID: "extra", Type: "email", Config: json.RawMessage(`{"to":"test@example.com","subject":"Updated"}`), Dependencies: []string{"finish"}})}
 	updateBody := map[string]any{"name": "Example Workflow", "description": "updated draft", "definition": updatedDefinition}
 	if response := requestJSON(handler, http.MethodPatch, basePath, updateBody, tokenA); response.Code != http.StatusOK {
 		t.Fatalf("update draft status = %d", response.Code)

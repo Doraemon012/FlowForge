@@ -1,0 +1,225 @@
+name: Deploy
+
+# Deploys only a commit that CI has already passed.
+#
+# Triggered by the CI workflow *completing* on main, not by a raw push, so a
+# commit that fails any CI gate is never shipped. `workflow_dispatch` remains
+# for deliberate manual redeploys (for example after a rollback).
+#
+# Everything below runs against the exact SHA CI tested
+# (`github.event.workflow_run.head_sha`), which is what makes the gate meaningful.
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false # never cancel a half-finished deploy
+
+permissions:
+  id-token: write # required for OIDC federated login
+  contents: read
+
+jobs:
+  # Gate 1: the deploy is allowed (green CI on main, or a manual dispatch).
+  # A failed or cancelled CI run skips this job, and every downstream job with
+  # it, so nothing is deployed and no Azure credential is exchanged.
+  #
+  # Gate 2: the repository secrets the deploy needs actually exist, so the
+  # failure is a clear message here instead of an opaque `az` error later.
+  gate:
+    name: Verify the deploy is allowed and its secrets exist
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check required secrets and variables exist
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          TOKEN_SECRET: ${{ secrets.TOKEN_SECRET }}
+          # Repository variables (Settings -> Secrets and variables -> Actions -> Variables).
+          # Every name the jobs below pass to `az` is checked here so a missing one
+          # fails with a clear message instead of an opaque `az` error mid-deploy.
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          ACR_NAME: ${{ vars.ACR_NAME }}
+          API_APP_NAME: ${{ vars.API_APP_NAME }}
+          WORKER_APP_NAME: ${{ vars.WORKER_APP_NAME }}
+          MIGRATE_JOB_NAME: ${{ vars.MIGRATE_JOB_NAME }}
+          RETENTION_JOB_NAME: ${{ vars.RETENTION_JOB_NAME }}
+        run: |
+          fail=0
+          require() {
+            if [ -z "$2" ]; then echo "missing $1"; fail=1; fi
+          }
+          require "secret AZURE_CLIENT_ID"       "$AZURE_CLIENT_ID"
+          require "secret AZURE_TENANT_ID"       "$AZURE_TENANT_ID"
+          require "secret AZURE_SUBSCRIPTION_ID" "$AZURE_SUBSCRIPTION_ID"
+          require "secret DATABASE_URL"          "$DATABASE_URL"
+          require "secret TOKEN_SECRET"          "$TOKEN_SECRET"
+          require "var AZURE_RESOURCE_GROUP"     "$AZURE_RESOURCE_GROUP"
+          require "var ACR_NAME"                 "$ACR_NAME"
+          require "var API_APP_NAME"             "$API_APP_NAME"
+          require "var WORKER_APP_NAME"          "$WORKER_APP_NAME"
+          require "var MIGRATE_JOB_NAME"         "$MIGRATE_JOB_NAME"
+          require "var RETENTION_JOB_NAME"       "$RETENTION_JOB_NAME"
+          exit $fail
+
+  build-and-push:
+    name: Build and push image
+    needs: gate
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The commit CI validated, not whatever main happens to point at now.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - id: meta
+        name: Resolve the image reference
+        env:
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          echo "image=${{ vars.ACR_NAME }}.azurecr.io/flowforge:$SHA" >> "$GITHUB_OUTPUT"
+          echo "tag=flowforge:$SHA" >> "$GITHUB_OUTPUT"
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build and push (ACR Tasks — no local Docker needed)
+        run: |
+          az acr build --registry "${{ vars.ACR_NAME }}" \
+            --image "${{ steps.meta.outputs.tag }}" \
+            --file Dockerfile .
+
+  migrate:
+    name: Migrate database
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Point the migrate job at the new image and run it
+        run: |
+          az containerapp job update \
+            --name "${{ vars.MIGRATE_JOB_NAME }}" \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --image "${{ needs.build-and-push.outputs.image }}"
+
+          az containerapp job start \
+            --name "${{ vars.MIGRATE_JOB_NAME }}" \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}"
+
+          # Wait for the newest execution to finish; fail the deploy if it failed
+          # so the old revisions keep serving traffic.
+          for i in $(seq 1 60); do
+            STATUS=$(az containerapp job execution list \
+              --name "${{ vars.MIGRATE_JOB_NAME }}" \
+              --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+              --query 'sort_by(@, &properties.startTime)[-1].properties.status' -o tsv)
+            echo "migration status: $STATUS"
+            case "$STATUS" in
+              Succeeded) exit 0 ;;
+              Failed|Cancelled) exit 1 ;;
+            esac
+            sleep 5
+          done
+          echo "migration did not finish in 5 minutes"; exit 1
+
+  deploy-api:
+    name: Deploy API
+    needs: migrate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Update the API to the new image
+        run: |
+          az containerapp update \
+            --name "${{ vars.API_APP_NAME }}" \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --image "${{ needs.build-and-push.outputs.image }}"
+
+  deploy-worker:
+    name: Deploy worker
+    needs: deploy-api
+    runs-on: ubuntu-latest
+    steps:
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Update the worker to the new image
+        run: |
+          az containerapp update \
+            --name "${{ vars.WORKER_APP_NAME }}" \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --image "${{ needs.build-and-push.outputs.image }}"
+
+  # The retention job runs once a day and is not on the request path, so it is
+  # easy to forget — but a stale image means the pruning logic never gets any
+  # fix. This is what keeps it current. Do NOT skip it: bounded storage is a
+  # correctness requirement on the Neon free plan (docs/DEPLOYMENT.md §4.3).
+  deploy-retention:
+    name: Deploy retention job
+    needs: deploy-api
+    runs-on: ubuntu-latest
+    steps:
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Update the retention job to the new image
+        run: |
+          az containerapp job update \
+            --name "${{ vars.RETENTION_JOB_NAME }}" \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --image "${{ needs.build-and-push.outputs.image }}"
+
+  smoke:
+    name: Post-deploy health check
+    needs: [deploy-api, deploy-worker]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Poll /health until 200, or fail
+        run: |
+          FQDN=$(az containerapp show \
+            --name "${{ vars.API_APP_NAME }}" \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --query properties.configuration.ingress.fqdn -o tsv)
+          for i in $(seq 1 30); do
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' "https://$FQDN/health" || true)
+            echo "attempt $i: $CODE"
+            [ "$CODE" = "200" ] && exit 0
+            sleep 5
+          done
+          echo "API did not become healthy"; exit 1

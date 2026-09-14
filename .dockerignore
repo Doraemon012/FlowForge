@@ -1,0 +1,21 @@
+# VCS and CI
+.git
+.github
+
+# The SPA is built and deployed by Static Web Apps, not by this image.
+frontend/
+
+# Local build output and stray binaries
+bin/
+flowforge
+worker
+migrate
+retention
+
+# Local config and secrets — never in an image
+.env
+.env.*
+
+# Documentation and worklogs are not runtime assets
+docs/
+*.md

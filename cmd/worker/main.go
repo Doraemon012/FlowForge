@@ -26,7 +26,20 @@ func main() {
 		logger.Error("load configuration", "error", err)
 		os.Exit(1)
 	}
-	workerID := os.Getenv("WORKER_ID")
+	configuredWorkerID := os.Getenv("WORKER_ID")
+	if configuredWorkerID == "" {
+		logger.Error("load configuration", "error", "WORKER_ID is required")
+		os.Exit(1)
+	}
+	// A container platform starts every replica from one template, so all of them
+	// would otherwise share a single WORKER_ID and be indistinguishable in
+	// task_queue.worker_id / task_attempts.worker_id. Scoping the configured value
+	// to the process hostname — which is unique per replica — gives each replica
+	// its own identity. The fenced lease protocol already keeps concurrent workers
+	// safe; this only makes them individually visible, which is what the
+	// worker-failure-recovery story depends on. See worker.Identity.
+	hostname, _ := os.Hostname()
+	workerID := worker.Identity(configuredWorkerID, hostname)
 	if workerID == "" {
 		logger.Error("load configuration", "error", "WORKER_ID is required")
 		os.Exit(1)
@@ -42,6 +55,11 @@ func main() {
 		os.Exit(1)
 	}
 	recoveryInterval, err := durationEnv("WORKER_RECOVERY_INTERVAL", defaultRecoveryInterval)
+	if err != nil {
+		logger.Error("load configuration", "error", err)
+		os.Exit(1)
+	}
+	claimPollInterval, err := durationEnv("WORKER_CLAIM_POLL_INTERVAL", defaultClaimPollInterval)
 	if err != nil {
 		logger.Error("load configuration", "error", err)
 		os.Exit(1)
@@ -71,6 +89,7 @@ func main() {
 		Logger:            logger,
 		HeartbeatInterval: heartbeatInterval,
 		RecoveryInterval:  recoveryInterval,
+		ClaimPollInterval: claimPollInterval,
 	}).Run(ctx)
 	if err != nil && !errors.Is(err, context.Canceled) {
 		logger.Error("worker stopped", "error", err)
@@ -82,6 +101,7 @@ const (
 	defaultLeaseDuration     = 10 * time.Second
 	defaultHeartbeatInterval = 2 * time.Second
 	defaultRecoveryInterval  = 1 * time.Second
+	defaultClaimPollInterval = 50 * time.Millisecond
 )
 
 func durationEnv(name string, fallback time.Duration) (time.Duration, error) {

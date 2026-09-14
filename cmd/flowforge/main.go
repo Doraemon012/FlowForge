@@ -105,6 +105,9 @@ func main() {
 		)
 	}
 	apiServer.SetLimits(cfg.MaxBodyBytes, cfg.AuthRateLimitRPS, cfg.AuthRateLimitBurst, cfg.WebhookRateLimitRPS, cfg.WebhookRateLimitBurst)
+	// Cross-origin access for the separately hosted SPA. Empty keeps CORS off,
+	// which is correct when the frontend and API share an origin.
+	apiServer.SetCORS(cfg.CORSAllowedOrigins)
 	// Trial AI accounting bounds the cost of the no-signup public trial. It is
 	// always wired so the trial entry point is available and the limits are
 	// enforced server-side; registered users are never subject to them.
@@ -128,6 +131,12 @@ func main() {
 	// Start scheduler in background
 	schedulerCtx, schedulerCancel := context.WithCancel(context.Background())
 	go schedulerService.Run(schedulerCtx)
+
+	// Own the expired-lease recovery sweep in the always-on control plane. The
+	// worker's own sweep still runs while it is alive; both are fence-safe to
+	// run concurrently. Moving recovery here is what lets the worker scale to
+	// zero without stranding tasks abandoned by a dead worker.
+	go queue.RunRecoverySweep(schedulerCtx, taskQueue, cfg.RecoveryInterval, logger)
 
 	shutdown, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

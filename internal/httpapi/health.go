@@ -24,19 +24,23 @@ type Database interface {
 }
 
 type Server struct {
-	database       Database
-	users          user.Repository
-	projects       project.Repository
-	workflows      workflow.Repository
-	executions     execution.Repository
-	engine         *execution.Engine
-	tokens         *auth.TokenService
-	schedules      schedule.Repository
-	webhooks       webhook.Repository
-	idempotency    execution.IdempotencyRepository
-	observ         observ.Repository
-	logger         *slog.Logger
-	maxBodyBytes   int64
+	database     Database
+	users        user.Repository
+	projects     project.Repository
+	workflows    workflow.Repository
+	executions   execution.Repository
+	engine       *execution.Engine
+	tokens       *auth.TokenService
+	schedules    schedule.Repository
+	webhooks     webhook.Repository
+	idempotency  execution.IdempotencyRepository
+	observ       observ.Repository
+	logger       *slog.Logger
+	maxBodyBytes int64
+	// corsOrigins is the browser-origin allow-list for cross-origin API calls.
+	// Empty disables CORS, which is correct for a same-origin deployment. See
+	// SetCORS.
+	corsOrigins    []string
 	authLimiter    *tokenBucket
 	webhookLimiter *tokenBucket
 	ai             *ai.Generator
@@ -70,6 +74,13 @@ func (s *Server) SetLimits(maxBodyBytes int64, authRPS, authBurst, webhookRPS, w
 	s.maxBodyBytes = maxBodyBytes
 	s.authLimiter = newTokenBucket(float64(authRPS), float64(authBurst))
 	s.webhookLimiter = newTokenBucket(float64(webhookRPS), float64(webhookBurst))
+}
+
+// SetCORS configures the browser origins permitted to call the API cross-origin.
+// An empty list disables CORS entirely, which is correct for a same-origin
+// deployment. It must be called before Router() so the middleware is mounted.
+func (s *Server) SetCORS(origins []string) {
+	s.corsOrigins = origins
 }
 
 func NewServer(database Database) *Server {

@@ -4,6 +4,11 @@
 # environment is already populated (e.g. CI). See .env.example.
 
 GO ?= go
+# gofmt is the standalone formatter. `go fmt` does NOT accept `-l` (it rewrites
+# files in place instead of listing the ones that need formatting), so the
+# format gate must call gofmt directly. This mirrors the exact command
+# .github/workflows/ci.yml runs.
+GOFMT ?= gofmt
 BIN_DIR ?= bin
 
 .PHONY: all
@@ -43,7 +48,7 @@ test-race:
 
 .PHONY: check
 check:
-	@unformatted=$$($(GO) fmt -l .); \
+	@unformatted=$$($(GOFMT) -l .); \
 	if [ -n "$$unformatted" ]; then \
 		echo "The following files are not gofmt-formatted:"; \
 		echo "$$unformatted"; \

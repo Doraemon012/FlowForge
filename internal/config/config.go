@@ -37,6 +37,14 @@ type Config struct {
 	TrialAIGenerationLimit int
 	TrialAIEditLimit       int
 	TrialAITotalLimit      int
+	// CORSAllowedOrigins lists browser origins allowed to call the API
+	// cross-origin. Empty disables CORS. Entries are exact origins
+	// ("https://app.example.com") or suffix patterns ("*.azurestaticapps.net").
+	CORSAllowedOrigins []string
+	// RecoveryInterval controls how often the control plane sweeps the queue for
+	// expired worker leases. Owning recovery in the always-on control plane is
+	// what lets the worker scale to zero (see docs/WORKER_COST_OPTIMIZATION.md).
+	RecoveryInterval time.Duration
 }
 
 func Load() (Config, error) {
@@ -126,6 +134,14 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 
+	recoveryInterval := 5 * time.Second
+	if raw := os.Getenv("CONTROL_PLANE_RECOVERY_INTERVAL"); raw != "" {
+		recoveryInterval, err = time.ParseDuration(raw)
+		if err != nil || recoveryInterval <= 0 {
+			return Config{}, fmt.Errorf("CONTROL_PLANE_RECOVERY_INTERVAL must be a positive duration: %q", raw)
+		}
+	}
+
 	return Config{
 		DatabaseURL:            databaseURL,
 		HTTPAddr:               httpAddr,
@@ -146,6 +162,8 @@ func Load() (Config, error) {
 		TrialAIGenerationLimit: trialGenerationLimit,
 		TrialAIEditLimit:       trialEditLimit,
 		TrialAITotalLimit:      trialTotalLimit,
+		CORSAllowedOrigins:     splitList(os.Getenv("CORS_ALLOWED_ORIGINS")),
+		RecoveryInterval:       recoveryInterval,
 	}, nil
 }
 
@@ -161,6 +179,22 @@ func nonNegativeIntEnv(name string, fallback int) (int, error) {
 		return 0, fmt.Errorf("%s must be a non-negative integer: %q", name, raw)
 	}
 	return parsed, nil
+}
+
+// splitList parses a comma-separated environment variable into a trimmed,
+// non-empty slice. An unset or blank value yields nil.
+func splitList(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if trimmed := strings.TrimSpace(part); trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
 }
 
 func validateDatabaseURL(raw string) error {
