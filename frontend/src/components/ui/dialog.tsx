@@ -32,7 +32,12 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        'fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border border-border-strong bg-surface p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 rounded-lg',
+        // Column layout with a hard viewport ceiling. Content taller than the
+        // screen used to grow past both edges, taking the header and the action
+        // footer with it — the AI assistant's preview is exactly the case that
+        // hit it. Dialogs now always fit the viewport; the region that scrolls
+        // is whatever the dialog marks `overflow-y-auto` inside itself.
+        'fixed left-[50%] top-[50%] z-50 flex max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1.5rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] flex-col gap-4 overflow-hidden rounded-lg border border-border-strong bg-surface p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:w-full',
         className,
       )}
       {...props}
@@ -48,17 +53,39 @@ const DialogContent = React.forwardRef<
 DialogContent.displayName = DialogPrimitive.Content.displayName
 
 const DialogHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn('flex flex-col space-y-1.5 text-center sm:text-left', className)} {...props} />
+  <div
+    className={cn('flex shrink-0 flex-col space-y-1.5 pr-8 text-center sm:text-left', className)}
+    {...props}
+  />
 )
 DialogHeader.displayName = 'DialogHeader'
 
 const DialogFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
-    className={cn('flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2', className)}
+    className={cn(
+      'flex shrink-0 flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:space-x-2',
+      className,
+    )}
     {...props}
   />
 )
 DialogFooter.displayName = 'DialogFooter'
+
+/**
+ * The scrollable middle of a dialog: everything between the pinned
+ * `DialogHeader` and the pinned `DialogFooter` goes here so long content
+ * scrolls inside the dialog instead of pushing the actions off screen.
+ */
+const DialogBody = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div
+    className={cn(
+      'min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain pr-1 -mr-1',
+      className,
+    )}
+    {...props}
+  />
+)
+DialogBody.displayName = 'DialogBody'
 
 const DialogTitle = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Title>,
@@ -92,6 +119,7 @@ export {
   DialogClose,
   DialogContent,
   DialogHeader,
+  DialogBody,
   DialogFooter,
   DialogTitle,
   DialogDescription,

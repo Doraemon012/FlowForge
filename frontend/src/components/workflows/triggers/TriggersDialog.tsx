@@ -1,6 +1,7 @@
 import { CalendarClock } from 'lucide-react'
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogHeader,
@@ -29,7 +30,7 @@ export function TriggersDialog({
 }: TriggersDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalendarClock className="h-5 w-5 text-accent" aria-hidden="true" />
@@ -41,15 +42,14 @@ export function TriggersDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-5">
+        <DialogBody className="space-y-5">
           <ScheduleSection projectId={projectId} workflowId={workflowId} />
           <WebhookSection projectId={projectId} workflowId={workflowId} />
-        </div>
-
-        <p className="text-xs text-muted-foreground">
-          Manual runs use the same active version. Activation makes a version runnable; it does not
-          start runs by itself.
-        </p>
+          <p className="text-sm text-muted-foreground">
+            Manual runs use the same active version. Activation makes a version runnable; it does
+            not start runs by itself.
+          </p>
+        </DialogBody>
       </DialogContent>
     </Dialog>
   )

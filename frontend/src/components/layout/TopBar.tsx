@@ -13,6 +13,8 @@ import { useProject } from '@/hooks/use-projects'
 import { useWorkflow } from '@/hooks/use-workflows'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import { FlowForgeLogo } from '@/components/brand/FlowForgeLogo'
+import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import { commandPaletteStore } from '@/components/layout/command-palette-store'
 import { TrialIndicator } from '@/components/layout/TrialIndicator'
 import {
@@ -167,6 +169,17 @@ export function TopBar({ onToggleSidebar, sidebarCollapsed, onToggleCollapse }: 
         </Button>
       ) : null}
 
+      {/* The brand is present in the app chrome too, and always leads back to
+          the public landing page. The wordmark drops below `sm` where the bar
+          has no room for it, leaving the mark as the link. */}
+      <Link to="/" className="logo shrink-0" aria-label="FlowForge home">
+        <FlowForgeLogo
+          size={24}
+          wordmarkClassName="hidden text-base font-semibold tracking-tight sm:inline"
+        />
+      </Link>
+      <span className="hidden h-5 w-px shrink-0 bg-border md:block" aria-hidden="true" />
+
       <nav className="crumbs" aria-label="Breadcrumb">
         {crumbs.map((crumb, index) => (
           <span key={crumb.path} className="flex items-center gap-1">
@@ -202,6 +215,8 @@ export function TopBar({ onToggleSidebar, sidebarCollapsed, onToggleCollapse }: 
         <span className="grow">Search…</span>
         <span className="kbd">⌘K</span>
       </button>
+
+      <ThemeToggle />
 
       <TrialIndicator />
 

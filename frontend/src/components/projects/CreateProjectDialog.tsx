@@ -7,6 +7,7 @@ import { ProjectForm } from '@/components/projects/ProjectForm'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogHeader,
@@ -62,7 +63,9 @@ export function CreateProjectDialog({
             Projects are the home for your workflows, versions, and executions.
           </DialogDescription>
         </DialogHeader>
-        <ProjectForm onSuccess={handleSuccess} onCancel={() => handleOpenChange(false)} />
+        <DialogBody>
+          <ProjectForm onSuccess={handleSuccess} onCancel={() => handleOpenChange(false)} />
+        </DialogBody>
       </DialogContent>
     </Dialog>
   )

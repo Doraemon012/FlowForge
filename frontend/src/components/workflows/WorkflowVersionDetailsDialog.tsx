@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogHeader,
@@ -44,7 +45,7 @@ export function WorkflowVersionDetailsDialog({
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-xl">
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Version {version.version_number}</DialogTitle>
           <DialogDescription>
@@ -53,6 +54,7 @@ export function WorkflowVersionDetailsDialog({
           </DialogDescription>
         </DialogHeader>
 
+        <DialogBody>
         {tasks.length === 0 ? (
           <p className="rounded-xl border border-dashed border-border/80 bg-card/40 p-6 text-center text-sm text-muted-foreground">
             This version has no tasks.
@@ -83,6 +85,7 @@ export function WorkflowVersionDetailsDialog({
             ))}
           </div>
         )}
+        </DialogBody>
       </DialogContent>
     </Dialog>
   )

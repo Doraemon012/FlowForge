@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Menu, Search } from 'lucide-react'
-import { FlowForgeMark } from '@/components/brand/FlowForgeLogo'
+import { FlowForgeLogo } from '@/components/brand/FlowForgeLogo'
+import { ThemeToggle } from '@/components/layout/ThemeToggle'
 
 interface DocsTopNavProps {
   onToggleSidebar: () => void
@@ -19,16 +20,20 @@ export function DocsTopNav({ onToggleSidebar, onOpenSearch }: DocsTopNavProps) {
         >
           <Menu className="h-4 w-4" aria-hidden="true" />
         </button>
-        <Link to="/docs" className="logo" aria-label="FlowForge documentation home">
-          <FlowForgeMark />
-          <span>FlowForge</span>
+        {/* The brand leads to the marketing home; the breadcrumb is the way
+            back into the documentation index. */}
+        <Link to="/" className="logo" aria-label="FlowForge home">
+          <FlowForgeLogo />
         </Link>
         <nav className="breadcrumb" aria-label="Breadcrumb">
           <span className="sep">/</span>
-          <span className="cur">Docs</span>
+          <Link to="/docs" className="cur">
+            Docs
+          </Link>
         </nav>
       </div>
       <div className="docs-topnav-right">
+        <ThemeToggle />
         <button
           type="button"
           className="search"

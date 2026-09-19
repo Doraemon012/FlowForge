@@ -22,6 +22,7 @@ import { DefinitionDiffView } from '@/components/workflows/DefinitionDiffView'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -232,42 +233,46 @@ export function AiWorkflowDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div
-          className="inline-flex w-fit items-center rounded-lg border border-border bg-card p-0.5"
-          role="tablist"
-          aria-label="AI mode"
-        >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === 'create'}
-            onClick={() => switchMode('create')}
-            className={cn(
-              'inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-sm font-medium transition-colors',
-              mode === 'create'
-                ? 'bg-muted text-foreground'
-                : 'text-muted-foreground hover:text-foreground',
-            )}
+        <DialogBody className="space-y-4">
+          {/* Pinned inside the scrolling body: with a long generated preview the
+              reader must still be able to switch between Create and Refine
+              without scrolling back to the top of the dialog. */}
+          <div
+            className="sticky top-0 z-10 inline-flex w-fit items-center rounded-lg border border-border bg-card p-0.5"
+            role="tablist"
+            aria-label="AI mode"
           >
-            <Sparkles className="h-4 w-4" aria-hidden="true" />
-            Create
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === 'refine'}
-            onClick={() => switchMode('refine')}
-            className={cn(
-              'inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-sm font-medium transition-colors',
-              mode === 'refine'
-                ? 'bg-muted text-foreground'
-                : 'text-muted-foreground hover:text-foreground',
-            )}
-          >
-            <Wand2 className="h-4 w-4" aria-hidden="true" />
-            Refine
-          </button>
-        </div>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === 'create'}
+              onClick={() => switchMode('create')}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-sm font-medium transition-colors',
+                mode === 'create'
+                  ? 'bg-muted text-foreground'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              <Sparkles className="h-4 w-4" aria-hidden="true" />
+              Create
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === 'refine'}
+              onClick={() => switchMode('refine')}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-sm font-medium transition-colors',
+                mode === 'refine'
+                  ? 'bg-muted text-foreground'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              <Wand2 className="h-4 w-4" aria-hidden="true" />
+              Refine
+            </button>
+          </div>
 
         {unavailable ? (
           <div className="flex items-start gap-2 rounded-lg border border-border bg-muted p-3 text-sm text-muted-foreground">
@@ -324,7 +329,9 @@ export function AiWorkflowDialog({
             spellCheck={false}
             placeholder={placeholder}
             aria-label={mode === 'create' ? 'Workflow description' : 'Change instruction'}
-            className="w-full resize-none rounded-lg border border-border bg-background p-3 text-sm outline-none focus:border-accent disabled:opacity-60"
+            // Resizable so a long prompt can be given room, but bounded so a
+            // drag can never push the actions out of the dialog.
+            className="max-h-[40vh] min-h-24 w-full resize-y rounded-lg border border-border bg-background p-3 text-sm leading-relaxed outline-none focus:border-accent disabled:opacity-60"
           />
           {text.length === 0 && !refineBlocked ? (
             <div className="flex flex-wrap gap-1.5">
@@ -442,6 +449,7 @@ export function AiWorkflowDialog({
             ) : null}
           </div>
         ) : null}
+        </DialogBody>
 
         <DialogFooter className="gap-2">
           {preview ? (

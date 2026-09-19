@@ -19,10 +19,37 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-ink);
   --color-destructive: var(--failed);
-  --color-destructive-foreground: #0A0B0D;
+  --color-destructive-foreground: #FFFFFF;
   --color-border: var(--border);
   --color-input: var(--border-strong);
-  --color-ring: var(--accent-dim);
+  --color-ring: var(--ring);
+
+  /* Color tokens that the component layer references as Tailwind utilities
+     (`bg-surface`, `border-border-strong`, `text-dim`, `text-failed`, …).
+     They were previously declared only as raw CSS variables in the theme
+     blocks below, which meant Tailwind never emitted the matching utilities:
+     every dialog, card, and input that asked for `bg-surface` silently fell
+     back to `transparent` and `border-border-strong` to the default border
+     colour. Registering them here makes those classes real. */
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-border-strong: var(--border-strong);
+  --color-dim: var(--dim);
+  --color-failed: var(--failed);
+  --color-accent-dim: var(--accent-dim);
+  --color-accent-glow: var(--accent-glow);
+  --color-running: var(--running);
+  --color-queued: var(--queued);
+  --color-paused: var(--paused);
+  --color-tint: var(--tint);
+  --color-tint-strong: var(--tint-strong);
+  --color-code-bg: var(--code-bg);
+  --color-overlay: var(--overlay);
+  --color-grid-dot: var(--grid-dot);
+  --color-glass: var(--glass);
+
   --color-success: var(--success);
   --color-success-foreground: var(--accent-ink);
   --color-warning: var(--paused);
@@ -41,54 +68,113 @@
     'JetBrains Mono', ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas,
     monospace;
 
-  --shadow-surface:
-    0 1px 2px 0 rgb(0 0 0 / 0.3), 0 1px 3px 0 rgb(0 0 0 / 0.2);
-  --shadow-surface-md:
-    0 2px 6px -1px rgb(0 0 0 / 0.4), 0 1px 2px -1px rgb(0 0 0 / 0.3);
-  --shadow-surface-lg:
-    0 12px 24px -8px rgb(0 0 0 / 0.5), 0 4px 8px -4px rgb(0 0 0 / 0.3);
+  /* Elevation is themed: the same three shadows have to read on a light page
+     and on a dark one, so the raw values live in the theme blocks below. */
+  --shadow-surface: var(--elev-1);
+  --shadow-surface-md: var(--elev-2);
+  --shadow-surface-lg: var(--elev-3);
 }
 
+/* ---------- LIGHT THEME (default) ----------
+   Light is what a first-time visitor sees; `.dark` carries the original
+   FlowForge palette and is applied by the theme store when the user picks
+   dark (or "system" resolves to dark).
+
+   Surfaces that used to be hardcoded per-theme — status badges, task icons,
+   callouts, diff rows, the log panel — are now derived with `color-mix()`
+   from these tokens, so one rule reads correctly on both backgrounds. */
 :root {
-  --bg: #0A0B0D;
-  --surface: #111316;
-  --surface-2: #16191D;
-  --surface-3: #1B1F24;
-  --border: #1F2328;
-  --border-strong: #2A2F36;
-  --text: #E6E8EB;
-  --muted: #8A9099;
-  --dim: #5A6069;
-  --accent: #5EEAD4;
-  --accent-ink: #062A25;
-  --accent-dim: #134E45;
-  --accent-glow: rgba(94, 234, 212, 0.35);
-  --running: #60A5FA;
-  --success: #34D399;
-  --failed: #F87171;
-  --queued: #94A3B8;
-  --paused: #FBBF24;
+  color-scheme: light;
+
+  --bg: #F5F7F8;
+  --surface: #FFFFFF;
+  --surface-2: #F1F3F5;
+  --surface-3: #E7EAEE;
+  --border: #E3E6EA;
+  --border-strong: #C9D0D7;
+
+  --text: #131619;
+  --muted: #4C555F;
+  --dim: #6E7781;
+
+  --accent: #0E8F80;
+  --accent-ink: #FFFFFF;
+  --accent-dim: #14B8A6;
+  --accent-glow: rgba(14, 143, 128, 0.28);
+  --ring: #0E8F80;
+
+  --running: #1D6FE0;
+  --success: #0B8A5B;
+  --failed: #D92D20;
+  --queued: #64748B;
+  --paused: #B45309;
+  --ti-violet: #7C3AED;
+  --ti-pink: #DB2777;
+  --ti-cyan: #0E7490;
+
+  --overlay: rgba(18, 21, 24, 0.42);
+  --code-bg: #F6F8F9;
+  --grid-dot: #DCE1E6;
+  --tint: rgba(19, 22, 25, 0.025);
+  --tint-strong: rgba(19, 22, 25, 0.06);
+  --hover-line: #B4BCC4;
+  --thumb: #CDD3DA;
+  --thumb-hover: #AEB7C0;
+  --glass: rgba(245, 247, 248, 0.82);
+
+  --elev-1: 0 1px 2px 0 rgb(16 24 32 / 0.07), 0 1px 3px 0 rgb(16 24 32 / 0.05);
+  --elev-2: 0 2px 6px -1px rgb(16 24 32 / 0.1), 0 1px 2px -1px rgb(16 24 32 / 0.06);
+  --elev-3: 0 12px 28px -10px rgb(16 24 32 / 0.18), 0 4px 10px -6px rgb(16 24 32 / 0.1);
+  --node-shadow: 0 8px 20px -8px rgb(16 24 32 / 0.2);
+  --node-shadow-hover: 0 14px 32px -10px rgb(16 24 32 / 0.24);
 }
 
 .dark {
+  color-scheme: dark;
+
   --bg: #0A0B0D;
   --surface: #111316;
   --surface-2: #16191D;
   --surface-3: #1B1F24;
   --border: #1F2328;
   --border-strong: #2A2F36;
+
   --text: #E6E8EB;
-  --muted: #8A9099;
-  --dim: #5A6069;
+  /* Both secondary greys sit a step brighter than before: 10–11px uppercase
+     labels at #5A6069 were the hardest text in the app to read. */
+  --muted: #99A0A8;
+  --dim: #6C737C;
+
   --accent: #5EEAD4;
   --accent-ink: #062A25;
   --accent-dim: #134E45;
   --accent-glow: rgba(94, 234, 212, 0.35);
+  --ring: #5EEAD4;
+
   --running: #60A5FA;
   --success: #34D399;
   --failed: #F87171;
   --queued: #94A3B8;
   --paused: #FBBF24;
+  --ti-violet: #A78BFA;
+  --ti-pink: #F472B6;
+  --ti-cyan: #22D3EE;
+
+  --overlay: rgba(6, 8, 10, 0.72);
+  --code-bg: #08090B;
+  --grid-dot: #1A1D21;
+  --tint: rgba(255, 255, 255, 0.02);
+  --tint-strong: rgba(255, 255, 255, 0.05);
+  --hover-line: #3A4048;
+  --thumb: #2A2F36;
+  --thumb-hover: #3A4048;
+  --glass: rgba(10, 11, 13, 0.72);
+
+  --elev-1: 0 1px 2px 0 rgb(0 0 0 / 0.3), 0 1px 3px 0 rgb(0 0 0 / 0.2);
+  --elev-2: 0 2px 6px -1px rgb(0 0 0 / 0.4), 0 1px 2px -1px rgb(0 0 0 / 0.3);
+  --elev-3: 0 12px 24px -8px rgb(0 0 0 / 0.5), 0 4px 8px -4px rgb(0 0 0 / 0.3);
+  --node-shadow: 0 8px 20px rgb(0 0 0 / 0.35);
+  --node-shadow-hover: 0 12px 28px rgb(0 0 0 / 0.45);
 }
 
 /* Tailwind utility override: text-muted should render as readable muted text,
@@ -187,7 +273,7 @@ select {
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background-color: #3a4048;
+  background-color: var(--thumb-hover);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -271,7 +357,7 @@ select {
 }
 .btn-secondary:hover {
   background: var(--surface-3);
-  border-color: #3a4048;
+  border-color: var(--hover-line);
   transform: translateY(-1px);
 }
 .btn-ghost {
@@ -283,19 +369,19 @@ select {
 }
 .btn-danger {
   background: transparent;
-  border-color: #3a1f22;
+  border-color: color-mix(in oklab, var(--failed) 40%, var(--border-strong));
   color: var(--failed);
 }
 .btn-danger:hover {
-  background: #2a1518;
+  background: color-mix(in oklab, var(--failed) 12%, transparent);
 }
 .btn-sm {
   padding: 6px 10px;
-  font-size: 12px;
+  font-size: 12.5px;
 }
 .btn-xs {
   padding: 4px 8px;
-  font-size: 11px;
+  font-size: 12px;
   border-radius: 5px;
 }
 .btn-lg {
@@ -321,13 +407,15 @@ select {
   box-shadow: none;
 }
 
+/* Status chips derive their tint from the status colour itself, so the same
+   rule produces a dark chip on the dark theme and a pastel one on light. */
 .badge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 8px;
+  padding: 3px 9px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   border: 1px solid var(--border-strong);
   background: var(--surface-2);
@@ -343,36 +431,36 @@ select {
 }
 .badge.running {
   color: var(--running);
-  border-color: #1e3a5f;
-  background: #0e1a2b;
+  border-color: color-mix(in oklab, var(--running) 34%, var(--border-strong));
+  background: color-mix(in oklab, var(--running) 14%, var(--surface));
 }
 .badge.running .dot {
   animation: pulse 1.6s ease-in-out infinite;
 }
 .badge.success {
   color: var(--success);
-  border-color: #1e4a3a;
-  background: #0e2620;
+  border-color: color-mix(in oklab, var(--success) 34%, var(--border-strong));
+  background: color-mix(in oklab, var(--success) 14%, var(--surface));
 }
 .badge.failed {
   color: var(--failed);
-  border-color: #4a1e22;
-  background: #2b0e12;
+  border-color: color-mix(in oklab, var(--failed) 34%, var(--border-strong));
+  background: color-mix(in oklab, var(--failed) 14%, var(--surface));
 }
 .badge.queued {
   color: var(--queued);
-  border-color: #2a3038;
-  background: #181c22;
+  border-color: color-mix(in oklab, var(--queued) 30%, var(--border-strong));
+  background: color-mix(in oklab, var(--queued) 12%, var(--surface));
 }
 .badge.paused {
   color: var(--paused);
-  border-color: #4a3a1e;
-  background: #2b200e;
+  border-color: color-mix(in oklab, var(--paused) 34%, var(--border-strong));
+  background: color-mix(in oklab, var(--paused) 14%, var(--surface));
 }
 .badge.active {
   color: var(--success);
-  border-color: #1e4a3a;
-  background: #0e2620;
+  border-color: color-mix(in oklab, var(--success) 34%, var(--border-strong));
+  background: color-mix(in oklab, var(--success) 14%, var(--surface));
 }
 .badge.draft {
   color: var(--muted);
@@ -391,7 +479,7 @@ select {
 
 .kbd {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   padding: 2px 5px;
   border: 1px solid var(--border-strong);
   border-bottom-width: 2px;
@@ -400,9 +488,9 @@ select {
   background: var(--surface-2);
 }
 .label {
-  font-size: 10px;
+  font-size: 11.5px;
   font-weight: 600;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--dim);
 }
@@ -476,29 +564,31 @@ select {
   place-items: center;
   flex: none;
 }
+/* Task-type tiles. Each tint is mixed from its own hue so the palette keeps
+   working when the page flips between light and dark. */
 .ti-http {
-  background: #0e1a2b;
+  background: color-mix(in oklab, var(--running) 16%, var(--surface));
   color: var(--running);
 }
 .ti-transform {
-  background: #1a0e2b;
-  color: #a78bfa;
+  background: color-mix(in oklab, var(--ti-violet) 16%, var(--surface));
+  color: var(--ti-violet);
 }
 .ti-delay {
-  background: #2b200e;
+  background: color-mix(in oklab, var(--paused) 16%, var(--surface));
   color: var(--paused);
 }
 .ti-cond {
-  background: #0e2620;
+  background: color-mix(in oklab, var(--success) 16%, var(--surface));
   color: var(--success);
 }
 .ti-email {
-  background: #2b0e1e;
-  color: #f472b6;
+  background: color-mix(in oklab, var(--ti-pink) 16%, var(--surface));
+  color: var(--ti-pink);
 }
 .ti-db {
-  background: #0e262b;
-  color: #22d3ee;
+  background: color-mix(in oklab, var(--ti-cyan) 16%, var(--surface));
+  color: var(--ti-cyan);
 }
 
 @keyframes floatIn {
@@ -533,10 +623,14 @@ select {
 @keyframes nodePulse {
   0%,
   100% {
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 0 3px rgba(96, 165, 250, 0.15);
+    box-shadow:
+      var(--node-shadow),
+      0 0 0 3px color-mix(in oklab, var(--running) 18%, transparent);
   }
   50% {
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 0 6px rgba(96, 165, 250, 0.25);
+    box-shadow:
+      var(--node-shadow),
+      0 0 0 6px color-mix(in oklab, var(--running) 30%, transparent);
   }
 }
 
@@ -575,18 +669,18 @@ select {
   background: var(--surface-3);
 }
 .sb-workspace .name {
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 600;
 }
 .sb-workspace .env {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted);
   font-family: var(--font-mono);
 }
 .sb-group {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--dim);
   padding: 12px 10px 6px;
@@ -598,7 +692,7 @@ select {
   padding: 7px 10px;
   border-radius: 6px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 13.5px;
   cursor: pointer;
   margin: 1px 0;
   transition: 0.15s;
@@ -631,7 +725,7 @@ select {
 .sb-item .count {
   margin-left: auto;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--dim);
 }
 .sb-bottom {
@@ -646,17 +740,18 @@ select {
   width: 26px;
   height: 26px;
   border-radius: 6px;
-  background: #2a2f36;
+  background: var(--surface-3);
+  color: var(--text);
   display: grid;
   place-items: center;
   font-weight: 600;
-  font-size: 11px;
-}
-.sb-bottom .who {
   font-size: 12px;
 }
+.sb-bottom .who {
+  font-size: 12.5px;
+}
 .sb-bottom .plan {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted);
 }
 .sb-collapsed {
@@ -707,7 +802,7 @@ select {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--muted);
   /* The bar is a single 48px row. A deep route (project + workflow + page)
      used to wrap the label onto a second line and spill out of the bar while
@@ -727,11 +822,21 @@ select {
   color: var(--dim);
   flex: none;
 }
+/* Every crumb label ellipsizes, not just the last one. The inner element kept
+   its full content width while its wrapper shrank (the default `min-width:
+   auto` on a flex item), so on a deep route the labels overflowed and painted
+   on top of each other — "Projects" + "UI Verification" rendered as
+   "ProjectUI Verificawh…". `min-width: 0` lets each label shrink to its box
+   and ellipsize cleanly instead. */
+.crumbs > span > a,
+.crumbs .cur {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .crumbs .cur {
   color: var(--text);
   font-weight: 500;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 .search {
   display: flex;
@@ -742,7 +847,7 @@ select {
   border: 1px solid var(--border);
   border-radius: 6px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 12.5px;
   min-width: 280px;
   cursor: pointer;
   transition: 0.15s;
@@ -777,7 +882,7 @@ select {
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--surface-2);
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--muted);
 }
 
@@ -810,8 +915,10 @@ select {
 }
 .page-sub {
   color: var(--muted);
-  font-size: 13px;
-  margin-top: 4px;
+  font-size: 14px;
+  line-height: 1.55;
+  margin-top: 6px;
+  max-width: 78ch;
 }
 .page-actions {
   display: flex;
@@ -835,7 +942,7 @@ select {
   gap: 12px;
 }
 .panel-title {
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -855,7 +962,7 @@ select {
   padding: 24px 28px;
   margin-bottom: 20px;
   background:
-    radial-gradient(600px 200px at 85% 20%, rgba(94, 234, 212, 0.1), transparent 60%),
+    radial-gradient(600px 200px at 85% 20%, color-mix(in oklab, var(--accent) 12%, transparent), transparent 60%),
     linear-gradient(180deg, var(--surface), var(--surface-2));
   overflow: hidden;
   animation: floatIn 0.6s ease-out;
@@ -864,7 +971,11 @@ select {
   content: '';
   position: absolute;
   inset: 0;
-  background-image: radial-gradient(circle at 1px 1px, rgba(94, 234, 212, 0.06) 1px, transparent 0);
+  background-image: radial-gradient(
+    circle at 1px 1px,
+    color-mix(in oklab, var(--accent) 12%, transparent) 1px,
+    transparent 0
+  );
   background-size: 20px 20px;
   mask-image: linear-gradient(90deg, transparent, black 30%, black 70%, transparent);
   pointer-events: none;
@@ -914,10 +1025,10 @@ select {
 }
 .hero-summary {
   color: var(--muted);
-  font-size: 13.5px;
+  font-size: 14.5px;
   margin-top: 6px;
-  max-width: 640px;
-  line-height: 1.55;
+  max-width: 68ch;
+  line-height: 1.6;
 }
 .hero-summary b {
   color: var(--text);
@@ -941,11 +1052,11 @@ select {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 10px;
+  padding: 6px 11px;
   border: 1px solid var(--border-strong);
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--tint);
   border-radius: 999px;
-  font-size: 11.5px;
+  font-size: 12.5px;
   color: var(--muted);
   cursor: pointer;
   transition: 0.15s;
@@ -953,7 +1064,7 @@ select {
 .hero-chip:hover {
   color: var(--text);
   border-color: var(--accent-dim);
-  background: rgba(94, 234, 212, 0.05);
+  background: color-mix(in oklab, var(--accent) 8%, transparent);
 }
 .hero-chip svg {
   width: 12px;
@@ -1008,7 +1119,7 @@ select {
   opacity: 0.5;
 }
 .kpi .k-label {
-  font-size: 11px;
+  font-size: 12.5px;
   font-weight: 500;
   color: var(--muted);
   display: flex;
@@ -1024,14 +1135,14 @@ select {
   font-variant-numeric: tabular-nums;
 }
 .kpi .k-val small {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--muted);
   font-weight: 500;
   margin-left: 4px;
 }
 .kpi .k-delta {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 12px;
   margin-top: 4px;
   color: var(--success);
   display: flex;
@@ -1075,12 +1186,20 @@ select {
   border-color: var(--border-strong);
 }
 .attn-item.failed {
-  border-color: #4a1e22;
-  background: linear-gradient(90deg, #1c0d10, #150a0c);
+  border-color: color-mix(in oklab, var(--failed) 35%, var(--border));
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklab, var(--failed) 10%, var(--surface-2)),
+    var(--surface-2)
+  );
 }
 .attn-item.warn {
-  border-color: #4a3a1e;
-  background: linear-gradient(90deg, #1c150a, #15100a);
+  border-color: color-mix(in oklab, var(--paused) 35%, var(--border));
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklab, var(--paused) 10%, var(--surface-2)),
+    var(--surface-2)
+  );
 }
 .attn-item .h {
   display: flex;
@@ -1088,7 +1207,8 @@ select {
   gap: 8px;
 }
 .attn-item .body {
-  font-size: 12.5px;
+  font-size: 13.5px;
+  line-height: 1.55;
   margin-top: 8px;
 }
 .attn-item .actions {
@@ -1103,12 +1223,12 @@ select {
 table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 13.5px;
 }
 thead th {
   text-align: left;
   font-weight: 500;
-  font-size: 10.5px;
+  font-size: 11.5px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--dim);
@@ -1132,7 +1252,7 @@ tbody tr:last-child td {
   border-bottom: 0;
 }
 td .mono {
-  font-size: 12px;
+  font-size: 12.5px;
   color: var(--muted);
 }
 .row-title {
@@ -1140,7 +1260,7 @@ td .mono {
   color: var(--text);
 }
 .row-sub {
-  font-size: 11.5px;
+  font-size: 12.5px;
   color: var(--muted);
   margin-top: 2px;
   font-family: var(--font-mono);
@@ -1173,7 +1293,7 @@ tr.is-running td:first-child {
 .proj-card:hover {
   border-color: var(--border-strong);
   transform: translateY(-2px);
-  box-shadow: 0 12px 24px -12px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--elev-3);
 }
 .proj-card::after {
   content: '→';
@@ -1205,13 +1325,13 @@ tr.is-running td:first-child {
   color: var(--muted);
 }
 .proj-name {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
 }
 .proj-meta {
-  font-size: 10.5px;
+  font-size: 12px;
   color: var(--muted);
-  margin-top: 2px;
+  margin-top: 3px;
   font-family: var(--font-mono);
 }
 .proj-stats {
@@ -1219,7 +1339,7 @@ tr.is-running td:first-child {
   gap: 14px;
   padding-top: 10px;
   border-top: 1px solid var(--border);
-  font-size: 10.5px;
+  font-size: 12px;
   color: var(--muted);
 }
 .proj-stats > div {
@@ -1258,7 +1378,9 @@ tr.is-running td:first-child {
   background: var(--surface);
 }
 .ed-canvas {
-  background: radial-gradient(circle at 1px 1px, #1a1d21 1px, transparent 0) 0 0 / 24px 24px, var(--bg);
+  background:
+    radial-gradient(circle at 1px 1px, var(--grid-dot) 1px, transparent 0) 0 0 / 24px 24px,
+    var(--bg);
   position: relative;
   overflow: hidden;
 }
@@ -1277,7 +1399,7 @@ tr.is-running td:first-child {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 13px;
+  font-size: 13.5px;
   color: var(--muted);
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
@@ -1293,7 +1415,7 @@ tr.is-running td:first-child {
 }
 .tab .count {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   padding: 1px 5px;
   border-radius: 4px;
   background: var(--surface-2);
@@ -1347,7 +1469,7 @@ tr.is-running td:first-child {
   padding: 8px 10px;
   border-radius: 6px;
   color: var(--text);
-  font-size: 12.5px;
+  font-size: 13.5px;
   outline: none;
   transition: 0.15s;
 }
@@ -1361,9 +1483,9 @@ tr.is-running td:first-child {
   flex: 1;
 }
 .palette-list h4 {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--dim);
   margin: 10px 4px 6px;
@@ -1391,12 +1513,13 @@ tr.is-running td:first-child {
   cursor: grabbing;
 }
 .task-tile .tt-name {
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 500;
 }
 .task-tile .tt-desc {
-  font-size: 11px;
+  font-size: 12.5px;
   color: var(--muted);
+  line-height: 1.45;
 }
 
 .node {
@@ -1405,7 +1528,7 @@ tr.is-running td:first-child {
   border: 1px solid var(--border-strong);
   border-radius: 8px;
   width: 200px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--node-shadow);
   transition:
     box-shadow 0.2s,
     border-color 0.2s;
@@ -1413,11 +1536,13 @@ tr.is-running td:first-child {
   user-select: none;
 }
 .node:hover {
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--node-shadow-hover);
 }
 .node.selected {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(94, 234, 212, 0.12), 0 8px 20px rgba(0, 0, 0, 0.35);
+  box-shadow:
+    0 0 0 3px color-mix(in oklab, var(--accent) 22%, transparent),
+    var(--node-shadow);
 }
 .node.running {
   border-color: var(--running);
@@ -1437,19 +1562,19 @@ tr.is-running td:first-child {
   border-bottom: 1px solid var(--border);
 }
 .node-title {
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 600;
 }
 .node-id {
   font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-size: 12px;
   color: var(--muted);
   margin-left: auto;
 }
 .node-body {
   padding: 8px 10px;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
 }
 .node-body.warn {
@@ -1524,13 +1649,13 @@ tr.is-running td:first-child {
   top: 25%;
   width: 40%;
   height: 50%;
-  background: rgba(94, 234, 212, 0.06);
+  background: color-mix(in oklab, var(--accent) 8%, transparent);
 }
 .canvas-hint {
   position: absolute;
   top: 16px;
   right: 16px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--dim);
   font-family: var(--font-mono);
   display: flex;
@@ -1550,7 +1675,7 @@ tr.is-running td:first-child {
   align-items: center;
   gap: 8px;
   font-weight: 600;
-  font-size: 13px;
+  font-size: 13.5px;
 }
 .insp-body {
   padding: 16px;
@@ -1562,7 +1687,7 @@ tr.is-running td:first-child {
 }
 .field-block label {
   display: block;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--muted);
   margin-bottom: 6px;
@@ -1582,7 +1707,8 @@ tr.is-running td:first-child {
   border-radius: 6px;
   padding: 8px 10px;
   color: var(--text);
-  font-size: 13px;
+  font-size: 13.5px;
+  line-height: 1.6;
   outline: none;
   transition: 0.15s;
 }
@@ -1591,9 +1717,10 @@ tr.is-running td:first-child {
   background: var(--bg);
 }
 .field-block .help {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--dim);
   margin-top: 6px;
+  line-height: 1.5;
 }
 .field-block input,
 .field-block select {
@@ -1603,7 +1730,7 @@ tr.is-running td:first-child {
   border-radius: 6px;
   padding: 8px 10px;
   color: var(--text);
-  font-size: 13px;
+  font-size: 13.5px;
   outline: none;
   transition: 0.15s;
 }
@@ -1616,7 +1743,7 @@ tr.is-running td:first-child {
 .insp-ai {
   padding: 10px 12px;
   border: 1px dashed var(--accent-dim);
-  background: rgba(94, 234, 212, 0.04);
+  background: color-mix(in oklab, var(--accent) 6%, transparent);
   border-radius: 6px;
   margin-bottom: 16px;
 }
@@ -1656,14 +1783,14 @@ tr.is-running td:first-child {
   gap: 2px;
 }
 .exec-meta .m .lbl {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--dim);
 }
 .exec-meta .m .val {
-  font-size: 13px;
+  font-size: 13.5px;
   font-family: var(--font-mono);
   color: var(--text);
 }
@@ -1690,7 +1817,7 @@ tr.is-running td:first-child {
 }
 .tl-task .name {
   font-family: var(--font-mono);
-  font-size: 12.5px;
+  font-size: 13px;
 }
 .tl-bar {
   position: relative;
@@ -1728,18 +1855,18 @@ tr.is-running td:first-child {
 }
 .tl-dur {
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 12.5px;
   text-align: right;
   color: var(--muted);
 }
 
 .logs {
   padding: 16px 20px;
-  background: #08090b;
+  background: var(--code-bg);
   border-top: 1px solid var(--border);
   font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 1.7;
+  font-size: 12.5px;
+  line-height: 1.75;
   max-height: 360px;
   overflow-y: auto;
 }
@@ -1822,10 +1949,10 @@ tr.is-running td:first-child {
 }
 .ver-item .vn {
   font-weight: 600;
-  font-size: 13px;
+  font-size: 13.5px;
 }
 .ver-item .vm {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
   margin-top: 4px;
   font-family: var(--font-mono);
@@ -1852,26 +1979,26 @@ tr.is-running td:first-child {
   background: var(--surface-2);
 }
 .diff-row.added {
-  border-color: #1e4a3a;
-  background: #0e1c17;
+  border-color: color-mix(in oklab, var(--success) 35%, var(--border));
+  background: color-mix(in oklab, var(--success) 8%, var(--surface-2));
 }
 .diff-row.changed {
-  border-color: #4a3a1e;
-  background: #1c150a;
+  border-color: color-mix(in oklab, var(--paused) 35%, var(--border));
+  background: color-mix(in oklab, var(--paused) 8%, var(--surface-2));
 }
 .diff-badge {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   padding: 2px 6px;
   border-radius: 3px;
   font-weight: 600;
 }
 .diff-badge.a {
-  background: #134e3c;
-  color: #6ee7b7;
+  background: color-mix(in oklab, var(--success) 22%, var(--surface));
+  color: var(--success);
 }
 .diff-badge.c {
-  background: #4a3a1e;
+  background: color-mix(in oklab, var(--paused) 22%, var(--surface));
   color: var(--paused);
 }
 
@@ -1881,7 +2008,7 @@ tr.is-running td:first-child {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(6, 8, 10, 0.72);
+  background: var(--overlay);
   backdrop-filter: blur(6px);
   z-index: 900;
   opacity: 0;
@@ -1902,7 +2029,7 @@ tr.is-running td:first-child {
   background: var(--surface);
   border: 1px solid var(--border-strong);
   border-radius: 10px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+  box-shadow: var(--elev-3);
   z-index: 901;
   overflow: hidden;
   opacity: 0;
@@ -1939,8 +2066,8 @@ tr.is-running td:first-child {
   border-bottom: 0;
 }
 .cmdk-sec h5 {
-  font-size: 10px;
-  letter-spacing: 0.14em;
+  font-size: 11px;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--dim);
   padding: 6px 12px;
@@ -1951,7 +2078,7 @@ tr.is-running td:first-child {
   gap: 12px;
   padding: 9px 12px;
   border-radius: 6px;
-  font-size: 13px;
+  font-size: 13.5px;
   cursor: pointer;
   transition: 0.12s;
 }
@@ -1962,7 +2089,7 @@ tr.is-running td:first-child {
 .cmdk-item .kk {
   margin-left: auto;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--dim);
 }
 .cmdk-item svg {
@@ -2002,7 +2129,7 @@ tr.is-running td:first-child {
   border-radius: 8px !important;
 }
 .react-flow__attribution {
-  background-color: rgba(10, 11, 13, 0.7) !important;
+  background-color: var(--glass) !important;
   color: var(--dim) !important;
 }
 .react-flow__attribution a {
@@ -2020,7 +2147,7 @@ tr.is-running td:first-child {
   border: 1px solid var(--border-strong);
   border-radius: 8px;
   padding: 12px 16px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--elev-3);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -2037,7 +2164,9 @@ tr.is-running td:first-child {
   min-height: 100vh;
 }
 .auth-l {
-  background: linear-gradient(180deg, #0d1013, #0a0b0d);
+  background:
+    radial-gradient(520px 420px at 18% 22%, color-mix(in oklab, var(--accent) 9%, transparent), transparent 70%),
+    linear-gradient(180deg, var(--surface-2), var(--bg));
   position: relative;
   overflow: hidden;
   padding: 40px;
@@ -2049,14 +2178,20 @@ tr.is-running td:first-child {
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at 30% 60%, rgba(94, 234, 212, 0.08), transparent 60%);
+  background: radial-gradient(
+    circle at 30% 60%,
+    color-mix(in oklab, var(--accent) 10%, transparent),
+    transparent 60%
+  );
   animation: glowBreathe 8s ease-in-out infinite;
 }
 .auth-l::after {
   content: '';
   position: absolute;
   inset: 0;
-  background-image: linear-gradient(rgba(94, 234, 212, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(94, 234, 212, 0.03) 1px, transparent 1px);
+  background-image:
+    linear-gradient(color-mix(in oklab, var(--accent) 7%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklab, var(--accent) 7%, transparent) 1px, transparent 1px);
   background-size: 48px 48px;
   mask-image: radial-gradient(ellipse at center, black, transparent 70%);
 }
@@ -2086,7 +2221,8 @@ tr.is-running td:first-child {
   gap: 10px;
   align-items: center;
   color: var(--muted);
-  font-size: 13.5px;
+  font-size: 14.5px;
+  line-height: 1.5;
   animation: floatIn 0.8s ease-out both;
 }
 .auth-l li:nth-child(1) {
@@ -2104,16 +2240,6 @@ tr.is-running td:first-child {
 }
 .auth-l li .live-dot::before {
   inset: -3px;
-}
-.auth-l .dagpreview {
-  position: relative;
-  height: 240px;
-  margin-top: 36px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: radial-gradient(circle at 1px 1px, #1a1d21 1px, transparent 0) 0 0 / 22px 22px, var(--surface);
-  overflow: hidden;
-  animation: floatIn 1s ease-out 0.7s both;
 }
 .auth-r {
   background: var(--bg);
@@ -2135,8 +2261,9 @@ tr.is-running td:first-child {
 }
 .auth-card p.lead {
   color: var(--muted);
-  font-size: 13.5px;
-  margin-top: 6px;
+  font-size: 14.5px;
+  line-height: 1.6;
+  margin-top: 8px;
 }
 .auth-form {
   margin-top: 26px;
@@ -2149,7 +2276,7 @@ tr.is-running td:first-child {
 }
 .field label {
   display: block;
-  font-size: 11px;
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--muted);
   margin-bottom: 6px;
@@ -2165,7 +2292,7 @@ tr.is-running td:first-child {
   border-radius: 6px;
   padding: 10px 12px;
   color: var(--text);
-  font-size: 13.5px;
+  font-size: 14.5px;
   outline: none;
   transition: 0.18s;
 }
@@ -2174,16 +2301,17 @@ tr.is-running td:first-child {
 .field select:focus {
   border-color: var(--accent-dim);
   background: var(--bg);
-  box-shadow: 0 0 0 3px rgba(94, 234, 212, 0.08);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 16%, transparent);
 }
 .field input:focus + label,
 .field:focus-within label {
   color: var(--text);
 }
 .field .help {
-  font-size: 11px;
+  font-size: 12.5px;
   color: var(--dim);
   margin-top: 6px;
+  line-height: 1.5;
 }
 .auth-alt {
   display: flex;
@@ -2191,7 +2319,7 @@ tr.is-running td:first-child {
   gap: 10px;
   margin: 20px 0;
   color: var(--dim);
-  font-size: 10.5px;
+  font-size: 11.5px;
   text-transform: uppercase;
   letter-spacing: 0.12em;
 }
@@ -2204,7 +2332,7 @@ tr.is-running td:first-child {
 }
 .auth-foot {
   margin-top: 24px;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--muted);
   text-align: center;
 }
@@ -2224,7 +2352,7 @@ tr.is-running td:first-child {
   top: 0;
   z-index: 20;
   backdrop-filter: blur(12px);
-  background: rgba(10, 11, 13, 0.7);
+  background: var(--glass);
   border-bottom: 1px solid transparent;
   transition: 0.2s;
 }
@@ -2279,7 +2407,11 @@ tr.is-running td:first-child {
 .lhero-bg .grid {
   position: absolute;
   inset: 0;
-  background-image: linear-gradient(rgba(94, 234, 212, 0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(94, 234, 212, 0.04) 1px, transparent 1px);
+  /* The wash is mixed from the accent so it reads as a tint on light and as a
+     glow on dark, instead of only working on the dark background. */
+  background-image:
+    linear-gradient(color-mix(in oklab, var(--accent) 9%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklab, var(--accent) 9%, transparent) 1px, transparent 1px);
   background-size: 56px 56px;
   mask-image: radial-gradient(ellipse 900px 550px at 50% 40%, black, transparent 70%);
 }
@@ -2290,37 +2422,18 @@ tr.is-running td:first-child {
   transform: translateX(-50%);
   width: 900px;
   height: 450px;
-  background: radial-gradient(ellipse at center, rgba(94, 234, 212, 0.15), transparent 60%);
+  background: radial-gradient(
+    ellipse at center,
+    color-mix(in oklab, var(--accent) 26%, transparent),
+    transparent 60%
+  );
   filter: blur(40px);
   animation: glowBreathe 6s ease-in-out infinite;
 }
-/* The generated 3D illustration of a live task graph (one task fanning out to
-   dependents, a reclaimed task, and worker pods). It sits behind the hero copy
-   as ambient depth: `lighten` blends its near-black plate into --bg so no
-   rectangle edge shows, and a radial mask dissolves the corners. Hidden below
-   1180px, where there is no column to spare. */
-.lhero-art {
-  position: absolute;
-  top: 50%;
-  right: -110px;
-  width: 660px;
-  height: 660px;
-  transform: translateY(-50%);
-  mix-blend-mode: lighten;
-  mask-image: radial-gradient(circle at 46% 46%, black 30%, transparent 72%);
-  opacity: 0.92;
-}
-.lhero-art img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-@media (max-width: 1180px) {
-  .lhero-art {
-    display: none;
-  }
-}
+/* The hero used to carry a raster render of a task graph behind the headline.
+   It is gone: the hero now leads with `ExecutionDemo`, a live, token-driven
+   run visualization, and the workflow illustration appears further down in
+   `.lshowcase-art` and again in the closing CTA. */
 .lhero-eyebrow {
   display: inline-flex;
   align-items: center;
@@ -2355,7 +2468,11 @@ tr.is-running td:first-child {
   animation: floatIn 0.9s ease-out 0.1s both;
 }
 .lhero h1 .grad {
-  background: linear-gradient(180deg, var(--accent), #3ba896);
+  background: linear-gradient(
+    180deg,
+    var(--accent),
+    color-mix(in oklab, var(--accent) 72%, var(--text))
+  );
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -2505,7 +2622,7 @@ tr.is-running td:first-child {
 .step:hover {
   border-color: var(--border-strong);
   transform: translateY(-3px);
-  box-shadow: 0 12px 40px -12px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--elev-3);
 }
 .step-num {
   font-family: var(--font-mono);
@@ -2539,7 +2656,7 @@ tr.is-running td:first-child {
   min-height: 150px;
 }
 .step-visual .k {
-  color: #a78bfa;
+  color: var(--ti-violet);
 }
 .step-visual .s {
   color: var(--success);
@@ -2580,7 +2697,7 @@ tr.is-running td:first-child {
 .bento-card:hover {
   border-color: var(--border-strong);
   transform: translateY(-3px);
-  box-shadow: 0 12px 40px -12px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--elev-3);
 }
 .bento-card .bt {
   font-family: var(--font-display);
@@ -2654,7 +2771,7 @@ tr.is-running td:first-child {
 }
 .why-card.why-good:hover {
   border-color: var(--accent-dim);
-  box-shadow: 0 0 40px -12px rgba(94, 234, 212, 0.2);
+  box-shadow: 0 0 40px -12px var(--accent-glow);
 }
 .why-card h4 {
   font-family: var(--font-display);
@@ -3226,11 +3343,12 @@ tr.is-running td:first-child {
   margin-top: 2px;
 }
 /* ============================================================
-   LANDING — PRODUCT SHOWCASE (illustration asset)
-   The workflow graph is a generated SVG asset (src/assets/
-   orchestration-graph.svg) rather than an ad-hoc div drawing, so
-   the marketing page shows the real product concept: a task graph
-   with versions, worker assignments and live execution states.
+   LANDING — PRODUCT SHOWCASE
+   The workflow graph is the inline `OrchestrationArt` SVG
+   (components/brand/OrchestrationArt.tsx), drawn from the design
+   tokens so it reads on both themes. It shows the real product
+   concept: a task graph with worker assignments and live
+   execution states.
 ============================================================ */
 .lshowcase {
   padding: 84px 40px 8px;
@@ -3243,14 +3361,9 @@ tr.is-running td:first-child {
   margin-top: 40px;
   border-radius: 18px;
   overflow: hidden;
-  box-shadow:
-    0 48px 90px -48px rgba(0, 0, 0, 0.95),
-    0 0 0 1px rgba(94, 234, 212, 0.07);
-}
-.lshowcase-art img {
-  display: block;
-  width: 100%;
-  height: auto;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--elev-3);
 }
 .lshowcase-chips {
   display: flex;
@@ -3296,4 +3409,480 @@ tr.is-running td:first-child {
   .lshowcase {
     padding: 56px 20px 8px;
   }
+}
+/* ============================================================
+   2026 REFRESH — LIGHT-THEME CORRECTIONS
+   These rules are intentionally last: they re-declare a handful of
+   components that were written against the original dark-only palette and
+   now derive their surfaces from the theme tokens, so light mode reads
+   correctly without changing the dark theme's character.
+============================================================ */
+
+/* The landing run preview used three raw dark hex pairs for its status chips and
+   node fills; mixed from the status tokens they now work on both themes. */
+.exec-demo {
+  box-shadow:
+    var(--elev-3),
+    0 0 0 1px color-mix(in oklab, var(--accent) 8%, transparent);
+}
+.exec-demo-bar {
+  background: var(--glass);
+}
+.exec-demo-status.is-running {
+  color: var(--running);
+  border-color: color-mix(in oklab, var(--running) 38%, var(--border-strong));
+  background: color-mix(in oklab, var(--running) 12%, var(--surface));
+}
+.exec-demo-status.is-done {
+  color: var(--success);
+  border-color: color-mix(in oklab, var(--success) 38%, var(--border-strong));
+  background: color-mix(in oklab, var(--success) 12%, var(--surface));
+}
+.exec-node.running rect {
+  fill: color-mix(in oklab, var(--running) 12%, var(--surface));
+}
+.exec-node.done rect {
+  stroke: color-mix(in oklab, var(--success) 45%, var(--border-strong));
+}
+.exec-node.retry rect {
+  fill: color-mix(in oklab, var(--paused) 14%, var(--surface));
+}
+
+/* Marketing/auth artwork is now an inline token-driven SVG
+   (components/brand/OrchestrationArt.tsx) rather than a raster render, so the
+   blend-mode and crop tricks that only worked on a near-black plate are gone. */
+.lcta-art {
+  mix-blend-mode: normal;
+  mask-image: none;
+}
+.auth-art {
+  aspect-ratio: auto;
+  max-height: none;
+  overflow: visible;
+  border-radius: 14px;
+  background: transparent;
+}
+
+/* Fonts for the SVG illustration's labels. Kept as classes so the SVG does not
+   repeat font shorthand on every <text>. */
+.ff-art-mono-135-600 {
+  font: 600 13.5px var(--font-mono);
+}
+.ff-art-mono-125 {
+  font: 500 12.5px var(--font-mono);
+}
+.ff-art-mono-115 {
+  font: 400 11.5px var(--font-mono);
+}
+.ff-art-mono-115-500 {
+  font: 500 11.5px var(--font-mono);
+}
+.ff-art-mono-12 {
+  font: 400 12px var(--font-mono);
+}
+.ff-art-mono-12-500 {
+  font: 500 12px var(--font-mono);
+}
+
+/* ============================================================
+   2026 REFRESH — TYPOGRAPHY SCALE
+   Audit result: the interface had drifted into a long tail of 9.5–11.5px
+   text (uppercase chrome labels, mono metadata, SVG captions). Nothing in a
+   product UI needs to be below 11.5px, and secondary text reads better at 12px
+   with slightly looser tracking. The block below lifts the floor and evens the
+   scale out; hierarchy is preserved because every step moves together.
+============================================================ */
+body {
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+
+/* Buttons */
+.btn {
+  font-size: 13.5px;
+}
+.btn-sm {
+  font-size: 13px;
+}
+.btn-xs {
+  font-size: 12.5px;
+}
+.btn-lg {
+  font-size: 15px;
+}
+
+/* Chrome labels, chips, keys */
+.badge {
+  font-size: 12.5px;
+}
+.kbd {
+  font-size: 11.5px;
+}
+.label {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+
+/* Sidebar */
+.sb-workspace .name {
+  font-size: 13.5px;
+}
+.sb-workspace .env {
+  font-size: 11.5px;
+}
+.sb-group {
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+}
+.sb-item {
+  font-size: 14px;
+}
+.sb-item .count {
+  font-size: 11.5px;
+}
+.sb-bottom .who {
+  font-size: 13px;
+}
+.sb-bottom .plan {
+  font-size: 11.5px;
+}
+
+/* Top bar */
+.crumbs {
+  font-size: 13.5px;
+}
+.search {
+  font-size: 13px;
+}
+.live-indicator {
+  font-size: 12.5px;
+}
+
+/* Page + panels */
+.page-sub {
+  font-size: 14.5px;
+}
+.panel-title {
+  font-size: 14px;
+}
+.hero-summary {
+  font-size: 15px;
+}
+.hero-chip {
+  font-size: 13px;
+}
+.kpi .k-label {
+  font-size: 13px;
+}
+.kpi .k-delta {
+  font-size: 12.5px;
+}
+.proj-meta {
+  font-size: 12.5px;
+}
+.proj-stats {
+  font-size: 12.5px;
+}
+.proj-stats b {
+  font-size: 12.5px;
+}
+.attn-item .body {
+  font-size: 14px;
+}
+
+/* Tables */
+table {
+  font-size: 14px;
+}
+thead th {
+  font-size: 12px;
+  letter-spacing: 0.05em;
+}
+td .mono {
+  font-size: 13px;
+}
+.row-sub {
+  font-size: 13px;
+}
+
+/* Editor + inspector */
+.tab {
+  font-size: 14px;
+}
+.tab .count {
+  font-size: 11.5px;
+}
+.palette-list h4 {
+  font-size: 11.5px;
+  letter-spacing: 0.09em;
+}
+.task-tile .tt-name {
+  font-size: 14px;
+}
+.task-tile .tt-desc {
+  font-size: 13px;
+  line-height: 1.5;
+}
+.node-title {
+  font-size: 13.5px;
+}
+.node-id {
+  font-size: 12.5px;
+}
+.node-body {
+  font-size: 12.5px;
+}
+.canvas-hint {
+  font-size: 12.5px;
+}
+.insp-title {
+  font-size: 14px;
+}
+.field-block label {
+  font-size: 12.5px;
+}
+.field-block input,
+.field-block select,
+.field-block textarea {
+  font-size: 14px;
+}
+.field-block .help {
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+/* Execution detail */
+.exec-meta .m .lbl {
+  font-size: 11.5px;
+}
+.exec-meta .m .val {
+  font-size: 14px;
+}
+.tl-task .name {
+  font-size: 13.5px;
+}
+.tl-dur {
+  font-size: 13px;
+}
+.logs {
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+/* Versions / diff */
+.ver-item .vn {
+  font-size: 14px;
+}
+.ver-item .vm {
+  font-size: 12.5px;
+}
+.diff-badge {
+  font-size: 11.5px;
+}
+
+/* Command palette */
+.cmdk-in input {
+  font-size: 14.5px;
+}
+.cmdk-sec h5 {
+  font-size: 11.5px;
+  letter-spacing: 0.09em;
+}
+.cmdk-item {
+  font-size: 14px;
+}
+.cmdk-item .kk {
+  font-size: 12.5px;
+}
+
+/* Auth */
+.auth-l li {
+  font-size: 15px;
+}
+.auth-card p.lead {
+  font-size: 15px;
+}
+.auth-alt {
+  font-size: 12px;
+}
+.auth-foot {
+  font-size: 14.5px;
+}
+.field label {
+  font-size: 13px;
+}
+.field .help {
+  font-size: 13px;
+}
+
+/* Landing */
+.lnav-links {
+  font-size: 14px;
+}
+.lhero p {
+  font-size: 18px;
+}
+.lhero-eyebrow {
+  font-size: 13px;
+}
+.lhero-meta {
+  font-size: 13px;
+}
+.logos-metric-sub {
+  font-size: 14px;
+}
+.lsection-eyebrow {
+  font-size: 12.5px;
+}
+.lsection-sub {
+  font-size: 17px;
+}
+.step-num {
+  font-size: 11.5px;
+}
+.step-desc {
+  font-size: 14px;
+}
+.step-visual {
+  font-size: 12.5px;
+}
+.bento-card .bt {
+  font-size: 19px;
+}
+.bento-card .bd {
+  font-size: 14px;
+  line-height: 1.6;
+}
+.why-list li {
+  font-size: 14px;
+}
+.lcta p {
+  font-size: 17px;
+}
+.lfoot h5 {
+  font-size: 12px;
+  letter-spacing: 0.09em;
+}
+.lfoot li {
+  font-size: 14px;
+}
+.lfoot-brand p {
+  font-size: 13.5px;
+}
+
+/* Landing run preview captions */
+.exec-demo-run,
+.exec-demo-foot {
+  font-size: 12px;
+}
+.exec-demo-status {
+  font-size: 12px;
+}
+.exec-node .exec-node-title {
+  font-size: 13.5px;
+}
+.exec-node .exec-node-type,
+.exec-node .exec-node-worker {
+  font-size: 11.5px;
+}
+.lshowcase-chip {
+  font-size: 12.5px;
+}
+
+/* Durable-execution bento visual */
+.dur-kicker,
+.dur-w {
+  font-size: 11.5px;
+}
+.dur-tag {
+  font-size: 11px;
+}
+.dur-note {
+  font-size: 11.5px;
+}
+
+/* Mobile: the whole scale steps down one notch rather than shrinking
+   individual labels past legibility. */
+@media (max-width: 640px) {
+  body {
+    font-size: 14px;
+  }
+  .page-inner {
+    padding: 18px 16px;
+  }
+  .page-title,
+  .hero-greet {
+    font-size: 22px;
+  }
+}
+/* Auth column: brand row, theme switch, and the illustration slot. */
+.auth-l-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.auth-l-brand {
+  display: inline-flex;
+  align-items: center;
+}
+/* The brand row above already supplies the top spacing the 60px margin was
+   compensating for. */
+.auth-l h1 {
+  margin-top: 36px;
+}
+.auth-l-foot {
+  position: relative;
+  z-index: 1;
+  margin-top: 28px;
+  color: var(--dim);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.auth-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+/* Landing: the workflow illustration sits in a bordered panel so it reads as
+   product surface rather than floating artwork. */
+.lshowcase-art {
+  padding: 18px;
+}
+.lcta-art {
+  padding: 0;
+}
+/* ============================================================
+   2026 REFRESH — LANDING CORRECTIONS
+============================================================ */
+
+/* The hero eyebrow was a hardcoded near-black plate with muted text; on the
+   light theme that rendered as dark-on-dark. Mixed from the surface tokens it
+   now reads as a chip on both themes. */
+.lhero-eyebrow {
+  background: color-mix(in oklab, var(--surface) 84%, transparent);
+}
+
+/* The closing CTA is carried by the artwork, so it sits above the copy at a
+   size where the task labels inside it stay legible. It was previously a 360px
+   grid column, which shrank the illustration's own text below reading size. */
+.lcta-inner {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  gap: 30px;
+  max-width: 760px;
+  text-align: center;
+}
+.lcta-art {
+  order: -1;
+  width: min(620px, 100%);
+}
+.lcta-copy p {
+  margin: 18px auto 28px;
+}
+.lcta-copy .lcta-btns {
+  justify-content: center;
 }

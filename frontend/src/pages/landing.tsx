@@ -4,21 +4,35 @@ import {
   BookOpen,
   CheckCircle2,
   ChevronRight,
+  Clock,
   GitBranch,
+  Globe,
   History,
+  Mail,
   Play,
   RefreshCw,
   Sparkles,
   Workflow as WorkflowIcon,
+  Wand2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { StartTrialButton } from '@/components/auth/StartTrialButton'
 import { FlowForgeLogo } from '@/components/brand/FlowForgeLogo'
+import { OrchestrationArt } from '@/components/brand/OrchestrationArt'
+import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import { ExecutionDemo } from '@/components/landing/ExecutionDemo'
+import { useAuth } from '@/hooks/use-auth'
 import { useScrollReveal } from '@/hooks/use-scroll-reveal'
-import orchestrationGraph from '@/assets/orchestration-graph.svg'
-import builderCanvas from '@/assets/builder-canvas.svg'
-import heroOrchestration from '@/assets/hero-orchestration.webp'
+import { cn } from '@/lib/utils'
+
+/** The five task types the builder exposes, shown as tiles in the bento card. */
+const taskTypes = [
+  { label: 'HTTP', icon: Globe, tile: 'ti-http' },
+  { label: 'Transform', icon: Wand2, tile: 'ti-transform' },
+  { label: 'Delay', icon: Clock, tile: 'ti-delay' },
+  { label: 'Conditional', icon: GitBranch, tile: 'ti-cond' },
+  { label: 'Email', icon: Mail, tile: 'ti-email' },
+]
 
 const steps = [
   {
@@ -91,8 +105,9 @@ const steps = [
         <span className="s">✓</span> <span className="n">summarize</span>
         &nbsp;&nbsp;<span className="num">89ms</span>
         <br />
-        <span style={{ color: '#60a5fa' }}>▍</span> <span className="n">notify</span>{' '}
-        &nbsp;&nbsp;&nbsp;&nbsp;<span style={{ color: '#60a5fa' }}>running…</span>
+        <span style={{ color: 'var(--running)' }}>▍</span>{' '}
+        <span className="n">notify</span> &nbsp;&nbsp;&nbsp;&nbsp;
+        <span style={{ color: 'var(--running)' }}>running…</span>
       </div>
     ),
   },
@@ -132,15 +147,16 @@ curl -X POST $API/projects/$PID/workflows/$WID/executions \\
 
 export function LandingPage() {
   const pageRef = useScrollReveal<HTMLDivElement>()
+  const { isAuthenticated } = useAuth()
   return (
-    <div
-      ref={pageRef}
-      className="min-h-svh flex flex-col"
-      style={{ background: 'var(--bg)' }}
-    >
+    <div ref={pageRef} className="min-h-svh flex flex-col" style={{ background: 'var(--bg)' }}>
       <header className="lnav">
+        {/* The brand always leads to the landing page — here it simply
+            scrolls back to the top of it. */}
         <div className="flex items-center gap-4">
-          <FlowForgeLogo />
+          <Link to="/" className="logo" aria-label="FlowForge home">
+            <FlowForgeLogo />
+          </Link>
         </div>
         <nav className="lnav-links">
           <a href="#product">Product</a>
@@ -148,16 +164,28 @@ export function LandingPage() {
           <Link to="/docs">Docs</Link>
         </nav>
         <div className="lnav-cta">
-          <Button variant="ghost" size="sm" asChild>
-            <Link to="/login">Sign in</Link>
-          </Button>
-          <StartTrialButton size="sm" variant="outline" label="Try FlowForge" hideArrow />
-          <Button size="sm" asChild>
-            <Link to="/signup">
-              Get started
-              <ArrowRight className="ml-1 h-3.5 w-3.5" aria-hidden="true" />
-            </Link>
-          </Button>
+          <ThemeToggle />
+          {isAuthenticated ? (
+            <Button size="sm" asChild>
+              <Link to="/app">
+                Open app
+                <ArrowRight className="ml-1 h-3.5 w-3.5" aria-hidden="true" />
+              </Link>
+            </Button>
+          ) : (
+            <>
+              <Button variant="ghost" size="sm" asChild>
+                <Link to="/login">Sign in</Link>
+              </Button>
+              <StartTrialButton size="sm" variant="outline" label="Try FlowForge" hideArrow />
+              <Button size="sm" asChild>
+                <Link to="/signup">
+                  Get started
+                  <ArrowRight className="ml-1 h-3.5 w-3.5" aria-hidden="true" />
+                </Link>
+              </Button>
+            </>
+          )}
         </div>
       </header>
 
@@ -166,16 +194,6 @@ export function LandingPage() {
           <div className="lhero-bg" aria-hidden="true">
             <div className="grid" />
             <div className="glow" />
-            <div className="lhero-art">
-              <img
-                src={heroOrchestration}
-                alt=""
-                width={1024}
-                height={1024}
-                decoding="async"
-                fetchPriority="high"
-              />
-            </div>
           </div>
 
           <div className="lhero-eyebrow">
@@ -188,13 +206,21 @@ export function LandingPage() {
             <span className="grad">never lose state.</span>
           </h1>
           <p>
-            Define a graph of tasks once. FlowForge runs it asynchronously, recovers from
-            worker failures automatically, and records every attempt — so you always know
-            what happened.
+            Define a graph of tasks once. FlowForge runs it asynchronously, recovers from worker
+            failures automatically, and records every attempt — so you always know what happened.
           </p>
 
           <div className="lhero-ctas">
-            <StartTrialButton size="lg" label="Try FlowForge" />
+            {isAuthenticated ? (
+              <Button size="lg" asChild>
+                <Link to="/app">
+                  Open your workspace
+                  <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
+                </Link>
+              </Button>
+            ) : (
+              <StartTrialButton size="lg" label="Try FlowForge" />
+            )}
             <Button size="lg" variant="outline" asChild>
               <Link to="/docs">
                 <BookOpen className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -203,8 +229,16 @@ export function LandingPage() {
             </Button>
           </div>
           <div className="lhero-meta">
-            No signup needed — a trial workspace is created instantly · 10 AI actions included ·{' '}
-            <Link to="/signup">create an account to keep your work →</Link>
+            {isAuthenticated ? (
+              <>
+                You are signed in · <Link to="/app">go to your workspace →</Link>
+              </>
+            ) : (
+              <>
+                No signup needed — a trial workspace is created instantly · 10 AI actions
+                included · <Link to="/signup">create an account to keep your work →</Link>
+              </>
+            )}
           </div>
 
           <div className="mt-16 flex justify-center px-2">
@@ -230,8 +264,7 @@ export function LandingPage() {
             every attempt recorded · immutable versions · postgres-backed queue
           </div>
         </section>
-
-        <section className="lshowcase" id="graph">
+<section className="lshowcase" id="graph">
           <div className="lshowcase-inner">
             <div className="lsection-head">
               <div className="lsection-eyebrow">The workflow graph</div>
@@ -246,14 +279,7 @@ export function LandingPage() {
               </p>
             </div>
             <div className="lshowcase-art reveal">
-              <img
-                src={orchestrationGraph}
-                alt="A FlowForge workflow graph: a signed webhook trigger starts an http task that has completed, feeding a transform task that is currently running and a conditional task that is being retried. Dependent email and delay tasks are still queued."
-                width={1200}
-                height={640}
-                loading="lazy"
-                decoding="async"
-              />
+              <OrchestrationArt />
             </div>
             <div className="lshowcase-chips reveal">
               <span className="lshowcase-chip">
@@ -367,17 +393,23 @@ export function LandingPage() {
                 <div className="bt">Visual builder</div>
                 <div className="bd">
                   Design the DAG by drag-and-drop or post the definition from your own
-                  tooling. HTTP, transform, delay, conditional, and email tasks out of the box.
+                  tooling. Five task types out of the box:
                 </div>
-                <div className="fillvis fillvis-art">
-                  <img
-                    src={builderCanvas}
-                    alt="The FlowForge builder: a palette of the five built-in task types beside a canvas where an http task feeds an email task, a transform task is selected, and a new task can be dropped into the graph."
-                    width={640}
-                    height={300}
-                    loading="lazy"
-                    decoding="async"
-                  />
+                {/* The task types themselves, drawn with the same tinted tiles
+                    the builder uses — a real product surface instead of a
+                    screenshot that could drift from it. */}
+                <div className="mt-auto flex flex-wrap gap-1.5 rounded-lg border border-border bg-secondary p-2.5">
+                  {taskTypes.map((type) => (
+                    <span
+                      key={type.label}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1 text-xs font-medium"
+                    >
+                      <span className={cn('task-icon', type.tile)} aria-hidden="true">
+                        <type.icon className="h-3.5 w-3.5" />
+                      </span>
+                      {type.label}
+                    </span>
+                  ))}
                 </div>
               </div>
               <div className="bento-card b-4">
@@ -495,13 +527,8 @@ export function LandingPage() {
           <div className="lcta-bg" aria-hidden="true" />
           <div className="lcta-inner">
             <div className="lcta-art">
-              <img
-                src={heroOrchestration}
-                alt="A FlowForge task graph: one task fans out to three dependents — two finished, one being retried — with worker nodes alongside."
-                width={1024}
-                height={1024}
-                loading="lazy"
-                decoding="async"
+              <OrchestrationArt
+                ariaLabel="A FlowForge workflow graph: a webhook trigger starts an http task, a transform task is running on a worker, and the dependent email and conditional tasks are queued or being retried."
               />
             </div>
             <div className="lcta-copy">
@@ -515,11 +542,20 @@ export function LandingPage() {
                 run is durable, observable, and recoverable.
               </p>
               <div className="lcta-btns reveal">
-                <StartTrialButton size="lg" label="Try FlowForge" />
+                {isAuthenticated ? (
+                  <Button size="lg" asChild>
+                    <Link to="/app">
+                      Open your workspace
+                      <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
+                    </Link>
+                  </Button>
+                ) : (
+                  <StartTrialButton size="lg" label="Try FlowForge" />
+                )}
                 <Button size="lg" variant="outline" asChild>
-                  <Link to="/signup">
-                    Create an account
-                    <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
+                  <Link to="/docs">
+                    <BookOpen className="mr-2 h-4 w-4" aria-hidden="true" />
+                    Read the docs
                   </Link>
                 </Button>
               </div>
@@ -530,7 +566,9 @@ export function LandingPage() {
 
       <footer className="lfoot">
         <div className="lfoot-brand">
-          <FlowForgeLogo />
+          <Link to="/" className="logo" aria-label="FlowForge home">
+            <FlowForgeLogo />
+          </Link>
           <p>
             Durable distributed workflow orchestration. A Postgres-backed queue, independent
             workers, and at-least-once execution.
@@ -582,15 +620,23 @@ export function LandingPage() {
         <div>
           <h5>Account</h5>
           <ul>
-            <li>
-              <Link to="/login">Sign in</Link>
-            </li>
-            <li>
-              <Link to="/signup">Create account</Link>
-            </li>
-            <li>
-              <Link to="/signup">Free trial</Link>
-            </li>
+            {isAuthenticated ? (
+              <li>
+                <Link to="/app">Open your workspace</Link>
+              </li>
+            ) : (
+              <>
+                <li>
+                  <Link to="/login">Sign in</Link>
+                </li>
+                <li>
+                  <Link to="/signup">Create account</Link>
+                </li>
+                <li>
+                  <Link to="/signup">Free trial</Link>
+                </li>
+              </>
+            )}
           </ul>
         </div>
       </footer>

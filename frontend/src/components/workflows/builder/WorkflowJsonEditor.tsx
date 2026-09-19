@@ -183,16 +183,16 @@ export function WorkflowJsonEditor({
                       <Icon className="h-3.5 w-3.5" aria-hidden="true" />
                     </span>
                     <span className="text-xs font-semibold">{meta.label}</span>
-                    <code className="ml-auto font-mono text-[11px] text-muted-foreground">
+                    <code className="ml-auto font-mono text-xs text-muted-foreground">
                       {type}
                     </code>
                   </div>
-                  <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                  <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
                     {meta.description}
                   </p>
                   <ul className="mt-1.5 space-y-0.5">
                     {fields.map((field) => (
-                      <li key={field.key} className="text-[11px] leading-relaxed">
+                      <li key={field.key} className="text-xs leading-relaxed">
                         <code className="font-mono text-foreground/80">
                           {field.key}
                           {field.required ? '*' : ''}

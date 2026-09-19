@@ -28,10 +28,13 @@ import { DocsIndexPage, DocsDocumentPage } from '@/pages/docs'
 const router = createBrowserRouter([
   { path: '/docs', element: <DocsIndexPage /> },
   { path: '/docs/:slug', element: <DocsDocumentPage /> },
+  // The landing page is public for everyone, signed in or not. It sits outside
+  // `RequirePublic` so the FlowForge brand in the app shell can always lead
+  // back to it instead of bouncing an authenticated user into `/app`.
+  { path: '/', element: <LandingPage /> },
   {
     element: <RequirePublic />,
     children: [
-      { path: '/', element: <LandingPage /> },
       { path: '/login', element: <LoginPage /> },
       { path: '/signup', element: <SignupPage /> },
     ],

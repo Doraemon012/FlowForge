@@ -1,7 +1,9 @@
 import type * as React from 'react'
+import { Link } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { FlowForgeLogo } from '@/components/brand/FlowForgeLogo'
-import heroOrchestration from '@/assets/hero-orchestration-640.webp'
+import { OrchestrationArt } from '@/components/brand/OrchestrationArt'
+import { ThemeToggle } from '@/components/layout/ThemeToggle'
 
 interface AuthLayoutProps {
   title: string
@@ -20,15 +22,16 @@ const highlights = [
 export function AuthLayout({ title, description, children, footer, className }: AuthLayoutProps) {
   return (
     <div className="auth">
-      <div
-        className="auth-l"
-        style={{
-          backgroundImage:
-            'radial-gradient(circle at 30% 60%, rgba(94, 234, 212, 0.08), transparent 60%)',
-        }}
-      >
+      <div className="auth-l">
         <div className="inner">
-          <FlowForgeLogo />
+          <div className="auth-l-top">
+            {/* The brand always leads home, on every surface. */}
+            <Link to="/" className="auth-l-brand" aria-label="FlowForge home">
+              <FlowForgeLogo />
+            </Link>
+            <ThemeToggle />
+          </div>
+
           <h1>
             Durable workflow
             <br />
@@ -44,35 +47,32 @@ export function AuthLayout({ title, description, children, footer, className }: 
               </li>
             ))}
           </ul>
+          {/* The same illustration the landing page leads with, so the sign-in
+              column belongs to the product instead of showing a placeholder. */}
           <div className="auth-art">
-            <img
-              src={heroOrchestration}
-              alt="A FlowForge task graph rendered in 3D: one task fans out to three dependents, two of which have finished and one of which is being retried, with worker nodes alongside."
-              width={640}
-              height={640}
-              decoding="async"
-            />
+            <OrchestrationArt />
           </div>
         </div>
-        <div
-          style={{
-            position: 'relative',
-            zIndex: 1,
-            color: 'var(--dim)',
-            fontFamily: 'var(--font-mono)',
-            fontSize: 11,
-          }}
-        >
-          © {new Date().getFullYear()} FlowForge
-        </div>
+        <div className="auth-l-foot">© {new Date().getFullYear()} FlowForge</div>
       </div>
 
       <div className="auth-r">
         <div className={cn('auth-card', className)}>
-          <FlowForgeLogo
-            className="justify-center lg:hidden"
-            wordmarkClassName="font-display text-lg font-semibold tracking-tight"
-          />
+          {/* Below `lg` the left column is hidden, so the brand and the theme
+              switch move above the form. The responsive utility sits on a
+              wrapper because the unlayered `.auth-card-head` rule sets
+              `display: flex` and would outrank Tailwind's layered `lg:hidden`
+              if both were on the same element. */}
+          <div className="lg:hidden">
+            <div className="auth-card-head">
+              <Link to="/" aria-label="FlowForge home">
+                <FlowForgeLogo
+                  wordmarkClassName="font-display text-lg font-semibold tracking-tight"
+                />
+              </Link>
+              <ThemeToggle />
+            </div>
+          </div>
 
           <h2>{title}</h2>
           {description ? <p className="lead">{description}</p> : null}

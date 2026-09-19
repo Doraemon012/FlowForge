@@ -1068,3 +1068,167 @@
   background: var(--surface-2);
   color: var(--text);
 }
+/* ============================================================
+   2026 REFRESH — LIGHT-THEME CORRECTIONS
+   The docs chrome was written against the original dark-only palette. The
+   rules below re-derive every one of those surfaces from the theme tokens so
+   the documentation reads correctly on light (the default) as well as dark.
+   Same specificity as the originals, so declaration order decides: these win.
+============================================================ */
+
+/* The top bar was a hardcoded near-black plate. `--glass` is the token the
+   landing nav and the app chrome already use, so it stays translucent on both
+   themes instead of turning into a dark band on the light page. */
+.docs-topnav {
+  background: var(--glass);
+}
+
+/* Callouts: each tint is mixed from its own status colour, which yields the
+   original deep tone on dark and a pastel one on light. */
+.docs-callout.info {
+  border-color: color-mix(in oklab, var(--running) 34%, var(--border-strong));
+  background: color-mix(in oklab, var(--running) 10%, var(--surface));
+}
+.docs-callout.success {
+  border-color: color-mix(in oklab, var(--success) 34%, var(--border-strong));
+  background: color-mix(in oklab, var(--success) 10%, var(--surface));
+}
+.docs-callout.warning,
+.docs-callout.deferred {
+  border-color: color-mix(in oklab, var(--paused) 34%, var(--border-strong));
+  background: color-mix(in oklab, var(--paused) 10%, var(--surface));
+}
+.docs-callout.security {
+  border-color: color-mix(in oklab, var(--failed) 34%, var(--border-strong));
+  background: color-mix(in oklab, var(--failed) 10%, var(--surface));
+}
+.docs-callout code {
+  background: var(--tint-strong);
+}
+
+/* Version badges — same treatment. */
+.docs-version-badge.v1 {
+  color: var(--success);
+  border-color: color-mix(in oklab, var(--success) 34%, var(--border-strong));
+  background: color-mix(in oklab, var(--success) 14%, var(--surface));
+}
+.docs-version-badge.deferred {
+  color: var(--paused);
+  border-color: color-mix(in oklab, var(--paused) 34%, var(--border-strong));
+  background: color-mix(in oklab, var(--paused) 14%, var(--surface));
+}
+.docs-version-badge.frontend-gap {
+  color: var(--running);
+  border-color: color-mix(in oklab, var(--running) 34%, var(--border-strong));
+  background: color-mix(in oklab, var(--running) 14%, var(--surface));
+}
+
+/* Code blocks were pinned to a near-black plate. `--code-bg` is the same token
+   the execution log panel uses, so a snippet reads on either theme. */
+.docs-code-block {
+  background: var(--code-bg);
+}
+.docs-code-body .tok-k {
+  color: var(--ti-violet);
+}
+.docs-code-body .tok-b {
+  color: var(--running);
+}
+
+/* The diagram's dot grid was a hardcoded dark dot. */
+.docs-diagram {
+  background:
+    radial-gradient(circle at 1px 1px, var(--grid-dot) 1px, transparent 0) 0 0 / 22px 22px,
+    var(--surface);
+}
+
+/* Active chip / search highlight: the accent at low alpha, read from the token
+   rather than a fixed teal so it tracks the theme's accent. */
+.docs-chip.active {
+  background: color-mix(in oklab, var(--accent) 12%, transparent);
+}
+.docs-search-item mark {
+  background: color-mix(in oklab, var(--accent) 22%, transparent);
+  color: var(--accent);
+}
+
+/* Overlays and elevation. */
+.docs-search-overlay,
+.docs-drawer-overlay {
+  background: var(--overlay);
+}
+.docs-search-dialog,
+.docs-drawer {
+  box-shadow: var(--elev-3);
+}
+.docs-card:hover {
+  box-shadow: var(--elev-3);
+}
+
+/* Typography: the docs scale had drifted below the app's 11.5px floor. */
+.docs-sidebar-item {
+  font-size: 13.5px;
+}
+.docs-sidebar-group-label,
+.docs-onthis-label {
+  font-size: 11.5px;
+  letter-spacing: 0.09em;
+}
+.docs-paragraph {
+  font-size: 14.5px;
+}
+.docs-table {
+  font-size: 13.5px;
+}
+.docs-table thead th {
+  font-size: 12px;
+  letter-spacing: 0.05em;
+}
+.docs-table td .mono {
+  font-size: 12.5px;
+}
+.docs-version-badge {
+  font-size: 12px;
+}
+.docs-code-head .lang {
+  font-size: 11.5px;
+}
+.docs-code-copy {
+  font-size: 11.5px;
+}
+.docs-code-body pre {
+  font-size: 13px;
+}
+.docs-step-num {
+  font-size: 11.5px;
+}
+.docs-step-desc {
+  font-size: 14px;
+}
+.docs-diagram-label {
+  font-size: 11.5px;
+}
+.docs-pager-label {
+  font-size: 11.5px;
+}
+.docs-onthis-link {
+  font-size: 13px;
+}
+.docs-onthis-link.h3 {
+  font-size: 12.5px;
+}
+.docs-card-desc {
+  font-size: 13px;
+}
+.docs-chip {
+  font-size: 12.5px;
+}
+.docs-search-item {
+  font-size: 13.5px;
+}
+.docs-search-item .si-group {
+  font-size: 11.5px;
+}
+.docs-footer {
+  font-size: 13px;
+}

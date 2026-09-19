@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0A0B0D" />
+    <meta name="theme-color" content="#F5F7F8" />
     <meta
       name="description"
       content="FlowForge — durable, graph-based workflow orchestration for developers."
@@ -13,9 +13,31 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
+    <script>
+      // Resolve the theme before the first paint. The stylesheet defaults to
+      // light, so only a stored dark (or a stored `system` that resolves dark)
+      // needs the class added here — otherwise a dark-theme user would see a
+      // light flash while the JS bundle loads. Kept in sync with
+      // `src/lib/theme-store.ts` (same storage key, same class name).
+      ;(function () {
+        try {
+          var stored = window.localStorage.getItem('flowforge.theme')
+          var prefersDark =
+            window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+          var resolvedDark = stored === 'dark' || (stored === 'system' && prefersDark)
+          if (resolvedDark) {
+            document.documentElement.classList.add('dark')
+            var meta = document.querySelector('meta[name="theme-color"]')
+            if (meta) meta.setAttribute('content', '#0A0B0D')
+          }
+        } catch (error) {
+          /* Private mode or blocked storage: fall through to the light default. */
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

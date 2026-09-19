@@ -7,6 +7,7 @@ import { DefinitionDiffView } from '@/components/workflows/DefinitionDiffView'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogHeader,
@@ -46,7 +47,7 @@ export function WorkflowVersionCompareDialog({
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Compare versions</DialogTitle>
           <DialogDescription>
@@ -55,7 +56,9 @@ export function WorkflowVersionCompareDialog({
               : `Version ${version.version_number} is the initial published version; all of its tasks are listed as added.`}
           </DialogDescription>
         </DialogHeader>
-        <DefinitionDiffView diff={diff} beforeLabel={beforeLabel} afterLabel={afterLabel} />
+        <DialogBody>
+          <DefinitionDiffView diff={diff} beforeLabel={beforeLabel} afterLabel={afterLabel} />
+        </DialogBody>
       </DialogContent>
     </Dialog>
   )

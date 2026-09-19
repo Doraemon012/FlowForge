@@ -45,7 +45,7 @@ function FieldRow({ field }: { field: FieldChange }) {
       </p>
       <div className="mt-1.5 grid gap-1.5 sm:grid-cols-2">
         <div className="rounded-md border border-destructive/20 bg-destructive/5 p-2">
-          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-destructive">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-destructive">
             Before
           </p>
           <pre className="overflow-x-auto whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-muted-foreground">
@@ -53,7 +53,7 @@ function FieldRow({ field }: { field: FieldChange }) {
           </pre>
         </div>
         <div className="rounded-md border border-success/20 bg-success/5 p-2">
-          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-success">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-success">
             After
           </p>
           <pre className="overflow-x-auto whitespace-pre-wrap break-words font-mono text-xs leading-relaxed">

@@ -52,7 +52,7 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowGraphNode>) {
       <div className="mt-2.5 rounded-lg border border-border/70 bg-muted/40 px-2.5 py-1.5">
         <p
           className={cn(
-            'truncate font-mono text-[11px] leading-4',
+            'truncate font-mono text-xs leading-4',
             summarizeTaskConfig(task) === 'Not configured'
               ? 'italic text-muted-foreground/70'
               : 'text-muted-foreground',
@@ -66,13 +66,13 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowGraphNode>) {
           {validationErrors.slice(0, 2).map((error, index) => (
             <div key={index} className="flex items-start gap-1.5 text-destructive">
               <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              <span className="min-w-0 break-words text-[11px] leading-4" title={error}>
+              <span className="min-w-0 break-words text-xs leading-4" title={error}>
                 {error}
               </span>
             </div>
           ))}
           {validationErrors.length > 2 ? (
-            <p className="pl-5 text-[11px] font-medium text-destructive/80">
+            <p className="pl-5 text-xs font-medium text-destructive/80">
               +{validationErrors.length - 2} more error
               {validationErrors.length - 2 === 1 ? '' : 's'}
             </p>
