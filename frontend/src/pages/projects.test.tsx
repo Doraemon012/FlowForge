@@ -78,4 +78,21 @@ describe('ProjectsPage', () => {
     expect(screen.getByText('Alpha Project')).toBeInTheDocument()
     expect(screen.getByText('Beta Project')).toBeInTheDocument()
   })
+
+  it('collects archived projects in their own section with a restore action', () => {
+    const archived: Project = {
+      ...project,
+      id: 'proj-3',
+      name: 'Gamma Project',
+      status: 'archived',
+    }
+    mockUseProjects({ data: [project, archived] })
+    renderPage()
+    // The archived project stays visible - that is where it is restored from -
+    // but it sits in its own section rather than among the working set.
+    expect(screen.getByText('Alpha Project')).toBeInTheDocument()
+    expect(screen.getByText('Gamma Project')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: /archived/i })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /restore/i })).toHaveLength(1)
+  })
 })

@@ -1,18 +1,23 @@
 import { Link } from 'react-router-dom'
 import { FolderKanban } from 'lucide-react'
+import type * as React from 'react'
 import type { Project } from '@/api/types'
 import { formatDate } from '@/lib/utils'
 
 interface ProjectCardProps {
   project: Project
+  /**
+   * An optional control rendered inside the card but outside the navigation
+   * link. The card is an anchor, so an action button placed within it would be
+   * an interactive element nested inside another; giving the action its own row
+   * keeps both usable and keyboard-reachable.
+   */
+  action?: React.ReactNode
 }
 
-export function ProjectCard({ project }: ProjectCardProps) {
-  return (
-    <Link
-      to={`/app/projects/${project.id}`}
-      className="proj-card"
-    >
+export function ProjectCard({ project, action }: ProjectCardProps) {
+  const body = (
+    <>
       <div className="proj-head">
         <div className="proj-icon">
           <FolderKanban className="h-4 w-4" aria-hidden="true" />
@@ -36,6 +41,23 @@ export function ProjectCard({ project }: ProjectCardProps) {
           <b>{formatDate(project.updated_at)}</b>
         </div>
       </div>
-    </Link>
+    </>
+  )
+
+  if (!action) {
+    return (
+      <Link to={`/app/projects/${project.id}`} className="proj-card">
+        {body}
+      </Link>
+    )
+  }
+
+  return (
+    <div className="proj-card">
+      <Link to={`/app/projects/${project.id}`} className="block">
+        {body}
+      </Link>
+      <div className="mt-3">{action}</div>
+    </div>
   )
 }

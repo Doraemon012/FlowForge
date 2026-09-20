@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -121,6 +122,15 @@ func (s *Scheduler) processSchedule(ctx context.Context, sched schedule.Schedule
 	occurrenceKey := scheduleOccurrenceKey(sched.ID, *sched.NextOccurrence)
 	input := json.RawMessage(`{}`)
 	execRecord, err := s.executionRepo.CreateOwnedWithIdempotency(ctx, ownerID, sched.WorkflowID, versionID, input, now, sched.ProjectID, occurrenceKey)
+	if errors.Is(err, execution.ErrProjectArchived) {
+		// The project was deleted between the due-schedule query and this
+		// create. That is a race, not a fault, so it is logged at debug and the
+		// occurrence is deliberately left un-advanced: nothing about a deleted
+		// project should be consumed as if it had run.
+		s.logger.Debug("schedule skipped; project archived",
+			"schedule_id", sched.ID, "project_id", sched.ProjectID, "workflow_id", sched.WorkflowID)
+		return
+	}
 	if err != nil {
 		s.logger.Error("create execution for schedule",
 			"schedule_id", sched.ID, "workflow_id", sched.WorkflowID, "error", err)

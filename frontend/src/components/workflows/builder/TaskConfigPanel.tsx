@@ -1,10 +1,16 @@
-import { Link2, Settings2, Trash2, X } from 'lucide-react'
+import { ChevronRight, Settings2, Trash2, X } from 'lucide-react'
 import type { WorkflowTask } from '@/api/types'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { getTaskTypeMeta, TASK_CONFIG_FIELDS, type ConfigFieldSpec, type SupportedTaskType } from './types'
+import { TaskConnections } from './TaskConnections'
+import {
+  normalizeFieldValue,
+  resolveFieldForTask,
+  TaskConfigField,
+} from './TaskConfigFields'
+import { getTaskTypeMeta, TASK_CONFIG_FIELDS, type SupportedTaskType } from './types'
 
 interface TaskConfigPanelProps {
   task: WorkflowTask | null
@@ -17,6 +23,15 @@ interface TaskConfigPanelProps {
   className?: string
 }
 
+/**
+ * The task inspector.
+ *
+ * Fields are split into what the task cannot work without (rendered inline)
+ * and everything else (folded behind "Advanced"), because a new user adding an
+ * HTTP task needs to see a URL, not credential plumbing. Connections follow,
+ * then the destructive action, so the panel reads top-to-bottom as
+ * "what is this / how do I set it up / how is it wired / remove it".
+ */
 export function TaskConfigPanel({
   task,
   onChange,
@@ -30,7 +45,10 @@ export function TaskConfigPanel({
   if (!task) {
     return (
       <div
-        className={cn('flex h-full flex-col items-center justify-center border-l bg-card p-6 text-center', className)}
+        className={cn(
+          'flex h-full flex-col items-center justify-center border-l bg-card p-6 text-center',
+          className,
+        )}
         aria-label="Task configuration"
       >
         <Settings2 className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
@@ -44,289 +62,130 @@ export function TaskConfigPanel({
 
   const meta = getTaskTypeMeta(task.type)
   const Icon = meta.icon
-  const fields = TASK_CONFIG_FIELDS[task.type as SupportedTaskType] ?? []
+  const allFields = TASK_CONFIG_FIELDS[task.type as SupportedTaskType] ?? []
+  const essentialFields = allFields.filter((field) => field.essential)
+  const advancedFields = allFields.filter((field) => !field.essential)
+  // A type with no `essential` markers (an unknown/custom type) would otherwise
+  // render an empty Configuration section, so fall back to showing them inline.
+  const inlineFields = essentialFields.length > 0 ? essentialFields : allFields
+
+  const handleFieldChange = (key: string, value: unknown) =>
+    onChange({
+      config: {
+        ...(task.config ?? {}),
+        [key]: normalizeFieldValue(task.type, key, value),
+      },
+    })
+
+  const renderField = (field: (typeof allFields)[number]) => {
+    const resolved = resolveFieldForTask(field, task.type, task.config)
+    return (
+      <TaskConfigField
+        key={field.key}
+        field={resolved}
+        value={task.config?.[field.key]}
+        onChange={(value) => handleFieldChange(field.key, value)}
+      />
+    )
+  }
 
   return (
     <div className={cn('flex h-full flex-col overflow-hidden bg-card', className)}>
-      <div className="flex items-center justify-between border-b p-3">
-        <div className="flex items-center gap-2">
-          <span
-            className="flex h-7 w-7 items-center justify-center rounded-md border bg-secondary/60"
-            style={{ color: meta.accent }}
-          >
-            <Icon className="h-4 w-4" aria-hidden="true" />
-          </span>
-          <div>
-            <h2 className="text-sm font-semibold">Configure task</h2>
-            <p className="font-mono text-xs text-muted-foreground">{task.id}</p>
-          </div>
+      <header className="flex shrink-0 items-center gap-2.5 border-b px-3 py-2.5">
+        <span
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-black/5"
+          style={{
+            color: meta.accent,
+            backgroundColor: `color-mix(in oklch, ${meta.accent} 10%, var(--card))`,
+          }}
+        >
+          <Icon className="h-4 w-4" aria-hidden="true" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="truncate text-sm font-semibold">{meta.label}</h2>
+          <p className="truncate font-mono text-xs text-muted-foreground">{task.id}</p>
         </div>
-        <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Close task configuration" onClick={onClose}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 shrink-0"
+          aria-label="Close task configuration"
+          onClick={onClose}
+        >
           <X className="h-4 w-4" aria-hidden="true" />
         </Button>
-      </div>
+      </header>
 
-      <div className="flex-1 space-y-4 overflow-y-auto p-4">
-        <div className="space-y-1.5">
-          <Label htmlFor="task-config-node-id">Task ID</Label>
-          <Input
-            id="task-config-node-id"
-            value={task.id}
-            onChange={(event) => onChange({ id: event.target.value })}
-            aria-invalid={task.id.trim().length === 0}
-          />
-          <p className="text-xs text-muted-foreground">
-            Used to reference this task from downstream dependencies.
-          </p>
-        </div>
+      <div className="flex-1 space-y-5 overflow-y-auto p-4">
+        <section className="space-y-3">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Identity
+          </h3>
+          <div className="space-y-1.5">
+            {/* The required marker sits beside the label, not inside it: text
+                inside a <label> becomes part of the control's accessible name,
+                so "Task ID *" would no longer be addressable as "Task ID". */}
+            <div className="flex items-baseline gap-1">
+              <Label htmlFor="task-config-node-id">Task ID</Label>
+              <span className="text-xs text-destructive" aria-hidden="true">
+                *
+              </span>
+            </div>
+            <Input
+              id="task-config-node-id"
+              value={task.id}
+              onChange={(event) => onChange({ id: event.target.value })}
+              aria-invalid={task.id.trim().length === 0}
+              aria-required
+              className="font-mono"
+            />
+            <p className="text-xs text-muted-foreground">
+              Downstream tasks reference this name. Renaming updates every connection
+              automatically.
+            </p>
+          </div>
+        </section>
 
-        {fields.map((field) => {
-          const numericConditionalOperators = ['gt', 'lt', 'gte', 'lte']
-          const fieldForTask =
-            field.key === 'value' && numericConditionalOperators.includes(String(task.config?.operator))
-              ? { ...field, type: 'number' as const }
-              : field
-          return (
-          <ConfigField
-            key={field.key}
-            field={fieldForTask}
-            value={task.config?.[field.key]}
-            onChange={(value) =>
-              onChange({
-                config: {
-                  ...(task.config ?? {}),
-                  [field.key]: normalizeFieldValue(task.type, field.key, value),
-                },
-              })
-            }
-          />
-          )
-        })}
+        {inlineFields.length > 0 ? (
+          <section className="space-y-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Configuration
+            </h3>
+            {inlineFields.map(renderField)}
+          </section>
+        ) : null}
 
-        <ConnectionsSection
+        {advancedFields.length > 0 ? (
+          <details className="group rounded-lg border border-border/70 bg-muted/20">
+            <summary className="flex cursor-pointer list-none items-center gap-1.5 px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground transition-colors hover:text-foreground [&::-webkit-details-marker]:hidden">
+              <ChevronRight
+                className="h-3.5 w-3.5 transition-transform group-open:rotate-90"
+                aria-hidden="true"
+              />
+              Advanced options
+              <span className="ml-auto font-normal normal-case tracking-normal text-muted-foreground">
+                {advancedFields.length}
+              </span>
+            </summary>
+            <div className="space-y-3 border-t border-border/70 p-3">
+              {advancedFields.map(renderField)}
+            </div>
+          </details>
+        ) : null}
+
+        <TaskConnections
           incoming={incoming}
           outgoing={outgoing}
           onRemoveDependency={onRemoveDependency}
         />
       </div>
 
-      <div className="border-t p-3">
+      <footer className="shrink-0 border-t p-3">
         <Button variant="destructive" size="sm" className="w-full" onClick={onDelete}>
           <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
           Delete task
         </Button>
-      </div>
-    </div>
-  )
-}
-
-interface ConnectionsSectionProps {
-  incoming: string[]
-  outgoing: string[]
-  onRemoveDependency?: (dependencyId: string) => void
-}
-
-function ConnectionsSection({
-  incoming,
-  outgoing,
-  onRemoveDependency,
-}: ConnectionsSectionProps) {
-  return (
-    <div className="space-y-2.5 rounded-lg border border-border/70 bg-muted/30 p-3">
-      <div className="flex items-center gap-2">
-        <Link2 className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Connections
-        </h3>
-      </div>
-
-      <div className="space-y-1.5">
-        <p className="text-xs font-medium">Waits for ({incoming.length})</p>
-        {incoming.length === 0 ? (
-          <p className="text-xs text-muted-foreground">
-            Runs first, with the workflow&rsquo;s execution input.
-          </p>
-        ) : (
-          <ul className="space-y-1">
-            {incoming.map((dependencyId) => (
-              <li
-                key={dependencyId}
-                className="flex items-center gap-2 rounded-md border border-border/70 bg-card px-2 py-1"
-              >
-                <span className="min-w-0 flex-1 truncate font-mono text-xs">{dependencyId}</span>
-                {onRemoveDependency ? (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 shrink-0"
-                    aria-label={`Remove connection from ${dependencyId}`}
-                    title="Remove connection"
-                    onClick={() => onRemoveDependency(dependencyId)}
-                  >
-                    <X className="h-3.5 w-3.5" aria-hidden="true" />
-                  </Button>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        )}
-        {incoming.length > 0 ? (
-          <p className="text-xs text-muted-foreground">
-            This task runs only after every upstream task above has succeeded. Connect any number
-            of upstream tasks.
-          </p>
-        ) : null}
-      </div>
-
-      <div className="space-y-1.5">
-        <p className="text-xs font-medium">Feeds into ({outgoing.length})</p>
-        {outgoing.length === 0 ? (
-          <p className="text-xs text-muted-foreground">No downstream tasks yet.</p>
-        ) : (
-          <ul className="flex flex-wrap gap-1">
-            {outgoing.map((taskId) => (
-              <li
-                key={taskId}
-                className="rounded-md border border-border/70 bg-card px-2 py-0.5 font-mono text-xs"
-              >
-                {taskId}
-              </li>
-            ))}
-          </ul>
-        )}
-        <p className="text-xs text-muted-foreground">
-          This task can feed any number of downstream tasks. Each of them waits for it to succeed.
-        </p>
-      </div>
-
-      <div className="space-y-1 border-t border-border/70 pt-2">
-        <p className="text-xs font-medium">How this task gets its input</p>
-        <ul className="space-y-0.5 text-xs text-muted-foreground">
-          <li>No upstream tasks: the workflow&rsquo;s execution input.</li>
-          <li>One upstream task: that task&rsquo;s output.</li>
-          <li>Two or more: an object keyed by each upstream task&rsquo;s ID.</li>
-        </ul>
-      </div>
-    </div>
-  )
-}
-
-interface ConfigFieldProps {
-  field: ConfigFieldSpec
-  value: unknown
-  onChange: (value: unknown) => void
-}
-
-function normalizeFieldValue(taskType: string, key: string, value: unknown): unknown {
-  if (value === '') {
-    return undefined
-  }
-  if ((taskType === 'http' && key === 'headers') || (taskType === 'transform' && key === 'output')) {
-    if (typeof value !== 'string') return value
-    try {
-      return JSON.parse(value)
-    } catch {
-      return value
-    }
-  }
-  return value
-}
-
-function ConfigField({ field, value, onChange }: ConfigFieldProps) {
-  const id = `task-config-${field.key}`
-  const current = value ?? ''
-  // JSON fields (transform output, http headers) store a parsed object/array in
-  // config; render those back as readable JSON rather than "[object Object]".
-  const displayValue =
-    current !== null && typeof current === 'object'
-      ? JSON.stringify(current, null, 2)
-      : String(current)
-
-  const help = field.help ? (
-    <p className="text-xs text-muted-foreground">{field.help}</p>
-  ) : null
-
-  if (field.type === 'select') {
-    return (
-      <div className="space-y-1.5">
-        <Label htmlFor={id}>
-          {field.label}
-          {field.required ? <span className="text-destructive"> *</span> : null}
-        </Label>
-        <select
-          id={id}
-          value={String(current)}
-          onChange={(event) => onChange(event.target.value)}
-          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          aria-label={field.label}
-        >
-          {field.options?.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-        {help}
-      </div>
-    )
-  }
-
-  if (field.type === 'textarea') {
-    return (
-      <div className="space-y-1.5">
-        <Label htmlFor={id}>
-          {field.label}
-          {field.required ? <span className="text-destructive"> *</span> : null}
-        </Label>
-        <textarea
-          id={id}
-          value={displayValue}
-          onChange={(event) => onChange(event.target.value)}
-          placeholder={field.placeholder}
-          rows={3}
-          className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 font-mono text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          aria-label={field.label}
-        />
-        {help}
-      </div>
-    )
-  }
-
-  if (field.type === 'number') {
-    return (
-      <div className="space-y-1.5">
-        <Label htmlFor={id}>
-          {field.label}
-          {field.required ? <span className="text-destructive"> *</span> : null}
-        </Label>
-        <Input
-          id={id}
-          type="number"
-          value={current === '' ? '' : String(current)}
-          onChange={(event) => onChange(event.target.value === '' ? undefined : Number(event.target.value))}
-          placeholder={field.placeholder}
-          aria-label={field.label}
-        />
-        {help}
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-1.5">
-      <Label htmlFor={id}>
-        {field.label}
-        {field.required ? <span className="text-destructive"> *</span> : null}
-      </Label>
-      <Input
-        id={id}
-        type="text"
-        value={displayValue}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={field.placeholder}
-        aria-label={field.label}
-      />
-      {help}
+      </footer>
     </div>
   )
 }

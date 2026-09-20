@@ -4,6 +4,7 @@ import {
   deleteProject,
   getProject,
   listProjects,
+  restoreProject,
   updateProject,
 } from '@/api/projects'
 import type { CreateProjectInput } from '@/api/projects'
@@ -63,6 +64,24 @@ export function useDeleteProject() {
     mutationFn: deleteProject,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: projectKeys.all })
+    },
+  })
+}
+
+/**
+ * Puts an archived project back into service. The returned project is written
+ * straight into the detail cache so the page flips out of its archived state
+ * immediately, and the list is refetched because both the ordering and the
+ * status shown there change.
+ */
+export function useRestoreProject() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: restoreProject,
+    onSuccess: (restored) => {
+      queryClient.setQueryData(projectKeys.detail(restored.id), restored)
+      queryClient.invalidateQueries({ queryKey: projectKeys.lists() })
     },
   })
 }

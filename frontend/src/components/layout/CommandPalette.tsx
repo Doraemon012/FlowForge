@@ -1,23 +1,31 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import {
+  BookOpen,
   FolderKanban,
   LayoutDashboard,
+  PlayCircle,
   Plus,
   Search,
-  Workflow,
+  Workflow as WorkflowIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useRouteContext } from '@/hooks/use-route-context'
 import {
   commandPaletteStore,
   useCommandPaletteOpen,
 } from '@/components/layout/command-palette-store'
 
+type CommandIcon = React.ComponentType<{
+  className?: string
+  'aria-hidden'?: boolean | 'true' | 'false'
+}>
+
 interface CommandItem {
   id: string
   label: string
   sub?: string
-  icon: React.ComponentType<{ className?: string; 'aria-hidden'?: boolean | 'true' | 'false' }>
+  icon: CommandIcon
   kbd?: string
   action: () => void
 }
@@ -27,79 +35,118 @@ interface CommandSection {
   items: CommandItem[]
 }
 
-function CommandPalettePane() {
+/**
+ * Builds the palette's contents for the route the user is on.
+ *
+ * The commands are derived from one place — the shared route context — so the
+ * palette, the sidebar and the breadcrumbs agree about which project is open.
+ * Previously the palette re-derived the project id with its own copy of the
+ * path scan and only ever offered two destinations.
+ */
+function useCommandSections(): CommandSection[] {
   const navigate = useNavigate()
-  const location = useLocation()
+  const { projectId, inProject } = useRouteContext()
+
+  return useMemo(() => {
+    const jumpItems: CommandItem[] = [
+      {
+        id: 'overview',
+        label: 'Workspace overview',
+        sub: 'Your projects at a glance',
+        icon: LayoutDashboard,
+        action: () => navigate('/app'),
+      },
+      {
+        id: 'projects',
+        label: 'All projects',
+        sub: 'Browse every project',
+        icon: FolderKanban,
+        action: () => navigate('/app/projects'),
+      },
+    ]
+
+    if (projectId) {
+      jumpItems.push(
+        {
+          id: 'project-overview',
+          label: 'This project',
+          sub: 'Project overview',
+          icon: FolderKanban,
+          action: () => navigate(`/app/projects/${projectId}`),
+        },
+        {
+          id: 'project-workflows',
+          label: 'Workflows',
+          sub: 'Definitions in this project',
+          icon: WorkflowIcon,
+          action: () => navigate(`/app/projects/${projectId}/workflows`),
+        },
+        {
+          id: 'project-runs',
+          label: 'Runs',
+          sub: 'Execution history in this project',
+          icon: PlayCircle,
+          action: () => navigate(`/app/projects/${projectId}/executions`),
+        },
+      )
+    }
+
+    const sections: CommandSection[] = [{ label: 'Jump to', items: jumpItems }]
+
+    const createItems: CommandItem[] = [
+      {
+        id: 'new-project',
+        label: 'Create project…',
+        sub: 'Start a new project',
+        icon: Plus,
+        kbd: 'C then P',
+        action: () => navigate('/app/projects?create=1'),
+      },
+      {
+        id: 'new-workflow',
+        label: 'Create workflow…',
+        sub: inProject
+          ? 'New workflow in this project'
+          : 'Select a project to add a workflow',
+        icon: WorkflowIcon,
+        kbd: 'C then W',
+        action: () => {
+          if (projectId) {
+            navigate(`/app/projects/${projectId}/workflows/new`)
+          } else {
+            navigate('/app/projects')
+          }
+        },
+      },
+    ]
+
+    sections.push({ label: 'Create', items: createItems })
+    sections.push({
+      label: 'Help',
+      items: [
+        {
+          id: 'docs',
+          label: 'Documentation',
+          sub: 'Concepts, task types, troubleshooting',
+          icon: BookOpen,
+          action: () => navigate('/docs'),
+        },
+      ],
+    })
+
+    return sections
+  }, [navigate, projectId, inProject])
+}
+
+function CommandPalettePane() {
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
+  const sections = useCommandSections()
 
   const close = useCallback(() => {
     commandPaletteStore.close()
   }, [])
-
-  const projectId = useMemo(() => {
-    const segments = location.pathname.split('/').filter(Boolean)
-    const projectsIndex = segments.indexOf('projects')
-    if (projectsIndex >= 0 && segments[projectsIndex + 1]) {
-      return segments[projectsIndex + 1]
-    }
-    return undefined
-  }, [location.pathname])
-
-  const sections = useMemo<CommandSection[]>(
-    () => [
-      {
-        label: 'Jump to',
-        items: [
-          {
-            id: 'overview',
-            label: 'Overview',
-            sub: 'Workspace dashboard',
-            icon: LayoutDashboard,
-            action: () => navigate('/app'),
-          },
-          {
-            id: 'projects',
-            label: 'Projects',
-            sub: 'All projects',
-            icon: FolderKanban,
-            action: () => navigate('/app/projects'),
-          },
-        ],
-      },
-      {
-        label: 'Commands',
-        items: [
-          {
-            id: 'new-project',
-            label: 'Create project…',
-            sub: 'Start a new project',
-            icon: Plus,
-            kbd: 'C then P',
-            action: () => navigate('/app/projects?create=1'),
-          },
-          {
-            id: 'new-workflow',
-            label: 'Create workflow…',
-            sub: projectId
-              ? 'New workflow in this project'
-              : 'Select a project to add a workflow',
-            icon: Workflow,
-            kbd: 'C then W',
-            action: () => {
-              if (projectId) {
-                navigate(`/app/projects/${projectId}/workflows/new`)
-              } else {
-                navigate('/app/projects')
-              }
-            },
-          },
-        ],
-      },
-    ],
-    [navigate, projectId],
-  )
 
   const filteredSections = useMemo(() => {
     if (!query.trim()) return sections
@@ -130,13 +177,13 @@ function CommandPalettePane() {
   }, [])
 
   useEffect(() => {
-    if (!filteredItems.length) return
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault()
         close()
         return
       }
+      if (!filteredItems.length) return
       if (event.key === 'ArrowDown') {
         event.preventDefault()
         setActiveIndex((index) => Math.min(index + 1, filteredItems.length - 1))
@@ -169,7 +216,10 @@ function CommandPalettePane() {
           <input
             ref={inputRef}
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => {
+              setQuery(event.target.value)
+              setActiveIndex(0)
+            }}
             placeholder="Search or type a command…"
             aria-label="Search or type a command"
           />
@@ -198,9 +248,14 @@ function CommandPalettePane() {
                     onMouseEnter={() => setActiveIndex(flatIndex)}
                   >
                     <Icon className="h-4 w-4" aria-hidden="true" />
-                    <div>
-                      <div>{item.label}</div>
-                      {item.sub ? <div className="text-xs text-muted">{item.sub}</div> : null}
+                    {/* `flex-1` so the trailing shortcut hint can be pushed to
+                        the right edge by its `margin-left: auto` instead of
+                        sitting against the end of the label. */}
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate">{item.label}</div>
+                      {item.sub ? (
+                        <div className="truncate text-xs text-muted">{item.sub}</div>
+                      ) : null}
                     </div>
                     {item.kbd ? <span className="kk">{item.kbd}</span> : null}
                   </button>

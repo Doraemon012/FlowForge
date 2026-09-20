@@ -20,6 +20,23 @@ type executionRequest struct {
 	Input     json.RawMessage `json:"input"`
 }
 
+// writeExecutionCreateError maps a failed execution creation onto a response.
+//
+// An archived project gets its own conflict code rather than the generic
+// version error: the definition is still perfectly executable, it is the
+// project around it that was archived, and the client needs to say so in order
+// to point the owner at restoring it.
+func writeExecutionCreateError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, execution.ErrProjectArchived):
+		writeError(w, http.StatusConflict, "project_archived", "this project is archived; restore it before starting new runs")
+	case errors.Is(err, execution.ErrVersionInvalid):
+		writeError(w, http.StatusUnprocessableEntity, "invalid_version", "workflow version is not executable")
+	default:
+		writeError(w, http.StatusInternalServerError, "execution_create_failed", "execution could not be created")
+	}
+}
+
 func (s *Server) CreateExecution(w http.ResponseWriter, r *http.Request) {
 	ownerID, ok := authenticatedUserID(r.Context())
 	if !ok {
@@ -88,12 +105,8 @@ func (s *Server) CreateExecution(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		created, err := s.executions.CreateOwnedWithIdempotency(r.Context(), ownerID, workflowID, request.VersionID, request.Input, time.Now().UTC(), projectID, idempotencyKey)
-		if errors.Is(err, execution.ErrVersionInvalid) {
-			writeError(w, http.StatusUnprocessableEntity, "invalid_version", "workflow version is not executable")
-			return
-		}
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "execution_create_failed", "execution could not be created")
+			writeExecutionCreateError(w, err)
 			return
 		}
 		s.engine.Start(context.Background(), ownerID, created.ID)
@@ -102,12 +115,8 @@ func (s *Server) CreateExecution(w http.ResponseWriter, r *http.Request) {
 	}
 
 	created, err := s.executions.CreateOwned(r.Context(), ownerID, workflowID, request.VersionID, request.Input, time.Now().UTC())
-	if errors.Is(err, execution.ErrVersionInvalid) {
-		writeError(w, http.StatusUnprocessableEntity, "invalid_version", "workflow version is not executable")
-		return
-	}
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "execution_create_failed", "execution could not be created")
+		writeExecutionCreateError(w, err)
 		return
 	}
 

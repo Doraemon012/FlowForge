@@ -2,7 +2,12 @@ import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import { ProjectOverviewPage } from '@/pages/project-overview'
-import { useDeleteProject, useProject, useUpdateProject } from '@/hooks/use-projects'
+import {
+  useDeleteProject,
+  useProject,
+  useRestoreProject,
+  useUpdateProject,
+} from '@/hooks/use-projects'
 import { useWorkflows } from '@/hooks/use-workflows'
 import type { Project, Workflow } from '@/api/types'
 
@@ -13,6 +18,7 @@ vi.mock('@/hooks/use-projects', async (importOriginal) => {
     useProject: vi.fn(),
     useUpdateProject: vi.fn(),
     useDeleteProject: vi.fn(),
+    useRestoreProject: vi.fn(),
   }
 })
 vi.mock('@/hooks/use-workflows', async (importOriginal) => {
@@ -81,6 +87,9 @@ function mockProjectMutations() {
   vi.mocked(useDeleteProject).mockReturnValue(
     createMockMutation() as unknown as ReturnType<typeof useDeleteProject>,
   )
+  vi.mocked(useRestoreProject).mockReturnValue(
+    createMockMutation() as unknown as ReturnType<typeof useRestoreProject>,
+  )
 }
 
 function renderWithRouter(ui: React.ReactElement) {
@@ -127,5 +136,19 @@ describe('ProjectOverviewPage', () => {
     mockProjectMutations()
     renderWithRouter(<ProjectOverviewPage />)
     expect(screen.getByText("Couldn't load this project")).toBeInTheDocument()
+  })
+
+  it('offers restore instead of edit and delete for an archived project', () => {
+    mockUseProject({ data: { ...project, status: 'archived' } })
+    mockUseWorkflows({ data: [] })
+    mockProjectMutations()
+    renderWithRouter(<ProjectOverviewPage />)
+    expect(screen.getByText('This project is archived')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /restore/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /rename/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^delete$/i })).not.toBeInTheDocument()
+    // An archived project cannot start new work, so it offers no way to create
+    // a workflow that could never be saved.
+    expect(screen.queryByRole('link', { name: /create workflow/i })).not.toBeInTheDocument()
   })
 })

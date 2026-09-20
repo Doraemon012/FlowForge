@@ -43,6 +43,9 @@ func (s *Server) Router() http.Handler {
 			router.Get("/projects/{projectID}", s.GetProject)
 			router.Patch("/projects/{projectID}", s.UpdateProject)
 			router.Delete("/projects/{projectID}", s.DeleteProject)
+			// Archiving is reversible; this puts an archived project back into
+			// service so its workflows can be edited and run again.
+			router.Post("/projects/{projectID}/restore", s.RestoreProject)
 			router.Post("/projects/{projectID}/workflows", s.CreateWorkflow)
 			router.Get("/projects/{projectID}/workflows", s.ListWorkflows)
 			router.Get("/projects/{projectID}/workflows/{workflowID}", s.GetWorkflow)
