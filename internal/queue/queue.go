@@ -106,8 +106,18 @@ func (r *PostgresRepository) Enqueue(ctx context.Context, taskRunID uuid.UUID, n
 		return err
 	}
 	defer tx.Rollback(ctx)
-	if _, err := tx.Exec(ctx, `UPDATE task_runs SET status = 'queued' WHERE id = $1 AND status = 'pending'`, taskRunID); err != nil {
+	// The queue row is only created when the task run actually moves from
+	// pending to queued. Archiving a project cancels the task runs it had not
+	// started, and an orchestrator that was mid-loop can reach this method
+	// afterwards with a task run that has just been cancelled. Inserting the
+	// row regardless would leave claimable work behind for a run that must
+	// never execute, so the transition and the enqueue are made atomic.
+	tag, err := tx.Exec(ctx, `UPDATE task_runs SET status = 'queued' WHERE id = $1 AND status = 'pending'`, taskRunID)
+	if err != nil {
 		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return tx.Commit(ctx)
 	}
 	if _, err := tx.Exec(ctx, `INSERT INTO task_queue (id, task_run_id, status, created_at) VALUES ($1, $2, 'queued', $3) ON CONFLICT (task_run_id) DO NOTHING`, uuid.New(), taskRunID, now); err != nil {
 		return err
@@ -122,7 +132,26 @@ func (r *PostgresRepository) Claim(ctx context.Context, workerID string, now tim
 	}
 	defer tx.Rollback(ctx)
 	var queueID, taskRunID uuid.UUID
-	err = tx.QueryRow(ctx, `SELECT id, task_run_id FROM task_queue WHERE status = 'queued' AND (not_before IS NULL OR not_before <= $1) ORDER BY created_at, id FOR UPDATE SKIP LOCKED LIMIT 1`, now).Scan(&queueID, &taskRunID)
+	// Taking work is the last gate before a task actually runs, so it must
+	// respect the project lifecycle as well. Work belonging to an archived
+	// (deleted) project is not claimable, whatever left it in the queue, and a
+	// task run that is no longer queued - cancelled by a delete - must not be
+	// resurrected by a stale queue row. Enforcing it here, at the single point
+	// where a worker takes work, means no trigger and no race can route
+	// execution into a deleted project.
+	err = tx.QueryRow(ctx, `
+		SELECT q.id, q.task_run_id
+		FROM task_queue q
+		WHERE q.status = 'queued' AND (q.not_before IS NULL OR q.not_before <= $1)
+		  AND EXISTS (
+			SELECT 1
+			FROM task_runs tr
+			JOIN executions e ON e.id = tr.execution_id
+			JOIN projects p ON p.id = e.project_id
+			WHERE tr.id = q.task_run_id AND tr.status = 'queued' AND p.status = 'active'
+		  )
+		ORDER BY q.created_at, q.id
+		FOR UPDATE SKIP LOCKED LIMIT 1`, now).Scan(&queueID, &taskRunID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Work{}, ErrNoWork
 	}

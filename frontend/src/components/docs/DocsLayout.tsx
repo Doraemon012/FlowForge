@@ -108,7 +108,10 @@ export function DocsLayout({ slug, children }: DocsLayoutProps) {
 
       <footer className="docs-footer">
         <div className="l">
-          <Link to="/docs" className="logo" aria-label="FlowForge documentation home">
+          {/* The brand leads to the landing page here too, matching the docs
+              top nav, the app shell and auth. The documentation index is the
+              "Docs" breadcrumb above, not the brand. */}
+          <Link to="/" className="logo" aria-label="FlowForge home">
             <FlowForgeMark />
             <span>FlowForge</span>
           </Link>

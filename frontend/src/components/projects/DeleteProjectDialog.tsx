@@ -56,8 +56,8 @@ export function DeleteProjectDialog({ project, trigger }: DeleteProjectDialogPro
         <DialogHeader>
           <DialogTitle>Delete project</DialogTitle>
           <DialogDescription>
-            This will archive "{project.name}". Workflows in this project will no longer be
-            accessible. This action is not reversible.
+            This will archive "{project.name}". Its workflows and run history stay viewable, but
+            the project can no longer be run or edited until it is restored.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>

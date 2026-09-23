@@ -15,6 +15,7 @@ const buttonVariants = cva(
         outline: 'btn-secondary',
         ghost: 'btn-ghost',
         destructive: 'btn-danger',
+        ai: 'btn-ai',
         link: 'btn-ghost',
       },
       size: {

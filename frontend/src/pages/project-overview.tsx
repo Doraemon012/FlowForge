@@ -1,11 +1,12 @@
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, Plus, Workflow as WorkflowIcon } from 'lucide-react'
+import { Archive, ArrowLeft, ArrowRight, Plus, Workflow as WorkflowIcon } from 'lucide-react'
 import { ApiError } from '@/api/client'
 import { useProject } from '@/hooks/use-projects'
 import { useWorkflows } from '@/hooks/use-workflows'
 import { WorkflowCard } from '@/components/workflows/WorkflowCard'
 import { EditProjectDialog } from '@/components/projects/EditProjectDialog'
 import { DeleteProjectDialog } from '@/components/projects/DeleteProjectDialog'
+import { RestoreProjectDialog } from '@/components/projects/RestoreProjectDialog'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -94,6 +95,8 @@ export function ProjectOverviewPage() {
     return null
   }
 
+  const isArchived = project.status === 'archived'
+
   return (
     <div className="space-y-6">
       <Link
@@ -112,11 +115,30 @@ export function ProjectOverviewPage() {
             <Badge variant={getStatusVariant(project.status)} className="capitalize">
               {project.status}
             </Badge>
-            <EditProjectDialog project={project} />
-            <DeleteProjectDialog project={project} />
+            {isArchived ? (
+              <RestoreProjectDialog project={project} />
+            ) : (
+              <>
+                <EditProjectDialog project={project} />
+                <DeleteProjectDialog project={project} />
+              </>
+            )}
           </>
         }
       />
+
+      {isArchived ? (
+        <div className="flex items-start gap-3 rounded-xl border border-border/80 bg-muted/40 p-4">
+          <Archive className="mt-0.5 h-4 w-4 text-muted-foreground" aria-hidden="true" />
+          <div className="space-y-1">
+            <p className="text-sm font-medium">This project is archived</p>
+            <p className="text-sm text-muted-foreground">
+              Its workflows and run history are still here to look at, but the project cannot be
+              edited or run until it is restored.
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       <Card>
         <CardHeader>
@@ -179,12 +201,14 @@ export function ProjectOverviewPage() {
               title="No workflows yet"
               description="Create a workflow to turn a sequence of tasks into a repeatable execution. Start from a ready-made template or a blank canvas."
               action={
-                <Button asChild variant="outline" size="sm">
-                  <Link to={`/app/projects/${project.id}/workflows/new`}>
-                    <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                    Create workflow
-                  </Link>
-                </Button>
+                isArchived ? undefined : (
+                  <Button asChild variant="outline" size="sm">
+                    <Link to={`/app/projects/${project.id}/workflows/new`}>
+                      <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                      Create workflow
+                    </Link>
+                  </Button>
+                )
               }
             />
           </div>
@@ -201,12 +225,14 @@ export function ProjectOverviewPage() {
                 </Link>
               </Button>
             ) : null}
-            <Button asChild variant="ghost" size="sm" className="w-full">
-              <Link to={`/app/projects/${project.id}/workflows/new`}>
-                <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                Create workflow
-              </Link>
-            </Button>
+            {isArchived ? null : (
+              <Button asChild variant="ghost" size="sm" className="w-full">
+                <Link to={`/app/projects/${project.id}/workflows/new`}>
+                  <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Create workflow
+                </Link>
+              </Button>
+            )}
           </div>
         )}
       </div>

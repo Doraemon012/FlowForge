@@ -32,3 +32,15 @@ export function deleteProject(projectID: string) {
     method: 'DELETE',
   })
 }
+
+/**
+ * Returns an archived project to service. Archiving is reversible: the project,
+ * its workflows and its run history were only ever marked archived, so the
+ * response is the project back in its active state and everything under it
+ * works again exactly as before.
+ */
+export function restoreProject(projectID: string) {
+  return apiRequest<Project>(`/api/v1/projects/${projectID}/restore`, {
+    method: 'POST',
+  })
+}

@@ -56,6 +56,15 @@ type Version struct {
 	CreatedAt     time.Time  `json:"created_at"`
 }
 
+// Repository is the persistence contract for workflows and their versions.
+//
+// Reads are scoped to the owning project; writes additionally require that
+// project to be active. Archiving is reversible, so an archived project keeps
+// its workflows and versions readable - the owner can open them to inspect what
+// is there before restoring - but nothing inside it can be created, edited,
+// published, activated or executed while it is archived. Enforcing the write
+// side in the repository rather than in the handlers means a forgotten check in
+// a handler cannot reopen an archived project.
 type Repository interface {
 	Create(ctx context.Context, ownerID, projectID uuid.UUID, workflow Workflow) error
 	GetOwned(ctx context.Context, ownerID, workflowID uuid.UUID) (Workflow, error)
@@ -251,7 +260,7 @@ func (r *PostgresRepository) UpdateOwned(ctx context.Context, ownerID, workflowI
 	var draft []byte
 	err = r.pool.QueryRow(ctx, `
 		UPDATE workflows w SET name = $1, description = $2, draft_definition = $3, updated_at = $4
-		FROM projects p WHERE w.project_id = p.id AND w.id = $5 AND p.owner_id = $6 AND w.status <> 'archived'
+		FROM projects p WHERE w.project_id = p.id AND w.id = $5 AND p.owner_id = $6 AND p.status = 'active' AND w.status <> 'archived'
 		RETURNING w.id, w.project_id, w.name, w.description, w.status, w.draft_definition, w.active_version_id, w.created_at, w.updated_at`, name, description, encoded, updatedAt, workflowID, ownerID).Scan(&result.ID, &result.ProjectID, &result.Name, &result.Description, &result.Status, &draft, &result.ActiveVersionID, &result.CreatedAt, &result.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Workflow{}, ErrNotFound
@@ -305,6 +314,10 @@ func (r *PostgresRepository) GetVersionOwned(ctx context.Context, ownerID, workf
 	return result, nil
 }
 
+// PublishOwned snapshots the definition as the next version number. The project
+// must still be active at both the locking read and the insert: a publish
+// racing an archive must lose, otherwise an archived project would gain a new
+// version and with it something new to run.
 func (r *PostgresRepository) PublishOwned(ctx context.Context, ownerID, workflowID uuid.UUID, definition Definition, now time.Time) (Version, error) {
 	encoded, err := json.Marshal(definition)
 	if err != nil {
@@ -318,7 +331,7 @@ func (r *PostgresRepository) PublishOwned(ctx context.Context, ownerID, workflow
 	var version Version
 	var next int
 	var lockedWorkflowID uuid.UUID
-	if err := tx.QueryRow(ctx, `SELECT w.id FROM workflows w JOIN projects p ON p.id = w.project_id WHERE w.id = $1 AND p.owner_id = $2 AND w.status <> 'archived' FOR UPDATE`, workflowID, ownerID).Scan(&lockedWorkflowID); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT w.id FROM workflows w JOIN projects p ON p.id = w.project_id WHERE w.id = $1 AND p.owner_id = $2 AND p.status = 'active' AND w.status <> 'archived' FOR UPDATE`, workflowID, ownerID).Scan(&lockedWorkflowID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Version{}, ErrNotFound
 		}
@@ -327,7 +340,7 @@ func (r *PostgresRepository) PublishOwned(ctx context.Context, ownerID, workflow
 	if err := tx.QueryRow(ctx, `SELECT COALESCE(MAX(version_number), 0) + 1 FROM workflow_versions WHERE workflow_id = $1`, workflowID).Scan(&next); err != nil {
 		return Version{}, err
 	}
-	err = tx.QueryRow(ctx, `INSERT INTO workflow_versions (id, workflow_id, version_number, definition, created_at) SELECT $1, w.id, $3, $4, $5 FROM workflows w JOIN projects p ON p.id = w.project_id WHERE w.id = $2 AND p.owner_id = $6 AND w.status <> 'archived' RETURNING id, workflow_id, version_number, definition, created_at`, uuid.New(), workflowID, next, encoded, now, ownerID).Scan(&version.ID, &version.WorkflowID, &version.VersionNumber, &encoded, &version.CreatedAt)
+	err = tx.QueryRow(ctx, `INSERT INTO workflow_versions (id, workflow_id, version_number, definition, created_at) SELECT $1, w.id, $3, $4, $5 FROM workflows w JOIN projects p ON p.id = w.project_id WHERE w.id = $2 AND p.owner_id = $6 AND p.status = 'active' AND w.status <> 'archived' RETURNING id, workflow_id, version_number, definition, created_at`, uuid.New(), workflowID, next, encoded, now, ownerID).Scan(&version.ID, &version.WorkflowID, &version.VersionNumber, &encoded, &version.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Version{}, ErrNotFound
 	}
@@ -344,7 +357,7 @@ func (r *PostgresRepository) PublishOwned(ctx context.Context, ownerID, workflow
 }
 
 func (r *PostgresRepository) ActivateVersionOwned(ctx context.Context, ownerID, workflowID, versionID uuid.UUID, now time.Time) error {
-	tag, err := r.pool.Exec(ctx, `UPDATE workflows w SET active_version_id = $1, status = 'active', updated_at = $2 FROM projects p WHERE w.id = $3 AND w.project_id = p.id AND p.owner_id = $4 AND EXISTS (SELECT 1 FROM workflow_versions v WHERE v.id = $1 AND v.workflow_id = w.id)`, versionID, now, workflowID, ownerID)
+	tag, err := r.pool.Exec(ctx, `UPDATE workflows w SET active_version_id = $1, status = 'active', updated_at = $2 FROM projects p WHERE w.id = $3 AND w.project_id = p.id AND p.owner_id = $4 AND p.status = 'active' AND EXISTS (SELECT 1 FROM workflow_versions v WHERE v.id = $1 AND v.workflow_id = w.id)`, versionID, now, workflowID, ownerID)
 	if err != nil {
 		return err
 	}
@@ -355,7 +368,7 @@ func (r *PostgresRepository) ActivateVersionOwned(ctx context.Context, ownerID, 
 }
 
 func (r *PostgresRepository) DeactivateOwned(ctx context.Context, ownerID, workflowID uuid.UUID, now time.Time) error {
-	tag, err := r.pool.Exec(ctx, `UPDATE workflows w SET active_version_id = NULL, status = 'paused', updated_at = $1 FROM projects p WHERE w.id = $2 AND w.project_id = p.id AND p.owner_id = $3`, now, workflowID, ownerID)
+	tag, err := r.pool.Exec(ctx, `UPDATE workflows w SET active_version_id = NULL, status = 'paused', updated_at = $1 FROM projects p WHERE w.id = $2 AND w.project_id = p.id AND p.owner_id = $3 AND p.status = 'active'`, now, workflowID, ownerID)
 	if err != nil {
 		return err
 	}

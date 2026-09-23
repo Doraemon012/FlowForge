@@ -1,18 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import {
-  ArrowLeft,
-  Braces,
-  CalendarClock,
-  CheckCircle,
-  Play,
-  PlayCircle,
-  Save,
-  ShieldAlert,
-  ShieldCheck,
-  Sparkles,
-  Workflow as WorkflowIcon,
-} from 'lucide-react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { ApiError } from '@/api/client'
 import type { Workflow, WorkflowReviewWarning, WorkflowTask } from '@/api/types'
@@ -27,30 +14,14 @@ import { useCreateExecution } from '@/hooks/use-executions'
 import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes-guard'
 import {
   WorkflowBuilderLayout,
-  type BuilderView,
-  type GraphSyncRequest,
+  type BuilderStatusData,
 } from '@/components/workflows/builder/WorkflowBuilderLayout'
+import { BuilderHeader } from '@/components/workflows/builder/BuilderHeader'
+import { SetupProgress, type SetupStep } from '@/components/workflows/builder/SetupProgress'
 import { WorkflowJsonEditor } from '@/components/workflows/builder/WorkflowJsonEditor'
 import { AiWorkflowDialog } from '@/components/workflows/builder/AiWorkflowDialog'
+import type { BuilderView, GraphSyncRequest } from '@/components/workflows/builder/builder-view'
 import { TriggersDialog } from '@/components/workflows/triggers/TriggersDialog'
-import { cn } from '@/lib/utils'
-import { WorkflowGuide, type GuideStep } from '@/components/workflows/WorkflowGuide'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-
-function getStatusVariant(status: string): 'success' | 'secondary' | 'warning' | 'info' {
-  switch (status) {
-    case 'active':
-      return 'success'
-    case 'paused':
-      return 'warning'
-    case 'draft':
-      return 'secondary'
-    default:
-      return 'info'
-  }
-}
 
 function stableStringify(value: unknown): string {
   if (value === null || typeof value !== 'object') return JSON.stringify(value)
@@ -100,6 +71,7 @@ export function WorkflowEditor({ projectId, workflow }: WorkflowEditorProps) {
   const [syncRequest, setSyncRequest] = useState<GraphSyncRequest | null>(null)
   const [aiOpen, setAiOpen] = useState(false)
   const [triggersOpen, setTriggersOpen] = useState(false)
+  const [setupDismissed, setSetupDismissed] = useState(false)
   const syncRevision = useRef(0)
 
   const navigate = useNavigate()
@@ -148,6 +120,7 @@ export function WorkflowEditor({ projectId, workflow }: WorkflowEditorProps) {
     ) {
       setValidationMessage(null)
       setReviewWarnings([])
+      validatedSignature.current = null
     }
   }, [definitionSignature])
 
@@ -288,7 +261,18 @@ export function WorkflowEditor({ projectId, workflow }: WorkflowEditorProps) {
       toast.success('Execution started')
       navigate(`/app/projects/${projectId}/executions/${execution.id}`)
     } catch (error) {
-      if (error instanceof ApiError) {
+      // A run can be rejected because the project around the workflow is
+      // retired rather than because the workflow is broken. Archiving is
+      // reversible, so the API answers 409 project_archived when the project is
+      // archived - including when the archive lands while the request is in
+      // flight - and 404 for a workflow that genuinely is not there. Neither is
+      // a fault to explain with a generic message, so the user is pointed at
+      // restoring the project.
+      if (error instanceof ApiError && error.code === 'project_archived') {
+        toast.error(
+          'This project is archived, so its workflows cannot run. Restore it to run them again.',
+        )
+      } else if (error instanceof ApiError) {
         toast.error(error.message)
       } else {
         toast.error('Could not start the execution.')
@@ -296,214 +280,119 @@ export function WorkflowEditor({ projectId, workflow }: WorkflowEditorProps) {
     }
   }
 
-  const saveIsPending = updateMutation.isPending
-  const validateIsPending = validateMutation.isPending
-  const publishIsPending =
-    publishMutation.isPending || activateMutation.isPending || updateMutation.isPending
-  const deactivateIsPending = deactivateMutation.isPending
+  // Restore the definition to the last saved snapshot without a round trip.
+  const handleResetToSaved = () => {
+    setTasks(savedState.tasks)
+    syncRevision.current += 1
+    setSyncRequest({ revision: syncRevision.current, tasks: savedState.tasks })
+    setValidationErrors([])
+    setValidationMessage(null)
+    setReviewWarnings([])
+    validatedSignature.current = null
+    toast.success('Reverted to the last saved definition')
+  }
 
-  const headerLeft = (
-    <>
-      <Link
-        to={`/app/projects/${projectId}/workflows`}
-        className="inline-flex shrink-0 items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
-        aria-label="Back to workflows"
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-      </Link>
-      <Input
-        value={name}
-        onChange={(event) => setName(event.target.value)}
-        aria-invalid={name.trim().length === 0 || name.length > 200}
-        className="h-9 w-40 sm:w-64"
-        aria-label="Workflow name"
-      />
-      <Badge
-        variant={getStatusVariant(workflow.status)}
-        className="capitalize"
-        title={
-          workflow.active_version_id
-            ? 'Active means this version is runnable. It runs when you press Run, or when a configured schedule or webhook triggers it \u2014 it does not run on its own.'
-            : 'Draft means no version is active yet. Publish and activate a version to make it runnable.'
-        }
-      >
-        {workflow.status}
-      </Badge>
-      {hasChanges ? (
-        <span
-          role="status"
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-warning"
-        >
-          <span className="h-2 w-2 rounded-full bg-warning" aria-hidden="true" />
-          Unsaved
-        </span>
-      ) : null}
-    </>
+  const connectionCount = tasks.reduce(
+    (total, task) => total + (task.depends_on?.length ?? 0),
+    0,
   )
 
-  // Contextual, in-product guidance. Steps 1–2 (project, workflow) are already
-  // complete by the time a user is in the builder, so they are shown as done
-  // and the rest are derived from the builder's own state. This keeps the guide
-  // truthful without adding another configuration surface.
-  const guideSteps: GuideStep[] = [
-    {
-      id: 'project',
-      label: 'Create a project',
-      hint: 'Group related workflows under a project.',
-      done: true,
-    },
-    {
-      id: 'workflow',
-      label: 'Create a workflow',
-      hint: 'Each workflow is versioned and can be activated independently.',
-      done: true,
-    },
+  // The setup strip mirrors the order work actually happens in, and every step
+  // is derived from builder state rather than hardcoded. It stops being useful
+  // once the workflow is live and has been run, so it disappears then.
+  const setupSteps: SetupStep[] = [
     {
       id: 'tasks',
-      label: 'Add and configure tasks',
-      hint: 'Add tasks from the palette, then set their configuration.',
+      label: 'Add tasks',
+      hint: 'Pick a task from the palette on the left to place it on the canvas.',
       done: tasks.length > 0,
     },
     {
       id: 'connect',
-      label: 'Connect tasks',
-      hint: 'Drag from a task\u2019s right handle to another\u2019s left handle to set the order.',
-      done: tasks.some((task) => (task.depends_on ?? []).length > 0),
+      label: 'Connect',
+      hint: 'Drag from one task\u2019s right handle to another\u2019s left handle to set the order they run in.',
+      done: connectionCount > 0 || tasks.length === 1,
     },
     {
       id: 'save',
-      label: 'Save your changes',
-      hint: 'Run stays disabled until the latest edits are saved.',
+      label: 'Save',
+      hint: 'Save persists the definition. Run stays disabled until there is nothing unsaved.',
       done: !hasChanges,
+      actionLabel: hasChanges ? 'Save now' : undefined,
+      onAction: hasChanges ? () => void handleSave() : undefined,
     },
     {
       id: 'validate',
-      label: 'Validate the workflow',
-      hint: 'Validation checks the definition without saving it.',
+      label: 'Validate',
+      // No inline action: Validate lives permanently in the status bar a few
+      // pixels below this strip, and two identical buttons read as two
+      // different operations.
+      hint: 'Validate below the canvas to check the definition for errors without saving it.',
       done: Boolean(validationMessage) && validationErrors.length === 0,
     },
     {
       id: 'publish',
-      label: 'Publish and activate',
-      hint: 'Publishing snapshots a version; activating makes it runnable.',
+      label: 'Publish',
+      hint: 'Publishing snapshots the definition as a new version and activates it so it can run.',
       done: Boolean(workflow.active_version_id),
+      actionLabel: 'Publish',
+      onAction: () => void handlePublish(),
     },
     {
       id: 'run',
-      label: 'Run the workflow',
-      hint: 'Start a manual run of the active version.',
+      label: 'Run',
+      hint: 'Start a manual run of the active version and inspect the results.',
       done: hasRun,
-    },
-    {
-      id: 'inspect',
-      label: 'Inspect results and logs',
-      hint: 'Open a run to see per-task output and failures.',
-      done: hasRun,
+      actionLabel: runBlockedReason ? undefined : 'Run now',
+      onAction: runBlockedReason ? undefined : () => void handleRun(),
     },
   ]
 
-  const headerActions = (
-    <>
-      <div
-        className="inline-flex items-center rounded-lg border border-border bg-card p-0.5"
-        role="tablist"
-        aria-label="Authoring view"
-      >
-        <button
-          type="button"
-          role="tab"
-          aria-selected={view === 'graph'}
-          onClick={() => setView('graph')}
-          className={cn(
-            'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm font-medium transition-colors',
-            view === 'graph'
-              ? 'bg-muted text-foreground'
-              : 'text-muted-foreground hover:text-foreground',
-          )}
-        >
-          <WorkflowIcon className="h-4 w-4" aria-hidden="true" />
-          Graph
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={view === 'json'}
-          onClick={() => setView('json')}
-          className={cn(
-            'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm font-medium transition-colors',
-            view === 'json'
-              ? 'bg-muted text-foreground'
-              : 'text-muted-foreground hover:text-foreground',
-          )}
-        >
-          <Braces className="h-4 w-4" aria-hidden="true" />
-          JSON
-        </button>
-      </div>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => setAiOpen(true)}
-        title="Generate a new workflow or refine the current one with AI"
-      >
-        <Sparkles className="mr-2 h-4 w-4" aria-hidden="true" />
-        AI
-      </Button>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => setTriggersOpen(true)}
-        title="Schedules and webhooks that trigger the active version"
-      >
-        <CalendarClock className="mr-2 h-4 w-4" aria-hidden="true" />
-        Triggers
-      </Button>
-      <WorkflowGuide steps={guideSteps} />
-      <Button onClick={handleSave} loading={saveIsPending} disabled={!hasChanges} size="sm">
-        <Save className="mr-2 h-4 w-4" aria-hidden="true" />
-        Save
-      </Button>
-      <Button variant="outline" onClick={handleValidate} loading={validateIsPending} size="sm">
-        <ShieldCheck className="mr-2 h-4 w-4" aria-hidden="true" />
-        Validate
-      </Button>
-      <Button
-        variant="outline"
-        onClick={handlePublish}
-        loading={publishIsPending}
-        size="sm"
-        title="Save the current definition, snapshot it as a new version, and activate it so it can be run."
-      >
-        <PlayCircle className="mr-2 h-4 w-4" aria-hidden="true" />
-        Publish
-      </Button>
-      <Button
-        onClick={handleRun}
-        loading={createExecutionMutation.isPending}
-        disabled={Boolean(runBlockedReason)}
-        size="sm"
-        title={runBlockedReason ?? 'Run the active version'}
-      >
-        <Play className="mr-2 h-4 w-4" aria-hidden="true" />
-        Run
-      </Button>
-      <Button asChild variant="ghost" size="sm">
-        <Link to={`/app/projects/${projectId}/executions`}>Runs</Link>
-      </Button>
-      <Button asChild variant="ghost" size="sm">
-        <Link to={`/app/projects/${projectId}/workflows/${workflow.id}/versions`}>Versions</Link>
-      </Button>
-      {workflow.active_version_id ? (
-        <Button
-          variant="destructive"
-          size="sm"
-          onClick={handleDeactivate}
-          loading={deactivateIsPending}
-        >
-          Deactivate
-        </Button>
-      ) : null}
-    </>
+  const setupComplete = Boolean(workflow.active_version_id) && hasRun
+  const showSetup = !setupDismissed && !setupComplete
+
+  const statusData: BuilderStatusData = {
+    taskCount: tasks.length,
+    connectionCount,
+    validationErrors,
+    validationMessage,
+    reviewWarnings,
+    hasChanges,
+    isValidating: validateMutation.isPending,
+    runBlockedReason,
+    onValidate: () => void handleValidate(),
+  }
+
+  const saveIsPending = updateMutation.isPending
+  const publishIsPending =
+    publishMutation.isPending || activateMutation.isPending || updateMutation.isPending
+
+  const header = (
+    <BuilderHeader
+      projectId={projectId}
+      workflowId={workflow.id}
+      name={name}
+      onNameChange={setName}
+      description={description}
+      onDescriptionChange={setDescription}
+      status={workflow.status}
+      hasChanges={hasChanges}
+      view={view}
+      onViewChange={setView}
+      hasActiveVersion={Boolean(workflow.active_version_id)}
+      isSaving={saveIsPending}
+      isPublishing={publishIsPending}
+      isRunning={createExecutionMutation.isPending}
+      isDeactivating={deactivateMutation.isPending}
+      runBlockedReason={runBlockedReason}
+      onSave={() => void handleSave()}
+      onPublish={() => void handlePublish()}
+      onDeactivate={() => void handleDeactivate()}
+      onRun={() => void handleRun()}
+      onOpenAi={() => setAiOpen(true)}
+      onOpenTriggers={() => setTriggersOpen(true)}
+      onResetToSaved={handleResetToSaved}
+    />
   )
 
   const jsonEditor =
@@ -516,73 +405,25 @@ export function WorkflowEditor({ projectId, workflow }: WorkflowEditorProps) {
       />
     ) : null
 
-  const headerSecondary = (
-    <div className="flex flex-wrap items-center gap-3">
-      <Input
-        value={description}
-        onChange={(event) => setDescription(event.target.value)}
-        placeholder="Workflow description"
-        className="h-8 max-w-md flex-1 text-sm text-muted-foreground"
-        aria-label="Workflow description"
-      />
-      {validationMessage ? (
-        <span className="inline-flex items-center gap-1.5 text-sm text-success">
-          <CheckCircle className="h-4 w-4" aria-hidden="true" />
-          {validationMessage}
-        </span>
-      ) : null}
-      {validationErrors.length > 0 ? (
-        <span className="inline-flex items-center gap-1.5 text-sm text-destructive" role="alert">
-          <span className="h-2 w-2 rounded-full bg-destructive" aria-hidden="true" />
-          Workflow validation failed
-          <span className="text-muted-foreground">
-            ({validationErrors.length} error{validationErrors.length === 1 ? '' : 's'})
-          </span>
-        </span>
-      ) : null}
-      {reviewWarnings.length > 0 && validationErrors.length === 0 ? (
-        <details className="w-full">
-          <summary className="inline-flex cursor-pointer items-center gap-1.5 text-sm font-medium text-warning">
-            <ShieldAlert className="h-4 w-4" aria-hidden="true" />
-            {reviewWarnings.length} review note{reviewWarnings.length === 1 ? '' : 's'} &mdash;
-            valid, but check before running
-          </summary>
-          <ul className="mt-1 space-y-1">
-            {reviewWarnings.map((warning, index) => (
-              <li
-                key={`${warning.code}-${index}`}
-                className="flex items-start gap-1.5 text-xs leading-relaxed text-muted-foreground"
-              >
-                <span
-                  className={cn(
-                    'mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full',
-                    warning.severity === 'warning' ? 'bg-warning' : 'bg-muted-foreground',
-                  )}
-                  aria-hidden="true"
-                />
-                <span className="min-w-0">{warning.message}</span>
-              </li>
-            ))}
-          </ul>
-        </details>
-      ) : null}
-    </div>
-  )
-
   return (
     <>
       <WorkflowBuilderLayout
         key={workflow.id}
+        header={header}
+        setupProgress={
+          showSetup ? (
+            <SetupProgress steps={setupSteps} onDismiss={() => setSetupDismissed(true)} />
+          ) : null
+        }
+        status={statusData}
         initialTasks={tasks}
         onTasksChange={setTasks}
         validationErrors={validationErrors}
-        headerLeft={headerLeft}
-        headerActions={headerActions}
-        headerSecondary={headerSecondary}
         view={view}
         jsonEditor={jsonEditor}
         syncRequest={syncRequest}
         focusTaskId={focusTaskId}
+        onOpenAi={() => setAiOpen(true)}
       />
       <AiWorkflowDialog
         projectId={projectId}

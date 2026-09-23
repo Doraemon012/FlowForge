@@ -29,6 +29,19 @@ func (s *Server) Router() http.Handler {
 		if s.trial != nil {
 			router.With(rateLimitMiddleware(s.authLimiter)).Post("/auth/trial", s.StartTrial)
 		}
+		// Social sign-in is advertised only when a provider is configured, so the
+		// client never renders a button for a provider this deployment cannot
+		// authenticate against.
+		if s.oauth != nil {
+			router.Get("/auth/oauth/providers", s.ListOAuthProviders)
+		}
+		if s.oauthEnabled() {
+			// Both routes are navigations the browser follows, so they are GETs.
+			// They share the auth rate limiter: the start route mints state, and
+			// the callback must not be a free endpoint for probing codes.
+			router.With(rateLimitMiddleware(s.authLimiter)).Get("/auth/oauth/{provider}/start", s.StartOAuth)
+			router.With(rateLimitMiddleware(s.authLimiter)).Get("/auth/oauth/{provider}/callback", s.OAuthCallback)
+		}
 		// Public webhook endpoint (no auth required)
 		router.With(rateLimitMiddleware(s.webhookLimiter)).Post("/webhooks/{webhookID}", s.HandleWebhook)
 		router.Group(func(router chi.Router) {
@@ -43,6 +56,9 @@ func (s *Server) Router() http.Handler {
 			router.Get("/projects/{projectID}", s.GetProject)
 			router.Patch("/projects/{projectID}", s.UpdateProject)
 			router.Delete("/projects/{projectID}", s.DeleteProject)
+			// Archiving is reversible; this puts an archived project back into
+			// service so its workflows can be edited and run again.
+			router.Post("/projects/{projectID}/restore", s.RestoreProject)
 			router.Post("/projects/{projectID}/workflows", s.CreateWorkflow)
 			router.Get("/projects/{projectID}/workflows", s.ListWorkflows)
 			router.Get("/projects/{projectID}/workflows/{workflowID}", s.GetWorkflow)

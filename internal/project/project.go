@@ -30,6 +30,12 @@ type Repository interface {
 	ListOwned(ctx context.Context, ownerID uuid.UUID) ([]Project, error)
 	UpdateOwned(ctx context.Context, ownerID, projectID uuid.UUID, name string, updatedAt time.Time) (Project, error)
 	ArchiveOwned(ctx context.Context, ownerID, projectID uuid.UUID, updatedAt time.Time) error
+	// RestoreOwned returns an archived project to service. Archiving is
+	// reversible: the project, its workflows and its history were only ever
+	// marked archived, never removed, so restoring is a status transition and
+	// nothing has to be rebuilt. It reports ErrNotFound when the project is not
+	// owned by the caller or was not archived.
+	RestoreOwned(ctx context.Context, ownerID, projectID uuid.UUID, updatedAt time.Time) error
 }
 
 type PostgresRepository struct{ pool *pgxpool.Pool }
@@ -54,6 +60,11 @@ func (r *PostgresRepository) Create(ctx context.Context, project Project) error 
 
 func (r *PostgresRepository) GetOwned(ctx context.Context, ownerID, projectID uuid.UUID) (Project, error) {
 	var result Project
+	// Archived projects stay readable. Archiving is reversible, so the detail
+	// view must keep working for one: the owner needs to see the project (and
+	// its status) in order to restore it, and its workflows and run history
+	// remain viewable. What archiving blocks is starting new work, and that is
+	// enforced where work starts rather than by hiding the row.
 	err := r.pool.QueryRow(ctx, `SELECT id, owner_id, name, status, created_at, updated_at FROM projects WHERE id = $1 AND owner_id = $2`, projectID, ownerID).Scan(&result.ID, &result.OwnerID, &result.Name, &result.Status, &result.CreatedAt, &result.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Project{}, ErrNotFound
@@ -74,7 +85,9 @@ func (r *PostgresRepository) GetOwner(ctx context.Context, projectID uuid.UUID) 
 }
 
 func (r *PostgresRepository) ListOwned(ctx context.Context, ownerID uuid.UUID) ([]Project, error) {
-	rows, err := r.pool.Query(ctx, `SELECT id, owner_id, name, status, created_at, updated_at FROM projects WHERE owner_id = $1 ORDER BY created_at, id`, ownerID)
+	// Active projects sort first so the working set stays at the top; archived
+	// ones stay in the list, because that is where they are restored from.
+	rows, err := r.pool.Query(ctx, `SELECT id, owner_id, name, status, created_at, updated_at FROM projects WHERE owner_id = $1 ORDER BY (status = 'active') DESC, created_at, id`, ownerID)
 	if err != nil {
 		return nil, err
 	}
@@ -110,6 +123,23 @@ func (r *PostgresRepository) UpdateOwned(ctx context.Context, ownerID, projectID
 
 func (r *PostgresRepository) ArchiveOwned(ctx context.Context, ownerID, projectID uuid.UUID, updatedAt time.Time) error {
 	tag, err := r.pool.Exec(ctx, `UPDATE projects SET status = 'archived', updated_at = $1 WHERE id = $2 AND owner_id = $3 AND status = 'active'`, updatedAt, projectID, ownerID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("%w", ErrNotFound)
+	}
+	return nil
+}
+
+// RestoreOwned returns an archived project to service by clearing the archived
+// status. The status transition is the whole operation: nothing under the
+// project was removed when it was archived, so there is nothing to rebuild and
+// no execution to restart. The condition on status keeps the transition
+// idempotent-safe - restoring an active project, or one the caller does not
+// own, reports ErrNotFound rather than silently succeeding.
+func (r *PostgresRepository) RestoreOwned(ctx context.Context, ownerID, projectID uuid.UUID, updatedAt time.Time) error {
+	tag, err := r.pool.Exec(ctx, `UPDATE projects SET status = 'active', updated_at = $1 WHERE id = $2 AND owner_id = $3 AND status = 'archived'`, updatedAt, projectID, ownerID)
 	if err != nil {
 		return err
 	}

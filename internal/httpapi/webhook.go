@@ -286,7 +286,15 @@ func (s *Server) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 	// in one transaction, so two concurrent deliveries with the same
 	// X-Delivery-ID cannot both create executions.
 	execRecord, err := s.executions.CreateOwnedWithIdempotency(r.Context(), ownerID, wh.WorkflowID, activeVersionID, input, now, wh.ProjectID, deliveryID)
-	if err != nil {
+	switch {
+	case errors.Is(err, execution.ErrProjectArchived):
+		// The sender's signature checked out, so this is a legitimate delivery
+		// to a webhook that used to work. The project behind it is archived,
+		// which makes the endpoint unavailable rather than broken: Gone tells
+		// the sender to stop retrying instead of surfacing a 500.
+		writeError(w, http.StatusGone, "project_archived", "the project for this webhook is archived")
+		return
+	case err != nil:
 		writeError(w, http.StatusInternalServerError, "execution_create_failed", "unable to create execution")
 		return
 	}

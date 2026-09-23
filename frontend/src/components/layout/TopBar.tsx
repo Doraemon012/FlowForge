@@ -1,20 +1,14 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import {
-  BookOpen,
-  LogOut,
-  Menu,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Search,
-  UserPlus,
-} from 'lucide-react'
+import { LogOut, Menu, Search, UserPlus } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import { useProject } from '@/hooks/use-projects'
 import { useWorkflow } from '@/hooks/use-workflows'
+import { useRouteContext } from '@/hooks/use-route-context'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { FlowForgeLogo } from '@/components/brand/FlowForgeLogo'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
+import { Breadcrumbs } from '@/components/layout/Breadcrumbs'
 import { commandPaletteStore } from '@/components/layout/command-palette-store'
 import { TrialIndicator } from '@/components/layout/TrialIndicator'
 import {
@@ -41,87 +35,35 @@ function getInitials(user: { displayName?: string; email?: string } | null): str
   return '?'
 }
 
-function labelForSegment(segment: string): string {
-  const map: Record<string, string> = {
-    app: 'Overview',
-    projects: 'Projects',
-    workflows: 'Workflows',
-    versions: 'Versions',
-    executions: 'Executions',
-    login: 'Login',
-    signup: 'Signup',
-    new: 'New',
-  }
-  return map[segment] ?? segment
-}
-
-function parseRouteIds(pathname: string): {
-  projectId?: string
-  workflowId?: string
-} {
-  const segments = pathname.split('/').filter(Boolean)
-  let projectId: string | undefined
-  let workflowId: string | undefined
-  for (let i = 0; i < segments.length; i++) {
-    if (segments[i] === 'projects' && segments[i + 1]) {
-      projectId = segments[i + 1]
-    }
-    if (segments[i] === 'workflows' && segments[i + 1] && segments[i + 1] !== 'new') {
-      workflowId = segments[i + 1]
-    }
-  }
-  return { projectId, workflowId }
-}
-
-function buildCrumbs(
-  pathname: string,
-  projectId: string | undefined,
-  workflowId: string | undefined,
-  projectName: string | undefined,
-  workflowName: string | undefined,
-): { label: string; path: string }[] {
-  const segments = pathname.split('/').filter(Boolean)
-  const crumbs: { label: string; path: string }[] = []
-  let current = ''
-  for (let i = 0; i < segments.length; i++) {
-    const segment = segments[i]
-    const prev = segments[i - 1]
-    current += `/${segment}`
-    let label: string
-    if (i > 0 && prev === 'projects' && segment === projectId) {
-      label = projectName ?? segment
-    } else if (i > 0 && prev === 'workflows' && segment === workflowId) {
-      label = workflowName ?? segment
-    } else if (i > 0 && prev === 'executions') {
-      label = 'Execution'
-    } else {
-      label = labelForSegment(segment)
-    }
-    crumbs.push({ label, path: current })
-  }
-  return crumbs
-}
-
 interface TopBarProps {
   onToggleSidebar?: () => void
-  sidebarCollapsed?: boolean
-  onToggleCollapse?: () => void
 }
 
-export function TopBar({ onToggleSidebar, sidebarCollapsed, onToggleCollapse }: TopBarProps) {
+/**
+ * The TopBar owns *history and identity*: where you are in the hierarchy and
+ * who you are signed in as. Scope navigation lives in the Sidebar.
+ *
+ * Changes from the previous version:
+ *
+ * - The brand leads to the landing page (`/`), the same destination as every
+ *   other FlowForge lockup - docs chrome and auth included. The landing page is
+ *   public whether or not a session exists and answers an authenticated visitor
+ *   with "Open app", so this never strands anyone; "Dashboard" in the sidebar
+ *   remains the way to the workspace home.
+ * - Breadcrumbs come from `Breadcrumbs` (built from route meaning) instead of
+ *   raw path segments, so `/app` no longer renders a redundant "Overview" crumb
+ *   and the current page is text rather than a link to itself.
+ * - The icon-only documentation button next to the search field is gone.
+ *   Documentation is reachable from the sidebar and the command palette.
+ * - The sidebar collapse toggle moved into the sidebar itself.
+ */
+export function TopBar({ onToggleSidebar }: TopBarProps) {
   const navigate = useNavigate()
   const location = useLocation()
   const { user, logout, isTrial } = useAuth()
-  const { projectId, workflowId } = parseRouteIds(location.pathname)
+  const { projectId, workflowId, executionId } = useRouteContext()
   const { data: project } = useProject(projectId ?? '')
   const { data: workflow } = useWorkflow(projectId ?? '', workflowId ?? '')
-  const crumbs = buildCrumbs(
-    location.pathname,
-    projectId,
-    workflowId,
-    project?.name,
-    workflow?.name,
-  )
 
   const handleLogout = () => {
     logout()
@@ -152,58 +94,30 @@ export function TopBar({ onToggleSidebar, sidebarCollapsed, onToggleCollapse }: 
         </Button>
       </div>
 
-      {onToggleCollapse ? (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="hidden md:inline-flex"
-          aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          aria-expanded={!sidebarCollapsed}
-          onClick={onToggleCollapse}
-        >
-          {sidebarCollapsed ? (
-            <PanelLeftOpen className="h-4 w-4" aria-hidden="true" />
-          ) : (
-            <PanelLeftClose className="h-4 w-4" aria-hidden="true" />
-          )}
-        </Button>
-      ) : null}
+      {/* Below `md` the sidebar is off-canvas, so the top bar has to carry the
+          brand and the one-tap route home. From `md` up the sidebar's own brand
+          row does exactly that, and repeating the mark here just rendered the
+          brand twice, with a divider dangling off it whenever the trail was
+          empty (which is every workspace-level page).
 
-      {/* The brand is present in the app chrome too, and always leads back to
-          the public landing page. The wordmark drops below `sm` where the bar
-          has no room for it, leaving the mark as the link. */}
-      <Link to="/" className="logo shrink-0" aria-label="FlowForge home">
-        <FlowForgeLogo
-          size={24}
-          wordmarkClassName="hidden text-base font-semibold tracking-tight sm:inline"
-        />
-      </Link>
-      <span className="hidden h-5 w-px shrink-0 bg-border md:block" aria-hidden="true" />
+          The wrapper is required for the same reason as the menu button above:
+          `.logo` sets `display: inline-flex` from unlayered CSS, which outranks
+          Tailwind's layered `md:hidden`, so the utility on the link itself is
+          simply ignored and the brand stayed visible on desktop. */}
+      <div className="md:hidden">
+        <Link to="/" className="logo shrink-0" aria-label="FlowForge home">
+          <FlowForgeLogo wordmarkClassName="text-base font-semibold tracking-tight" />
+        </Link>
+      </div>
 
-      <nav className="crumbs" aria-label="Breadcrumb">
-        {crumbs.map((crumb, index) => (
-          <span key={crumb.path} className="flex items-center gap-1">
-            {index > 0 ? <span className="sep">/</span> : null}
-            {index === crumbs.length - 1 ? (
-              <span className="cur">{crumb.label}</span>
-            ) : (
-              <Link to={crumb.path}>{crumb.label}</Link>
-            )}
-          </span>
-        ))}
-      </nav>
+      <Breadcrumbs
+        pathname={location.pathname}
+        projectName={project?.name}
+        workflowName={workflow?.name}
+        executionId={executionId}
+      />
 
       <div className="grow" />
-
-      <Link
-        to="/docs"
-        className="search"
-        aria-label="Open documentation"
-        style={{ minWidth: 0, width: 36, padding: 0, justifyContent: 'center' }}
-        title="Documentation"
-      >
-        <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
-      </Link>
 
       <button
         type="button"

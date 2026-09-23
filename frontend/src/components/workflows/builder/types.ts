@@ -70,6 +70,12 @@ export interface ConfigFieldSpec {
   options?: string[]
   required?: boolean
   help?: string
+  /**
+   * Fields the task cannot do anything useful without. The inspector shows
+   * these inline and folds everything else behind "Advanced", so a new user
+   * meets "URL" instead of "credential_header".
+   */
+  essential?: boolean
 }
 
 export const TASK_CONFIG_FIELDS: Record<SupportedTaskType, ConfigFieldSpec[]> = {
@@ -80,6 +86,7 @@ export const TASK_CONFIG_FIELDS: Record<SupportedTaskType, ConfigFieldSpec[]> = 
       type: 'text',
       placeholder: 'https://api.example.com',
       required: true,
+      essential: true,
       help: 'The endpoint to call. The response body, headers, and status code are stored in this task\u2019s output.',
     },
     {
@@ -87,6 +94,7 @@ export const TASK_CONFIG_FIELDS: Record<SupportedTaskType, ConfigFieldSpec[]> = 
       label: 'HTTP method',
       type: 'select',
       options: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+      essential: true,
     },
     {
       key: 'body',
@@ -130,10 +138,20 @@ export const TASK_CONFIG_FIELDS: Record<SupportedTaskType, ConfigFieldSpec[]> = 
       label: 'Output (JSON)',
       type: 'textarea',
       placeholder: '{"result": 42}',
+      essential: true,
       help: 'The static JSON value this task produces. If you leave it empty, the task passes its input through unchanged.',
     },
   ],
-  delay: [{ key: 'seconds', label: 'Seconds', type: 'number', required: true, help: 'How long to wait before the task succeeds.' }],
+  delay: [
+    {
+      key: 'seconds',
+      label: 'Seconds',
+      type: 'number',
+      required: true,
+      essential: true,
+      help: 'How long to wait before the task succeeds.',
+    },
+  ],
   conditional: [
     {
       key: 'field',
@@ -141,6 +159,7 @@ export const TASK_CONFIG_FIELDS: Record<SupportedTaskType, ConfigFieldSpec[]> = 
       type: 'text',
       placeholder: 'e.g. priority',
       required: true,
+      essential: true,
       help: 'The input field to read, e.g. "priority". This task reads the execution input (or its dependency\u2019s output) and compares that field. Note: this task only produces a boolean result \u2014 it does not gate downstream tasks, which always run once this task succeeds.',
     },
     {
@@ -148,6 +167,7 @@ export const TASK_CONFIG_FIELDS: Record<SupportedTaskType, ConfigFieldSpec[]> = 
       label: 'Operator',
       type: 'select',
       options: ['equals', 'not_equals', 'gt', 'lt', 'gte', 'lte', 'contains', 'exists', 'truthy'],
+      essential: true,
       help: 'How to compare the field value. Use "equals"/"not_equals" with the Equals field, or "gt"/"lt"/"gte"/"lte"/"contains" with the Value field.',
     },
     {
@@ -172,6 +192,7 @@ export const TASK_CONFIG_FIELDS: Record<SupportedTaskType, ConfigFieldSpec[]> = 
       type: 'text',
       placeholder: 'recipient@example.com',
       required: true,
+      essential: true,
       help: 'Comma-separated recipient addresses.',
     },
     {
@@ -187,11 +208,43 @@ export const TASK_CONFIG_FIELDS: Record<SupportedTaskType, ConfigFieldSpec[]> = 
       type: 'text',
       placeholder: 'Workflow completed',
       required: true,
+      essential: true,
       help: 'Required by the email runtime. The local development mailer records a safe send summary; external delivery requires a configured mailer.',
     },
-    { key: 'body', label: 'Body', type: 'textarea', placeholder: 'Your workflow has finished.' },
+    {
+      key: 'body',
+      label: 'Body',
+      type: 'textarea',
+      placeholder: 'Your workflow has finished.',
+      essential: true,
+    },
   ],
 }
+
+/**
+ * How the task palette groups its tiles. Two small groups beat one flat list of
+ * five: "data" tasks read or reshape a payload, "flow" tasks control timing and
+ * branching, and that distinction is what a new user is actually choosing
+ * between.
+ */
+export interface TaskPaletteGroup {
+  label: string
+  hint: string
+  types: SupportedTaskType[]
+}
+
+export const TASK_PALETTE_GROUPS: TaskPaletteGroup[] = [
+  {
+    label: 'Data',
+    hint: 'Read or reshape a payload',
+    types: ['http', 'transform'],
+  },
+  {
+    label: 'Flow',
+    hint: 'Control timing and branching',
+    types: ['delay', 'conditional', 'email'],
+  },
+]
 
 export function isSupportedTaskType(type: string): type is SupportedTaskType {
   return (SUPPORTED_TASK_TYPES as readonly string[]).includes(type)

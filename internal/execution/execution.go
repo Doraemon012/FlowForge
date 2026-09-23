@@ -20,6 +20,12 @@ import (
 var (
 	ErrNotFound       = errors.New("execution not found")
 	ErrVersionInvalid = errors.New("workflow version is not executable")
+	// ErrProjectArchived is returned when new work is requested inside a
+	// project that has been archived. Archiving is how a project is retired:
+	// its definitions, versions and execution history are retained, but it must
+	// not start new executions - regardless of whether the trigger was manual,
+	// scheduled or a webhook delivery.
+	ErrProjectArchived = errors.New("project is archived")
 )
 
 type Execution struct {
@@ -75,6 +81,10 @@ type Repository interface {
 	// It is idempotent - cancelling an already-terminal execution is a no-op
 	// that returns the current execution.
 	CancelOwned(ctx context.Context, ownerID, executionID uuid.UUID, now time.Time) (Execution, error)
+	// CancelLiveByProject stops every execution of a project that has not
+	// reached a terminal state and reports how many were stopped. Deleting a
+	// project must stop the work it already started, not just prevent new work.
+	CancelLiveByProject(ctx context.Context, ownerID, projectID uuid.UUID, now time.Time) (int, error)
 }
 
 type Engine struct {

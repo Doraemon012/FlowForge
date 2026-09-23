@@ -1,9 +1,10 @@
 import { useSearchParams } from 'react-router-dom'
-import { FolderKanban, Plus } from 'lucide-react'
+import { Archive, FolderKanban, Plus } from 'lucide-react'
 import { useProjects } from '@/hooks/use-projects'
 import { WorkflowGuide, type GuideStep } from '@/components/workflows/WorkflowGuide'
 import { ProjectCard } from '@/components/projects/ProjectCard'
 import { CreateProjectDialog } from '@/components/projects/CreateProjectDialog'
+import { RestoreProjectDialog } from '@/components/projects/RestoreProjectDialog'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -96,6 +97,13 @@ export function ProjectsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const createRequested = searchParams.get('create') === '1'
 
+  // Archived projects are kept rather than hidden - this listing is where the
+  // user finds one to restore, and their workflows and run history stay
+  // readable while they are archived. They are separated from the working set
+  // so the projects someone is actually running stay at the top.
+  const activeProjects = (projects ?? []).filter((project) => project.status !== 'archived')
+  const archivedProjects = (projects ?? []).filter((project) => project.status === 'archived')
+
   const guideSteps: GuideStep[] = PROJECTS_GUIDE_STEPS.map((step) =>
     step.id === 'project' ? { ...step, done: (projects?.length ?? 0) > 0 } : step,
   )
@@ -157,10 +165,41 @@ export function ProjectsPage() {
           }
         />
       ) : (
-        <div className="proj-strip">
-          {projects.map((project) => (
-            <ProjectCard key={project.id} project={project} />
-          ))}
+        <div className="space-y-10">
+          {activeProjects.length > 0 ? (
+            <div className="proj-strip">
+              {activeProjects.map((project) => (
+                <ProjectCard key={project.id} project={project} />
+              ))}
+            </div>
+          ) : null}
+
+          {archivedProjects.length > 0 ? (
+            <section className="space-y-4">
+              <div className="space-y-1">
+                <h2 className="flex items-center gap-2 text-sm font-semibold">
+                  <Archive className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                  Archived
+                  <span className="font-normal text-muted-foreground">
+                    {archivedProjects.length}
+                  </span>
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Archived projects keep their workflows and run history. Restore one to edit and
+                  run it again.
+                </p>
+              </div>
+              <div className="proj-strip">
+                {archivedProjects.map((project) => (
+                  <ProjectCard
+                    key={project.id}
+                    project={project}
+                    action={<RestoreProjectDialog project={project} />}
+                  />
+                ))}
+              </div>
+            </section>
+          ) : null}
         </div>
       )}
     </div>

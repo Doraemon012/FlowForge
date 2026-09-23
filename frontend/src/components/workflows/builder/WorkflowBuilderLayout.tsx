@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Box, X } from 'lucide-react'
+import { Box } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   addEdge,
@@ -15,10 +15,13 @@ import {
 import type { WorkflowTask } from '@/api/types'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { BuilderStatusBar } from './BuilderStatusBar'
+import { CanvasEmptyState } from './CanvasEmptyState'
 import { EdgeActionsContext } from './edge-actions'
 import { TaskConfigPanel } from './TaskConfigPanel'
 import { TaskPalette } from './TaskPalette'
 import { WorkflowCanvas } from './WorkflowCanvas'
+import type { BuilderView, GraphSyncRequest } from './builder-view'
 import {
   createTaskNode,
   doesConnectionCreateCycle,
@@ -38,21 +41,30 @@ import {
   type WorkflowGraphNode,
 } from './types'
 
-export type BuilderView = 'graph' | 'json'
+export type { BuilderView, GraphSyncRequest } from './builder-view'
 
-/** An externally produced definition to load into the graph. */
-export interface GraphSyncRequest {
-  revision: number
-  tasks: WorkflowTask[]
+/** Everything the status bar needs except the focus handler, which the layout owns. */
+export interface BuilderStatusData {
+  taskCount: number
+  connectionCount: number
+  validationErrors: string[]
+  validationMessage: string | null
+  reviewWarnings: import('@/api/types').WorkflowReviewWarning[]
+  hasChanges: boolean
+  isValidating: boolean
+  runBlockedReason: string | null
+  onValidate: () => void
 }
 
 interface WorkflowBuilderLayoutProps {
+  /** Tier 1 + tier 2 of the header, rendered by the editor. */
+  header: React.ReactNode
+  /** The setup strip, or null when the workflow is already set up. */
+  setupProgress?: React.ReactNode | null
+  status: BuilderStatusData
   initialTasks: WorkflowTask[]
   onTasksChange: (tasks: WorkflowTask[]) => void
   validationErrors: string[]
-  headerLeft?: React.ReactNode
-  headerActions?: React.ReactNode
-  headerSecondary?: React.ReactNode
   className?: string
   /** Which authoring surface is visible. Both stay mounted to keep state. */
   view?: BuilderView
@@ -70,20 +82,23 @@ interface WorkflowBuilderLayoutProps {
    * than silently ignored.
    */
   focusTaskId?: string | null
+  /** Opens the AI assistant; offered from the empty state. */
+  onOpenAi?: () => void
 }
 
 export function WorkflowBuilderLayout({
+  header,
+  setupProgress,
+  status,
   initialTasks,
   onTasksChange,
   validationErrors,
-  headerLeft,
-  headerActions,
-  headerSecondary,
   className,
   view = 'graph',
   jsonEditor,
   syncRequest,
   focusTaskId,
+  onOpenAi,
 }: WorkflowBuilderLayoutProps) {
   const isGraphView = view === 'graph'
   const [nodes, setNodes, onNodesChange] = useNodesState<WorkflowGraphNode>(
@@ -127,7 +142,31 @@ export function WorkflowBuilderLayout({
       }),
     )
   }, [validationErrors, setNodes])
-// Load a definition produced outside the graph (the structured editor or the
+
+  /**
+   * Select a task, open its inspector and center the canvas on it. Used both by
+   * the `?task=` deep link and by the status bar's problem list, so "what
+   * failed" always lands on the same place.
+   */
+  const focusTask = useCallback(
+    (taskId: string) => {
+      setSelectedNodeIds(new Set([taskId]))
+      setSelectedEdgeIds(new Set())
+      setConfigOpenMobile(true)
+      setPaletteOpen(false)
+      setNodes((currentNodes) =>
+        currentNodes.map((node) =>
+          node.selected === (node.id === taskId)
+            ? node
+            : { ...node, selected: node.id === taskId },
+        ),
+      )
+      setFocusRequest({ taskId, nonce: Date.now() })
+    },
+    [setNodes],
+  )
+
+  // Load a definition produced outside the graph (the structured editor or the
   // AI assistant). Each revision is applied exactly once, and the graph is
   // rebuilt from the tasks so the two views cannot drift apart.
   const appliedSyncRevision = useRef<number | null>(null)
@@ -141,43 +180,26 @@ export function WorkflowBuilderLayout({
   }, [syncRequest, setNodes, setEdges])
 
   // Reveal a task requested from outside the builder - a failed-execution deep
-  // link landing here with `?task=<id>`. Selecting it opens the inspector and
-  // the canvas centers on it, closing the loop from "what failed" to "where to
-  // fix it". The focus fires once per target so later graph edits do not
-  // re-trigger it, and a task that is not in this draft is reported rather than
-  // silently ignored (it may belong to a different version than this draft).
+  // link landing here with `?task=<id>`. The focus fires once per target so
+  // later graph edits do not re-trigger it, and a task that is not in this
+  // draft is reported rather than silently ignored (it may belong to a
+  // different version than this draft).
   useEffect(() => {
     if (!focusTaskId) {
       handledFocusTaskId.current = null
       return
     }
     if (focusTaskId === handledFocusTaskId.current) return
-    const target = nodes.find((node) => node.id === focusTaskId)
-    if (!target) {
-      // Only report once per target; the effect re-runs as the graph changes.
-      handledFocusTaskId.current = focusTaskId
+    handledFocusTaskId.current = focusTaskId
+    if (!nodes.some((node) => node.id === focusTaskId)) {
       toast.info(`Task "${focusTaskId}" is not in this draft`, {
         description:
           'It may belong to a different version, or the workflow was edited after this run. Check the version that ran.',
       })
       return
     }
-    handledFocusTaskId.current = focusTaskId
-    setSelectedNodeIds(new Set([focusTaskId]))
-    setSelectedEdgeIds(new Set())
-    setConfigOpenMobile(true)
-    setPaletteOpen(false)
-    // Mirror the selection onto the node so the graph highlights it too, not
-    // just the inspector.
-    setNodes((currentNodes) =>
-      currentNodes.map((node) =>
-        node.selected === (node.id === focusTaskId)
-          ? node
-          : { ...node, selected: node.id === focusTaskId },
-      ),
-    )
-    setFocusRequest({ taskId: focusTaskId, nonce: Date.now() })
-  }, [focusTaskId, nodes, setNodes])
+    focusTask(focusTaskId)
+  }, [focusTaskId, nodes, focusTask])
 
   const addTask = useCallback(
     (type: SupportedTaskType, position?: { x: number; y: number }) => {
@@ -227,7 +249,8 @@ export function WorkflowBuilderLayout({
     },
     [nodes, edges, syncTasks],
   )
-// Reconnect an existing edge by dragging one of its endpoints. The old edge
+
+  // Reconnect an existing edge by dragging one of its endpoints. The old edge
   // is retargeted in place so a connection can be changed without having to
   // delete and recreate it.
   const handleReconnect = useCallback(
@@ -352,7 +375,8 @@ export function WorkflowBuilderLayout({
     },
     [nodes, edges, syncTasks],
   )
-const handleDeleteTask = useCallback(() => {
+
+  const handleDeleteTask = useCallback(() => {
     deleteSelected()
   }, [deleteSelected])
 
@@ -411,24 +435,54 @@ const handleDeleteTask = useCallback(() => {
     [handleDeleteEdge, selectedTask],
   )
 
+  const clearSelection = useCallback(() => {
+    setSelectedNodeIds(new Set())
+    setSelectedEdgeIds(new Set())
+    setConfigOpenMobile(false)
+  }, [])
+
+  const isEmpty = isGraphView && nodes.length === 0
+
   return (
     <ReactFlowProvider>
       <EdgeActionsContext.Provider value={edgeActions}>
-      <div className={cn('flex h-full min-h-0 flex-col overflow-hidden', className)}>
-        {/* The toolbar carries many actions, so it wraps and grows rather than
-            sitting in a fixed-height row where wrapped buttons would be
-            clipped by the builder's overflow-hidden shell. */}
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-2 gap-y-1 border-b px-3 py-2">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">{headerLeft}</div>
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            {isGraphView ? (
-              // Mobile-only: below md the palette rail is hidden and this opens
-              // it as a drawer. The wrapper carries the responsive utility
-              // because `.btn` sets `display: inline-flex` from unlayered CSS,
-              // which beats Tailwind's layered `md:hidden` — on the button
-              // itself it stayed visible next to the desktop rail, giving two
-              // competing task panels.
-              <div className="md:hidden">
+        <div className={cn('flex h-full min-h-0 flex-col overflow-hidden', className)}>
+          {header}
+          {setupProgress}
+
+          <div className="relative flex min-h-0 flex-1">
+            {/* The graph stays mounted while the JSON view is shown so node
+                positions and selection survive switching between the two. */}
+            <aside
+              className={cn(
+                'w-52 shrink-0 border-r bg-surface',
+                isGraphView ? 'hidden md:block' : 'hidden',
+              )}
+            >
+              <TaskPalette onAddTask={addTask} />
+            </aside>
+
+            <div className={cn('relative min-w-0 flex-1', !isGraphView && 'hidden')}>
+              <WorkflowCanvas
+                nodes={nodes}
+                edges={edges}
+                onNodesChange={onNodesChange as (changes: NodeChange<WorkflowGraphNode>[]) => void}
+                onEdgesChange={onEdgesChange as (changes: EdgeChange<WorkflowGraphEdge>[]) => void}
+                onConnect={handleConnect}
+                onReconnect={handleReconnect}
+                onSelectionChange={handleSelectionChange}
+                isValidConnection={isValidConnection}
+                onDropTask={addTask}
+                focusRequest={focusRequest}
+              />
+
+              {isEmpty ? (
+                <CanvasEmptyState onAddTask={addTask} onOpenAi={onOpenAi} />
+              ) : null}
+
+              {/* Mobile-only surfaces: below md the palette rail and inspector
+                  rail are hidden and these drawers stand in for them. */}
+              <div className="absolute left-2 top-2 z-20 md:hidden">
                 <Button
                   variant="outline"
                   size="sm"
@@ -437,124 +491,77 @@ const handleDeleteTask = useCallback(() => {
                   aria-controls="task-palette-drawer"
                 >
                   <Box className="mr-1 h-4 w-4" aria-hidden="true" />
-                  Tasks
+                  Add task
                 </Button>
               </div>
-            ) : null}
-            {headerActions}
-          </div>
-        </div>
 
-        {headerSecondary ? (
-          <div className="shrink-0 border-b px-3 py-2">{headerSecondary}</div>
-        ) : null}
-
-        <div className="flex min-h-0 flex-1">
-          {/* The graph stays mounted while the JSON view is shown so node
-              positions and selection survive switching between the two. */}
-          <aside
-            className={cn(
-              'w-56 shrink-0 border-r bg-surface',
-              isGraphView ? 'hidden md:block' : 'hidden',
-            )}
-          >
-            <TaskPalette onAddTask={addTask} />
-          </aside>
-
-          <div className={cn('relative min-w-0 flex-1', !isGraphView && 'hidden')}>
-            <WorkflowCanvas
-              nodes={nodes}
-              edges={edges}
-              onNodesChange={onNodesChange as (changes: NodeChange<WorkflowGraphNode>[]) => void}
-              onEdgesChange={onEdgesChange as (changes: EdgeChange<WorkflowGraphEdge>[]) => void}
-              onConnect={handleConnect}
-              onReconnect={handleReconnect}
-              onSelectionChange={handleSelectionChange}
-              isValidConnection={isValidConnection}
-              onDropTask={addTask}
-              focusRequest={focusRequest}
-            />
-
-            {paletteOpen ? (
-              <div className="absolute inset-0 z-30 flex md:hidden" id="task-palette-drawer">
-                <div
-                  className="absolute inset-0 bg-black/50"
-                  onClick={() => setPaletteOpen(false)}
-                  aria-hidden="true"
-                />
-                <div className="relative flex h-full w-64 shadow-xl">
-                  <TaskPalette
-                    className="w-full"
-                    onAddTask={(type) => {
-                      addTask(type)
-                      setPaletteOpen(false)
-                    }}
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="absolute right-2 top-2"
-                    aria-label="Close task palette"
+              {paletteOpen ? (
+                <div className="absolute inset-0 z-30 flex md:hidden" id="task-palette-drawer">
+                  <div
+                    className="absolute inset-0 bg-black/50"
                     onClick={() => setPaletteOpen(false)}
-                  >
-                    <X className="h-4 w-4" aria-hidden="true" />
-                  </Button>
+                    aria-hidden="true"
+                  />
+                  <div className="relative flex h-full w-64 shadow-xl">
+                    <TaskPalette
+                      className="w-full"
+                      onAddTask={(type) => {
+                        addTask(type)
+                        setPaletteOpen(false)
+                      }}
+                      onClose={() => setPaletteOpen(false)}
+                    />
+                  </div>
                 </div>
-              </div>
-            ) : null}
+              ) : null}
 
-            <aside className="absolute inset-y-0 right-0 hidden w-80 shrink-0 border-l bg-surface md:block">
-              <TaskConfigPanel
-                task={selectedTask}
-                incoming={incomingTaskIds}
-                outgoing={outgoingTaskIds}
-                onRemoveDependency={handleRemoveDependency}
-                onChange={(patch) => {
-                  if (selectedTask) {
-                    handleTaskChange(selectedTask.id, patch)
-                  }
-                }}
-                onDelete={handleDeleteTask}
-                onClose={() => {
-                  setSelectedNodeIds(new Set())
-                  setSelectedEdgeIds(new Set())
-                  setConfigOpenMobile(false)
-                }}
-              />
-            </aside>
-
-            {configOpenMobile && selectedTask ? (
-              <div className="absolute inset-0 z-30 flex md:hidden">
-                <div
-                  className="absolute inset-0 bg-black/50"
-                  onClick={() => setConfigOpenMobile(false)}
-                  aria-hidden="true"
-                />
-                <div className="relative ml-auto flex h-full w-full max-w-sm shadow-xl">
+              {/* Desktop inspector. It is rendered only while a task is
+                  selected so the canvas gets the full width by default instead
+                  of permanently surrendering ~320px to an empty panel. */}
+              {selectedTask ? (
+                <aside className="absolute inset-y-0 right-0 hidden w-80 border-l bg-surface shadow-surface-lg md:block">
                   <TaskConfigPanel
                     task={selectedTask}
                     incoming={incomingTaskIds}
                     outgoing={outgoingTaskIds}
                     onRemoveDependency={handleRemoveDependency}
                     onChange={(patch) => handleTaskChange(selectedTask.id, patch)}
-                    onDelete={() => {
-                      handleDeleteTask()
-                      setConfigOpenMobile(false)
-                    }}
-                    onClose={() => {
-                      setSelectedNodeIds(new Set())
-                      setSelectedEdgeIds(new Set())
-                      setConfigOpenMobile(false)
-                    }}
+                    onDelete={handleDeleteTask}
+                    onClose={clearSelection}
                   />
+                </aside>
+              ) : null}
+
+              {configOpenMobile && selectedTask ? (
+                <div className="absolute inset-0 z-30 flex md:hidden">
+                  <div
+                    className="absolute inset-0 bg-black/50"
+                    onClick={clearSelection}
+                    aria-hidden="true"
+                  />
+                  <div className="relative ml-auto flex h-full w-full max-w-sm shadow-xl">
+                    <TaskConfigPanel
+                      task={selectedTask}
+                      incoming={incomingTaskIds}
+                      outgoing={outgoingTaskIds}
+                      onRemoveDependency={handleRemoveDependency}
+                      onChange={(patch) => handleTaskChange(selectedTask.id, patch)}
+                      onDelete={() => {
+                        handleDeleteTask()
+                        clearSelection()
+                      }}
+                      onClose={clearSelection}
+                    />
+                  </div>
                 </div>
-              </div>
-            ) : null}
+              ) : null}
+            </div>
+
+            {jsonEditor}
           </div>
 
-          {jsonEditor}
+          <BuilderStatusBar {...status} onFocusTask={focusTask} />
         </div>
-      </div>
       </EdgeActionsContext.Provider>
     </ReactFlowProvider>
   )

@@ -108,6 +108,21 @@ export async function getMe(): Promise<User> {
   return apiRequest<User>('/api/v1/me')
 }
 
+/**
+ * Reads the profile for an explicit token rather than the stored session.
+ *
+ * The social sign-in callback needs this: it holds a token that has just been
+ * issued and is not in the session store yet, and it has to learn the account's
+ * id, email, and display name before it can persist a session in the same shape
+ * `login` and `register` produce.
+ */
+export async function getMeWithToken(token: string): Promise<User> {
+  return apiRequest<User>('/api/v1/me', {
+    auth: false,
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
 export function logout() {
   authStore.clear()
   queryClient.clear()

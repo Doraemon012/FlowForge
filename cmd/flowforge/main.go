@@ -17,6 +17,7 @@ import (
 	"github.com/neyati/flowforge/internal/db"
 	"github.com/neyati/flowforge/internal/execution"
 	"github.com/neyati/flowforge/internal/httpapi"
+	"github.com/neyati/flowforge/internal/oauth"
 	"github.com/neyati/flowforge/internal/observ"
 	"github.com/neyati/flowforge/internal/project"
 	"github.com/neyati/flowforge/internal/queue"
@@ -116,6 +117,17 @@ func main() {
 		Edit:       cfg.TrialAIEditLimit,
 		Total:      cfg.TrialAITotalLimit,
 	}))
+	// Social sign-in. Provider credentials come from the environment; with none
+	// configured the service advertises an empty provider list, so the client
+	// renders no buttons rather than a broken one. The identity repository is
+	// always wired because the link table is what stops a repeated sign-in from
+	// creating a second account for the same person.
+	apiServer.SetOAuth(
+		oauth.NewService(cfg.OAuthProviders, cfg.OAuthStateSecret),
+		user.NewPostgresIdentityRepository(pool),
+		cfg.OAuthFrontendRedirectURL,
+	)
+	logger.Info("social sign-in configured", "providers", len(cfg.OAuthProviders))
 
 	server := &http.Server{
 		Addr:    cfg.HTTPAddr,

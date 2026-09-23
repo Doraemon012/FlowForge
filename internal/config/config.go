@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/neyati/flowforge/internal/oauth"
 )
 
 type Config struct {
@@ -45,6 +47,19 @@ type Config struct {
 	// expired worker leases. Owning recovery in the always-on control plane is
 	// what lets the worker scale to zero (see docs/WORKER_COST_OPTIMIZATION.md).
 	RecoveryInterval time.Duration
+	// OAuthProviders lists the social sign-in providers this deployment has
+	// credentials for. It is empty when none are configured, in which case the
+	// API advertises no providers and the client renders no social buttons.
+	OAuthProviders []oauth.ProviderConfig
+	// OAuthFrontendRedirectURL is where the callback hands the browser back to
+	// the SPA. It is on the frontend origin, which is a different host from the
+	// API in a deployed environment.
+	OAuthFrontendRedirectURL string
+	// OAuthStateSecret seals the OAuth flow-state cookie. It is derived from
+	// TOKEN_SECRET with a domain-separation label rather than reused verbatim,
+	// so the access token and the sign-in state never share a signing key even
+	// though both use the same HMAC envelope format.
+	OAuthStateSecret string
 }
 
 func Load() (Config, error) {
@@ -142,28 +157,39 @@ func Load() (Config, error) {
 		}
 	}
 
+	// Social sign-in is entirely optional: with no provider credentials the
+	// feature is absent rather than broken. Half-configured providers are
+	// rejected here so the operator learns at startup, not from a user.
+	oauthProviders, oauthFrontendRedirect, err := loadOAuth()
+	if err != nil {
+		return Config{}, err
+	}
+
 	return Config{
-		DatabaseURL:            databaseURL,
-		HTTPAddr:               httpAddr,
-		DBConnectTimeout:       timeout,
-		TokenSecret:            tokenSecret,
-		MaxBodyBytes:           maxBodyBytes,
-		AuthRateLimitRPS:       authRPS,
-		AuthRateLimitBurst:     authBurst,
-		WebhookRateLimitRPS:    webhookRPS,
-		WebhookRateLimitBurst:  webhookBurst,
-		AIProvider:             strings.TrimSpace(os.Getenv("FLOWFORGE_AI_PROVIDER")),
-		OpenAIAPIKey:           strings.TrimSpace(os.Getenv("FLOWFORGE_OPENAI_API_KEY")),
-		OpenAIBaseURL:          strings.TrimSpace(os.Getenv("FLOWFORGE_OPENAI_BASE_URL")),
-		OpenAIModel:            strings.TrimSpace(os.Getenv("FLOWFORGE_OPENAI_MODEL")),
-		CohereAPIKey:           strings.TrimSpace(os.Getenv("FLOWFORGE_COHERE_API_KEY")),
-		CohereBaseURL:          strings.TrimSpace(os.Getenv("FLOWFORGE_COHERE_BASE_URL")),
-		CohereModel:            strings.TrimSpace(os.Getenv("FLOWFORGE_COHERE_MODEL")),
-		TrialAIGenerationLimit: trialGenerationLimit,
-		TrialAIEditLimit:       trialEditLimit,
-		TrialAITotalLimit:      trialTotalLimit,
-		CORSAllowedOrigins:     splitList(os.Getenv("CORS_ALLOWED_ORIGINS")),
-		RecoveryInterval:       recoveryInterval,
+		DatabaseURL:              databaseURL,
+		HTTPAddr:                 httpAddr,
+		DBConnectTimeout:         timeout,
+		TokenSecret:              tokenSecret,
+		MaxBodyBytes:             maxBodyBytes,
+		AuthRateLimitRPS:         authRPS,
+		AuthRateLimitBurst:       authBurst,
+		WebhookRateLimitRPS:      webhookRPS,
+		WebhookRateLimitBurst:    webhookBurst,
+		AIProvider:               strings.TrimSpace(os.Getenv("FLOWFORGE_AI_PROVIDER")),
+		OpenAIAPIKey:             strings.TrimSpace(os.Getenv("FLOWFORGE_OPENAI_API_KEY")),
+		OpenAIBaseURL:            strings.TrimSpace(os.Getenv("FLOWFORGE_OPENAI_BASE_URL")),
+		OpenAIModel:              strings.TrimSpace(os.Getenv("FLOWFORGE_OPENAI_MODEL")),
+		CohereAPIKey:             strings.TrimSpace(os.Getenv("FLOWFORGE_COHERE_API_KEY")),
+		CohereBaseURL:            strings.TrimSpace(os.Getenv("FLOWFORGE_COHERE_BASE_URL")),
+		CohereModel:              strings.TrimSpace(os.Getenv("FLOWFORGE_COHERE_MODEL")),
+		TrialAIGenerationLimit:   trialGenerationLimit,
+		TrialAIEditLimit:         trialEditLimit,
+		TrialAITotalLimit:        trialTotalLimit,
+		CORSAllowedOrigins:       splitList(os.Getenv("CORS_ALLOWED_ORIGINS")),
+		RecoveryInterval:         recoveryInterval,
+		OAuthProviders:           oauthProviders,
+		OAuthFrontendRedirectURL: oauthFrontendRedirect,
+		OAuthStateSecret:         oauthStateSecret(tokenSecret),
 	}, nil
 }
 

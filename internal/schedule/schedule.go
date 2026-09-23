@@ -187,11 +187,18 @@ func (r *PostgresRepository) DeleteOwned(ctx context.Context, ownerID, projectID
 }
 
 func (r *PostgresRepository) FindDueSchedules(ctx context.Context, now time.Time) ([]Schedule, error) {
+	// Only schedules of active projects are due. Archiving is the delete, so a
+	// schedule belonging to a deleted project must stop firing entirely rather
+	// than fire and fail: without this filter every tick would try to create an
+	// execution in the archived project, log an error and advance the cadence
+	// of a project that no longer exists.
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, project_id, workflow_id, cron_expression, timezone, enabled, next_occurrence, last_triggered_at, created_at, updated_at
-		FROM schedules
-		WHERE enabled = true AND next_occurrence IS NOT NULL AND next_occurrence <= $1
-		ORDER BY next_occurrence, id
+		SELECT s.id, s.project_id, s.workflow_id, s.cron_expression, s.timezone, s.enabled, s.next_occurrence, s.last_triggered_at, s.created_at, s.updated_at
+		FROM schedules s
+		JOIN projects p ON p.id = s.project_id
+		WHERE s.enabled = true AND s.next_occurrence IS NOT NULL AND s.next_occurrence <= $1
+		  AND p.status = 'active'
+		ORDER BY s.next_occurrence, s.id
 	`, now)
 	if err != nil {
 		return nil, err
