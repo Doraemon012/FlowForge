@@ -2397,6 +2397,41 @@ tr.is-running td:first-child {
   height: 1px;
   background: var(--border);
 }
+/* Social sign-in sits above the credentials form. The block owns both its
+   buttons and the divider under them, so a deployment with no provider
+   credentials renders nothing at all rather than a divider with nothing above
+   it. */
+.oauth-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+/* The block already spaces its children with `gap`, so the divider's own
+   vertical margin would double the space on either side of it. */
+.oauth-block .auth-alt {
+  margin: 4px 0 0;
+}
+/* The credentials form carries a top margin separating it from the card's lead
+   paragraph. When the social block precedes it, that margin stacks with the
+   parent's `gap` and leaves a visible hole, so it is dropped in that one case
+   (and only that case — with no providers the block renders nothing and the
+   original spacing is untouched). */
+.auth-form > .oauth-block + .auth-form {
+  margin-top: 0;
+}
+/* Shown while a provider hand-off is being completed. The callback page has no
+   form to align against, so the row carries its own frame. */
+.oauth-pending {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 14px;
+}
 .auth-foot {
   margin-top: 24px;
   font-size: 14px;

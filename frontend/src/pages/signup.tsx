@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { AuthLayout } from '@/components/auth/AuthLayout'
+import { OAuthButtons } from '@/components/auth/OAuthButtons'
 import { SignupForm } from '@/components/auth/SignupForm'
 import { StartTrialButton } from '@/components/auth/StartTrialButton'
 
@@ -17,11 +18,15 @@ export function SignupPage() {
         </>
       }
     >
+      {/* Placed first so a visitor can create the account with a provider they
+          already use; both paths produce the same kind of FlowForge account. */}
+      <OAuthButtons />
+
       <SignupForm />
 
-      <p className="my-4 text-center text-xs uppercase tracking-wide text-muted-foreground">
+      <div className="auth-alt" aria-hidden="true">
         or
-      </p>
+      </div>
 
       <div className="space-y-2">
         <StartTrialButton

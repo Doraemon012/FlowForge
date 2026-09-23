@@ -2,7 +2,13 @@ import { authStore } from '@/lib/auth-store'
 import { queryClient } from '@/lib/query-client'
 import type { ApiErrorBody, WorkflowReviewWarning } from './types'
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? ''
+/**
+ * Origin the API is reached at. Empty in development, where Vite proxies
+ * `/api` to the backend on the same origin. Exported because the social
+ * sign-in hand-off has to be a real browser navigation to the API rather than
+ * a `fetch`, so it needs the same base the request helper uses.
+ */
+export const API_BASE = import.meta.env.VITE_API_BASE_URL ?? ''
 
 export interface ApiErrorOptions {
   status: number

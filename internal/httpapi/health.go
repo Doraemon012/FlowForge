@@ -10,6 +10,7 @@ import (
 	"github.com/neyati/flowforge/internal/ai"
 	"github.com/neyati/flowforge/internal/auth"
 	"github.com/neyati/flowforge/internal/execution"
+	"github.com/neyati/flowforge/internal/oauth"
 	"github.com/neyati/flowforge/internal/observ"
 	"github.com/neyati/flowforge/internal/project"
 	"github.com/neyati/flowforge/internal/schedule"
@@ -45,6 +46,12 @@ type Server struct {
 	webhookLimiter *tokenBucket
 	ai             *ai.Generator
 	trial          trial.Repository
+	// oauth holds the configured social sign-in providers and identities stores
+	// the provider-to-account links. Both being set is what makes social sign-in
+	// available; a nil pair leaves the feature absent. See SetOAuth.
+	oauth                 *oauth.Service
+	identities            user.IdentityRepository
+	oauthFrontendRedirect string
 }
 
 // SetTrial wires the public-trial AI usage repository. It must be called

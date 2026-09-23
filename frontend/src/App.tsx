@@ -6,6 +6,7 @@ import { queryClient } from '@/lib/query-client'
 import { RequireAuth } from '@/components/auth/RequireAuth'
 import { RequirePublic } from '@/components/auth/RequirePublic'
 import { AppShell } from '@/components/layout/AppShell'
+import { AuthCallbackPage } from '@/pages/auth-callback'
 import { LandingPage } from '@/pages/landing'
 import { LoginPage } from '@/pages/login'
 import { SignupPage } from '@/pages/signup'
@@ -32,6 +33,10 @@ const router = createBrowserRouter([
   // `RequirePublic` so the FlowForge brand in the app shell can always lead
   // back to it instead of bouncing an authenticated user into `/app`.
   { path: '/', element: <LandingPage /> },
+  // Where the API hands a finished social sign-in back to. It sits outside both
+  // guards on purpose: it runs before a session exists, and it must stay
+  // reachable while an existing session is being replaced.
+  { path: '/auth/callback', element: <AuthCallbackPage /> },
   {
     element: <RequirePublic />,
     children: [

@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { ApiError } from '@/api/client'
 import { useAuth } from '@/hooks/use-auth'
+import { useReturnPath } from '@/hooks/use-return-path'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
@@ -17,11 +18,9 @@ type LoginValues = z.infer<typeof loginSchema>
 
 export function LoginForm() {
   const navigate = useNavigate()
-  const location = useLocation()
   const { login } = useAuth()
+  const returnPath = useReturnPath()
   const [serverError, setServerError] = useState<string | null>(null)
-
-  const from = (location.state as { from?: { pathname: string } } | null)?.from?.pathname ?? '/app'
 
   const {
     register,
@@ -36,7 +35,7 @@ export function LoginForm() {
     setServerError(null)
     try {
       await login(values)
-      navigate(from, { replace: true })
+      navigate(returnPath ?? '/app', { replace: true })
     } catch (error) {
       if (error instanceof ApiError) {
         setServerError(error.message)
